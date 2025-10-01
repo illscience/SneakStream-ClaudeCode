@@ -2,9 +2,59 @@
 
 import { Heart, Download, Share2, MoreHorizontal, Play, Pause, SkipBack, SkipForward, Repeat, Volume2, MessageSquare, Tv, ChevronDown } from "lucide-react";
 import ChatWindow from "./components/ChatWindow";
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
+import VideoFeed from "./components/VideoFeed";
+import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../convex/_generated/api";
+import { useEffect } from "react";
+import Link from "next/link";
 
 export default function Home() {
+  const { user } = useUser();
+  const DJ_SNEAK_ID = "dj-sneak"; // Static ID for DJ Sneak
+
+  const followUser = useMutation(api.follows.followUser);
+  const unfollowUser = useMutation(api.follows.unfollowUser);
+  const isFollowing = useQuery(
+    api.follows.isFollowing,
+    user?.id ? { followerId: user.id, followingId: DJ_SNEAK_ID } : "skip"
+  );
+  const followerCount = useQuery(api.users.getFollowerCount, {
+    clerkId: DJ_SNEAK_ID,
+  });
+  const upsertUser = useMutation(api.users.upsertUser);
+
+  // Create/update user in Convex when they sign in
+  useEffect(() => {
+    if (user) {
+      upsertUser({
+        clerkId: user.id,
+        alias: user.username || user.firstName || "User",
+        email: user.primaryEmailAddress?.emailAddress,
+        imageUrl: user.imageUrl,
+      });
+    }
+  }, [user]);
+
+  const handleFollowClick = async () => {
+    if (!user) {
+      // Trigger sign in modal
+      return;
+    }
+
+    if (isFollowing) {
+      await unfollowUser({
+        followerId: user.id,
+        followingId: DJ_SNEAK_ID,
+      });
+    } else {
+      await followUser({
+        followerId: user.id,
+        followingId: DJ_SNEAK_ID,
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Navigation Header */}
@@ -28,8 +78,10 @@ export default function Home() {
           <a href="#" className="text-gray-300 hover:text-white">BROWSE</a>
           <a href="#" className="text-gray-300 hover:text-white">LIVE NOW</a>
           <a href="#" className="text-gray-300 hover:text-white">EVENTS</a>
-          <a href="#" className="text-gray-300 hover:text-white">MY LIBRARY</a>
-          <a href="#" className="text-gray-300 hover:text-white">ABOUT</a>
+          <SignedIn>
+            <a href="/library" className="text-gray-300 hover:text-white">MY LIBRARY</a>
+            <a href="/profile" className="text-gray-300 hover:text-white">PROFILE</a>
+          </SignedIn>
         </nav>
 
         <div className="flex items-center gap-3">
@@ -50,7 +102,15 @@ export default function Home() {
                   avatarBox: "w-10 h-10"
                 }
               }}
-            />
+            >
+              <UserButton.MenuItems>
+                <UserButton.Link
+                  label="My Profile"
+                  labelIcon={<span>👤</span>}
+                  href="/profile"
+                />
+              </UserButton.MenuItems>
+            </UserButton>
           </SignedIn>
         </div>
       </header>
@@ -59,24 +119,52 @@ export default function Home() {
       <main className="pt-20">
         {/* DJ Hero Section */}
         <section className="relative bg-gradient-to-br from-pink-200 via-pink-300 to-pink-200 rounded-3xl mx-4 overflow-hidden">
-          <div className="p-12">
-            <div className="flex items-start justify-between mb-8">
-              <h1 className="text-6xl font-bold text-black">DJ SNEAK</h1>
+          <div className="p-8">
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h1 className="text-6xl font-bold text-black">DJ SNEAK</h1>
+                {followerCount !== undefined && (
+                  <p className="text-sm text-black/60 mt-2">
+                    {followerCount} {followerCount === 1 ? "Follower" : "Followers"}
+                  </p>
+                )}
+              </div>
               <div className="flex gap-3">
                 <button className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center hover:bg-white">
                   <Download className="w-5 h-5 text-black" />
                 </button>
-                <button className="px-6 py-3 bg-black/90 text-white rounded-full flex items-center gap-2 hover:bg-black">
-                  <span className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-                    <span className="text-black text-xs">👤</span>
-                  </span>
-                  <span className="text-sm font-medium">Follow Artist</span>
-                </button>
+                <SignedOut>
+                  <SignInButton mode="modal">
+                    <button className="px-6 py-3 bg-black/90 text-white rounded-full flex items-center gap-2 hover:bg-black">
+                      <span className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                        <span className="text-black text-xs">👤</span>
+                      </span>
+                      <span className="text-sm font-medium">Follow Artist</span>
+                    </button>
+                  </SignInButton>
+                </SignedOut>
+                <SignedIn>
+                  <button
+                    onClick={handleFollowClick}
+                    className={`px-6 py-3 rounded-full flex items-center gap-2 hover:opacity-90 transition-all ${
+                      isFollowing
+                        ? "bg-white/20 text-white border-2 border-white"
+                        : "bg-black/90 text-white"
+                    }`}
+                  >
+                    <span className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                      <span className="text-black text-xs">👤</span>
+                    </span>
+                    <span className="text-sm font-medium">
+                      {isFollowing ? "Following" : "Follow Artist"}
+                    </span>
+                  </button>
+                </SignedIn>
               </div>
             </div>
 
             {/* DJ Video Player */}
-            <div className="relative w-full aspect-video max-w-2xl mx-auto mb-4">
+            <div className="relative w-full aspect-video mb-4">
               <video
                 controls
                 autoPlay
@@ -156,21 +244,14 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Sets List */}
+          {/* Video Feed */}
           <div>
-            <div className="space-y-4">
-              <div className="bg-zinc-900 rounded-xl p-4">
-                <h4 className="font-medium mb-2">Deep House Sunset Session</h4>
-                <p className="text-sm text-lime-400 mb-2">Live from Ibiza Beach Club</p>
-                <p className="text-xs text-zinc-500">Friday 9:00 PM - 12:00 AM EST</p>
-              </div>
-
-              <div className="bg-zinc-900 rounded-xl p-4">
-                <h4 className="font-medium mb-2">Techno Underground Night</h4>
-                <p className="text-sm text-zinc-400 mb-2">Warehouse Rave Series</p>
-                <p className="text-xs text-zinc-500">Saturday 11:00 PM - 4:00 AM EST</p>
-              </div>
-            </div>
+            <Link href="/feed">
+              <h3 className="text-sm text-zinc-400 mb-4 hover:text-lime-400 transition-colors cursor-pointer">
+                LATEST VIDEOS
+              </h3>
+            </Link>
+            <VideoFeed limit={5} />
           </div>
 
           {/* Chat Window */}

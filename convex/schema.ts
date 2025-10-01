@@ -9,4 +9,36 @@ export default defineSchema({
     avatarUrl: v.optional(v.string()),
     body: v.string(),
   }),
+
+  users: defineTable({
+    clerkId: v.string(),
+    alias: v.string(),
+    email: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
+  }).index("by_clerk_id", ["clerkId"]),
+
+  follows: defineTable({
+    followerId: v.string(), // Clerk user ID of the follower
+    followingId: v.string(), // Clerk user ID being followed (e.g., "dj-sneak")
+  })
+    .index("by_follower", ["followerId"])
+    .index("by_following", ["followingId"])
+    .index("by_follower_and_following", ["followerId", "followingId"]),
+
+  videos: defineTable({
+    userId: v.string(), // Clerk user ID of uploader
+    title: v.string(),
+    description: v.optional(v.string()),
+    livepeerAssetId: v.string(), // LivePeer asset ID
+    playbackId: v.optional(v.string()), // LivePeer playback ID
+    playbackUrl: v.optional(v.string()), // HLS playback URL
+    thumbnailUrl: v.optional(v.string()),
+    duration: v.optional(v.number()), // Duration in seconds
+    status: v.string(), // "uploading", "processing", "ready", "failed"
+    visibility: v.string(), // "public", "private", "followers"
+    viewCount: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_status", ["status"])
+    .index("by_visibility", ["visibility"]),
 });
