@@ -4,9 +4,10 @@ import { useUser } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useRouter } from "next/navigation";
-import { Film, Plus, Play, Eye, Clock, RefreshCw, Trash2 } from "lucide-react";
+import { Film, Plus, Play, Eye, Clock, RefreshCw, Trash2, Heart } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import Header from "../components/Header";
 
 export default function LibraryPage() {
   const { user, isLoaded } = useUser();
@@ -110,15 +111,10 @@ export default function LibraryPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="max-w-7xl mx-auto p-8">
+      <Header title="MY LIBRARY" />
+      <div className="max-w-7xl mx-auto p-8 pt-24">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <button
-              onClick={() => router.back()}
-              className="mb-4 text-zinc-400 hover:text-white"
-            >
-              ← Back
-            </button>
             <h1 className="text-4xl font-bold">My Library</h1>
             <p className="text-zinc-400 mt-2">
               {videos?.length || 0} {videos?.length === 1 ? "video" : "videos"}
@@ -217,7 +213,11 @@ export default function LibraryPage() {
                       <div className="flex items-center gap-4 text-xs text-zinc-500">
                         <div className="flex items-center gap-1">
                           <Eye className="w-4 h-4" />
-                          {video.viewCount || 0} views
+                          {video.viewCount || 0}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Heart className="w-4 h-4 fill-current text-red-600" />
+                          {video.heartCount || 0}
                         </div>
                         {video.duration && (
                           <div className="flex items-center gap-1">

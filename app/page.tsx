@@ -6,12 +6,14 @@ import VideoFeed from "./components/VideoFeed";
 import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
 export default function Home() {
   const { user } = useUser();
   const DJ_SNEAK_ID = "dj-sneak"; // Static ID for DJ Sneak
+  const [heartCount, setHeartCount] = useState(0);
+  const [isHeartAnimating, setIsHeartAnimating] = useState(false);
 
   const followUser = useMutation(api.follows.followUser);
   const unfollowUser = useMutation(api.follows.unfollowUser);
@@ -55,6 +57,12 @@ export default function Home() {
     }
   };
 
+  const handleHeart = () => {
+    setHeartCount(prev => prev + 1);
+    setIsHeartAnimating(true);
+    setTimeout(() => setIsHeartAnimating(false), 300);
+  };
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Navigation Header */}
@@ -77,7 +85,7 @@ export default function Home() {
         <nav className="flex gap-8 text-sm font-medium">
           <a href="#" className="text-gray-300 hover:text-white">BROWSE</a>
           <a href="#" className="text-gray-300 hover:text-white">LIVE NOW</a>
-          <a href="#" className="text-gray-300 hover:text-white">EVENTS</a>
+          <a href="/events" className="text-gray-300 hover:text-white">EVENTS</a>
           <SignedIn>
             <a href="/library" className="text-gray-300 hover:text-white">MY LIBRARY</a>
             <a href="/profile" className="text-gray-300 hover:text-white">PROFILE</a>
@@ -201,8 +209,14 @@ export default function Home() {
             <button className="w-12 h-12 bg-black/80 rounded-xl flex items-center justify-center hover:bg-black">
               <span className="text-xl">👤</span>
             </button>
-            <button className="w-12 h-12 bg-red-600 rounded-xl flex items-center justify-center hover:bg-red-700">
+            <button
+              onClick={handleHeart}
+              className={`bg-red-600 rounded-xl flex flex-col items-center justify-center hover:bg-red-700 transition-all px-3 py-2 ${
+                isHeartAnimating ? "scale-110" : ""
+              }`}
+            >
               <Heart className="w-5 h-5 fill-white" />
+              <span className="text-xs font-bold mt-1">{heartCount}</span>
             </button>
           </div>
 

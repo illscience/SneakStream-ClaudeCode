@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, Film, X } from "lucide-react";
 import * as tus from "tus-js-client";
+import Header from "../components/Header";
 
 export default function UploadPage() {
   const { user, isLoaded } = useUser();
@@ -139,14 +140,8 @@ export default function UploadPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="max-w-4xl mx-auto p-8">
-        <button
-          onClick={() => router.back()}
-          className="mb-6 text-zinc-400 hover:text-white"
-        >
-          ← Back
-        </button>
-
+      <Header title="UPLOAD VIDEO" />
+      <div className="max-w-4xl mx-auto p-8 pt-24">
         <div className="bg-zinc-900 rounded-2xl p-8 border border-zinc-800">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-12 h-12 bg-lime-400 rounded-full flex items-center justify-center">

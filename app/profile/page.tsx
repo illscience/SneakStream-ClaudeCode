@@ -6,6 +6,7 @@ import { api } from "../../convex/_generated/api";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Users, UserPlus, Heart, Music } from "lucide-react";
+import Header from "../components/Header";
 
 export default function ProfilePage() {
   const { user, isLoaded } = useUser();
@@ -77,14 +78,10 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
+      <Header title="PROFILE" />
+
       {/* Header with gradient */}
-      <div className="relative bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500 h-48">
-        <button
-          onClick={() => router.push("/")}
-          className="absolute top-6 left-6 text-white/80 hover:text-white transition-colors"
-        >
-          ← Back to Home
-        </button>
+      <div className="relative bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500 h-48 mt-16">
       </div>
 
       <div className="max-w-6xl mx-auto px-4 -mt-20">
