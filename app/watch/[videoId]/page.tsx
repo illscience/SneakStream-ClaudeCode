@@ -89,7 +89,7 @@ export default function WatchPage({
             <div className="aspect-video bg-black rounded-2xl overflow-hidden">
               <Player.Root
                 src={video.playbackUrl || `https://livepeer.studio/api/playback/${video.playbackId}`}
-                autoPlay={false}
+                autoPlay={true}
               >
                 <Player.Container>
                   <Player.Video className="w-full h-full" />

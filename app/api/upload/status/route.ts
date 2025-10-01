@@ -32,6 +32,16 @@ export async function POST(request: NextRequest) {
     }
 
     const asset = await response.json();
+    console.log("Asset status for", assetId, ":", JSON.stringify(asset, null, 2));
+
+    // Log download URL and playback URL info
+    if (asset.downloadUrl) {
+      console.log("Download URL:", asset.downloadUrl);
+    }
+    if (asset.playbackUrl) {
+      console.log("Playback URL:", asset.playbackUrl);
+    }
+
     return NextResponse.json(asset);
   } catch (error) {
     console.error("Status check error:", error);

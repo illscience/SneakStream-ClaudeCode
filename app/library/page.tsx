@@ -62,11 +62,15 @@ export default function LibraryPage() {
 
           // Update based on Livepeer status
           if (asset.status?.phase === "ready") {
+            // Construct playback URL if not provided
+            const playbackUrl = asset.playbackUrl ||
+              (asset.playbackId ? `https://vod-cdn.lp-playback.studio/raw/jxf4iblf6wlsyor6526t4tcmtmqa/catalyst-vod-com/hls/${asset.playbackId}/index.m3u8` : undefined);
+
             await updateVideoStatus({
               videoId: video._id,
               status: "ready",
               playbackId: asset.playbackId,
-              playbackUrl: asset.playbackUrl,
+              playbackUrl: playbackUrl,
               thumbnailUrl: asset.staticMp4Url || undefined,
               duration: asset.videoSpec?.duration || undefined,
             });
@@ -171,15 +175,7 @@ export default function LibraryPage() {
                   <div className="bg-zinc-900 rounded-xl overflow-hidden border border-zinc-800 hover:border-lime-400 transition-all">
                     {/* Thumbnail */}
                     <div className="relative aspect-video bg-zinc-800 flex items-center justify-center">
-                      {video.thumbnailUrl ? (
-                        <img
-                          src={video.thumbnailUrl}
-                          alt={video.title}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Film className="w-16 h-16 text-zinc-600" />
-                      )}
+                      <Film className="w-16 h-16 text-zinc-600" />
 
                       {/* Play Overlay */}
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
