@@ -2,6 +2,7 @@
 
 import { Heart, Download, Share2, MoreHorizontal, Play, Pause, SkipBack, SkipForward, Repeat, Volume2, MessageSquare, Tv, ChevronDown } from "lucide-react";
 import ChatWindow from "./components/ChatWindow";
+import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 
 export default function Home() {
   return (
@@ -31,13 +32,26 @@ export default function Home() {
           <a href="#" className="text-gray-300 hover:text-white">ABOUT</a>
         </nav>
 
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
           <button className="px-6 py-2 bg-lime-400 text-black rounded-full font-medium hover:bg-lime-300">
             Subscribe
           </button>
-          <button className="w-10 h-10 flex items-center justify-center bg-white text-black rounded-full hover:bg-gray-200">
-            ×
-          </button>
+          <SignedOut>
+            <SignInButton mode="modal">
+              <button className="px-6 py-2 bg-white text-black rounded-full font-medium hover:bg-gray-200">
+                Sign In
+              </button>
+            </SignInButton>
+          </SignedOut>
+          <SignedIn>
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: "w-10 h-10"
+                }
+              }}
+            />
+          </SignedIn>
         </div>
       </header>
 
