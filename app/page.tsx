@@ -1,6 +1,7 @@
 'use client';
 
 import { Heart, Download, Share2, MoreHorizontal, Play, Pause, SkipBack, SkipForward, Repeat, Volume2, MessageSquare, Tv, ChevronDown } from "lucide-react";
+import ChatWindow from "./components/ChatWindow";
 
 export default function Home() {
   return (
@@ -158,43 +159,9 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Playlist */}
+          {/* Chat Window */}
           <div>
-            <h3 className="text-sm text-zinc-400 mb-4">NOW PLAYING</h3>
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-zinc-800 rounded-lg"></div>
-                <div className="flex-1">
-                  <p className="text-xs text-lime-400 mb-1">Currently Playing</p>
-                  <p className="text-xs text-zinc-400">Deep Melodic Vibes Mix</p>
-                </div>
-              </div>
-
-              <div className="bg-zinc-900 rounded-xl p-4">
-                <h4 className="font-medium mb-2">Progressive Trance Journey</h4>
-                <p className="text-xs text-zinc-500">3 hours of uplifting energy</p>
-              </div>
-
-              <div className="bg-zinc-900 rounded-xl p-4">
-                <p className="text-sm text-zinc-400 mb-2">FEATURED MIX</p>
-                <h4 className="text-red-600 font-medium mb-2">Best of 2024 Year End Mix</h4>
-                <p className="text-sm mb-1">Top tracks from this year</p>
-                <p className="text-sm text-zinc-400">120 min duration</p>
-              </div>
-
-              <div className="bg-zinc-900 rounded-xl p-4">
-                <h4 className="font-medium mb-2">Liquid Drum & Bass Selection</h4>
-              </div>
-
-              <div className="bg-zinc-900 rounded-xl p-4">
-                <p className="text-xs text-zinc-500 mb-1">Minimal Tech House Grooves</p>
-                <p className="text-xs text-zinc-600">• 2hr 45min runtime</p>
-              </div>
-
-              <div className="bg-zinc-900 rounded-xl p-4">
-                <h4 className="font-medium mb-2">Ambient Chill Sessions</h4>
-              </div>
-            </div>
+            <ChatWindow />
           </div>
         </div>
       </main>
