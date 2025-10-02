@@ -2,10 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Calendar, MapPin, Clock, ExternalLink, Music, Sparkles, RefreshCw, Users } from "lucide-react";
+import { Calendar, MapPin, Clock, ExternalLink, Music, Sparkles, RefreshCw, Users, X } from "lucide-react";
 import Header from "../components/Header";
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 
 interface Event {
+  _id?: Id<"events">;
   artist: string;
   eventName: string;
   venue: string;
@@ -45,15 +49,31 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
-  // Search for events
+  // Delete event mutation
+  const deleteEventMutation = useMutation(api.events.deleteEvent);
+
+  // Load cached events from database
+  const cachedEvents = useQuery(api.events.getEventsByArtists, {
+    artists: selectedArtists,
+  });
+
+  // Initialize events with cached data
+  useEffect(() => {
+    if (cachedEvents && cachedEvents.length > 0) {
+      setEvents(cachedEvents as Event[]);
+    }
+  }, [cachedEvents]);
+
+  // Search for events and append to existing list
   const searchEvents = async () => {
     if (selectedArtists.length === 0) {
       setError("Please select at least one artist");
       return;
     }
 
-    setLoading(true);
+    setIsSearching(true);
     setError(null);
 
     try {
@@ -73,22 +93,32 @@ export default function EventsPage() {
       }
 
       const data = await response.json();
-      setEvents(data.events || []);
+      const newEvents = data.events || [];
+
+      // Append new events to existing ones (database will handle duplicates)
+      // We don't need to dedupe here since Convex query will update
       setLastUpdated(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to search events");
       console.error("Search error:", err);
     } finally {
-      setLoading(false);
+      setIsSearching(false);
     }
   };
 
   // Search on mount and when model changes
   useEffect(() => {
-    if (selectedArtists.length > 0) {
+    if (selectedArtists.length > 0 && !isSearching) {
       searchEvents();
     }
   }, [selectedModel]);
+
+  // Initial search on mount
+  useEffect(() => {
+    if (selectedArtists.length > 0 && !isSearching) {
+      searchEvents();
+    }
+  }, []);
 
   const toggleArtist = (artist: string) => {
     setSelectedArtists((prev) =>
@@ -107,6 +137,17 @@ export default function EventsPage() {
 
   const removeArtist = (artist: string) => {
     setSelectedArtists(selectedArtists.filter((a) => a !== artist));
+  };
+
+  const handleDeleteEvent = async (eventId: Id<"events">) => {
+    if (confirm("Are you sure you want to delete this event?")) {
+      try {
+        await deleteEventMutation({ eventId });
+      } catch (err) {
+        console.error("Error deleting event:", err);
+        alert("Failed to delete event");
+      }
+    }
   };
 
   return (
@@ -199,25 +240,30 @@ export default function EventsPage() {
           {/* Search Button */}
           <button
             onClick={searchEvents}
-            disabled={loading || selectedArtists.length === 0}
+            disabled={isSearching || selectedArtists.length === 0}
             className="w-full py-4 bg-lime-400 text-black rounded-full font-bold hover:bg-lime-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {loading ? (
+            {isSearching ? (
               <>
                 <RefreshCw className="w-5 h-5 animate-spin" />
-                Searching Events...
+                Searching for New Events...
               </>
             ) : (
               <>
                 <Sparkles className="w-5 h-5" />
-                Search Events
+                Search for New Events
               </>
             )}
           </button>
 
           {lastUpdated && (
             <p className="text-center text-xs text-black/40 mt-3">
-              Last updated: {lastUpdated.toLocaleTimeString()}
+              Last searched: {lastUpdated.toLocaleTimeString()}
+            </p>
+          )}
+          {cachedEvents && cachedEvents.length > 0 && !isSearching && (
+            <p className="text-center text-xs text-black/40 mt-1">
+              Showing {events.length} cached events
             </p>
           )}
         </div>
@@ -230,7 +276,7 @@ export default function EventsPage() {
         )}
 
         {/* Events Grid */}
-        {loading ? (
+        {!cachedEvents && !events.length ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div
@@ -257,8 +303,19 @@ export default function EventsPage() {
                     {artistEvents.map((event, idx) => (
                       <div
                         key={idx}
-                        className="bg-gradient-to-br from-pink-200 to-pink-300 rounded-3xl p-6 overflow-hidden"
+                        className="bg-gradient-to-br from-pink-200 to-pink-300 rounded-3xl p-6 overflow-hidden relative"
                       >
+                        {/* Delete button */}
+                        {event._id && (
+                          <button
+                            onClick={() => handleDeleteEvent(event._id!)}
+                            className="absolute top-4 right-4 p-2 bg-black/10 hover:bg-black/20 rounded-full transition-colors"
+                            title="Delete event"
+                          >
+                            <X className="w-4 h-4 text-black/60" />
+                          </button>
+                        )}
+
                         {event.rawResponse ? (
                           <div className="prose max-w-none">
                             <p className="text-sm text-black/60 whitespace-pre-wrap">
@@ -267,7 +324,7 @@ export default function EventsPage() {
                           </div>
                         ) : (
                           <>
-                            <h3 className="text-xl font-bold mb-4 text-black">
+                            <h3 className="text-xl font-bold mb-4 text-black pr-8">
                               {event.eventName}
                             </h3>
 
@@ -349,12 +406,23 @@ export default function EventsPage() {
                     .map((event, idx) => (
                       <div
                         key={idx}
-                        className="bg-gradient-to-br from-pink-200 to-pink-300 rounded-3xl p-6 overflow-hidden"
+                        className="bg-gradient-to-br from-pink-200 to-pink-300 rounded-3xl p-6 overflow-hidden relative"
                       >
+                        {/* Delete button */}
+                        {event._id && (
+                          <button
+                            onClick={() => handleDeleteEvent(event._id!)}
+                            className="absolute top-4 right-4 p-2 bg-black/10 hover:bg-black/20 rounded-full transition-colors"
+                            title="Delete event"
+                          >
+                            <X className="w-4 h-4 text-black/60" />
+                          </button>
+                        )}
+
                         <div className="text-xs text-lime-600 font-bold mb-2 uppercase">
                           {event.artist}
                         </div>
-                        <h3 className="text-xl font-bold mb-4 text-black">
+                        <h3 className="text-xl font-bold mb-4 text-black pr-8">
                           {event.eventName}
                         </h3>
 

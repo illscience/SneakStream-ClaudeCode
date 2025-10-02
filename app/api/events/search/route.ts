@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { ConvexHttpClient } from "convex/browser";
+import { api } from "../../../../convex/_generated/api";
+
+const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export async function POST(request: NextRequest) {
   try {
@@ -130,6 +134,30 @@ Only include confirmed upcoming events with specific dates. If you can't find ev
         description: responseText,
         rawResponse: true
       }];
+    }
+
+    // Store events in Convex database (skip raw response events)
+    const validEvents = events.filter(e => !e.rawResponse);
+    if (validEvents.length > 0) {
+      try {
+        for (const event of validEvents) {
+          await convex.mutation(api.events.addEvent, {
+            artist: event.artist,
+            eventName: event.eventName,
+            venue: event.venue,
+            location: event.location,
+            date: event.date,
+            time: event.time,
+            url: event.url,
+            description: event.description,
+            model: model || "claude-3-5-sonnet-20241022",
+          });
+        }
+        console.log(`Stored ${validEvents.length} events in database`);
+      } catch (dbError) {
+        console.error("Error storing events in database:", dbError);
+        // Don't fail the request if database storage fails
+      }
     }
 
     return NextResponse.json({

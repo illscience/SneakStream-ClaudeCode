@@ -37,8 +37,24 @@ export default defineSchema({
     status: v.string(), // "uploading", "processing", "ready", "failed"
     visibility: v.string(), // "public", "private", "followers"
     viewCount: v.optional(v.number()),
+    heartCount: v.optional(v.number()),
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"])
     .index("by_visibility", ["visibility"]),
+
+  events: defineTable({
+    artist: v.string(),
+    eventName: v.string(),
+    venue: v.string(),
+    location: v.string(),
+    date: v.string(),
+    time: v.string(),
+    url: v.string(),
+    description: v.string(),
+    searchedAt: v.number(), // timestamp when this was found
+    model: v.string(), // which AI model found this
+  })
+    .index("by_artist", ["artist"])
+    .index("by_searchedAt", ["searchedAt"]),
 });
