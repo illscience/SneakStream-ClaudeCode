@@ -206,14 +206,13 @@ export default function Home() {
                   src={activeStream.playbackUrl}
                 />
               ) : (
-                <video
-                  controls
-                  autoPlay
-                  muted
-                  loop
-                  className="w-full h-full rounded-2xl bg-black"
-                  src="/2025_02_02_09_43_33_V1.mp4"
-                />
+                <div className="w-full h-full rounded-2xl bg-zinc-900 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="text-4xl mb-2">🎵</div>
+                    <p className="text-zinc-400">No live stream currently</p>
+                    <p className="text-zinc-600 text-sm mt-1">Check back soon</p>
+                  </div>
+                </div>
               )}
               {activeStream && (
                 <div className="absolute top-4 left-4">
@@ -263,14 +262,13 @@ export default function Home() {
                       </div>
                     </>
                   ) : (
-                    <video
-                      controls
-                      autoPlay
-                      muted
-                      loop
-                      className="w-full h-full"
-                      src="/2025_02_02_09_43_33_V1.mp4"
-                    />
+                    <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="text-4xl mb-2">🎵</div>
+                        <p className="text-zinc-400">No live stream currently</p>
+                        <p className="text-zinc-600 text-sm mt-1">Check back soon</p>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -330,14 +328,13 @@ export default function Home() {
                   </div>
                 </>
               ) : (
-                <video
-                  controls
-                  autoPlay
-                  muted
-                  loop
-                  className="w-full h-full"
-                  src="/2025_02_02_09_43_33_V1.mp4"
-                />
+                <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="text-4xl mb-2">🎵</div>
+                    <p className="text-zinc-400">No live stream currently</p>
+                    <p className="text-zinc-600 text-sm mt-1">Check back soon</p>
+                  </div>
+                </div>
               )}
             </div>
 
