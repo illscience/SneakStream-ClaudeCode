@@ -23,14 +23,7 @@ export default function VideoFeed({ limit }: { limit?: number }) {
   const videos = user ? followingVideos : publicVideos;
 
   if (!videos || videos.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-8 text-center">
-        <p className="text-zinc-500 text-sm">No videos yet</p>
-        <p className="text-zinc-600 text-xs mt-1">
-          {user ? "Follow artists to see their videos here" : "Sign in to follow artists"}
-        </p>
-      </div>
-    );
+    return null;
   }
 
   return (

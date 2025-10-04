@@ -1,6 +1,6 @@
 'use client';
 
-import { Heart, Download, Share2, MoreHorizontal, Play, Pause, SkipBack, SkipForward, Repeat, Volume2, MessageSquare, Tv, ChevronDown } from "lucide-react";
+import { Heart, Download, Share2, MoreHorizontal, Play, Pause, SkipBack, SkipForward, Repeat, Volume2, MessageSquare, Tv, ChevronDown, LayoutGrid, Layout } from "lucide-react";
 import ChatWindow from "./components/ChatWindow";
 import VideoFeed from "./components/VideoFeed";
 import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
@@ -8,12 +8,14 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Toggle } from "@/components/ui/toggle";
 
 export default function Home() {
   const { user } = useUser();
   const DJ_SNEAK_ID = "dj-sneak"; // Static ID for DJ Sneak
   const [heartCount, setHeartCount] = useState(0);
   const [isHeartAnimating, setIsHeartAnimating] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("theater"); // theater = side-by-side
 
   const followUser = useMutation(api.follows.followUser);
   const unfollowUser = useMutation(api.follows.unfollowUser);
@@ -25,6 +27,9 @@ export default function Home() {
     clerkId: DJ_SNEAK_ID,
   });
   const upsertUser = useMutation(api.users.upsertUser);
+
+  // Get active live stream
+  const activeStream = useQuery(api.livestream.getActiveStream);
 
   // Create/update user in Convex when they sign in
   useEffect(() => {
@@ -84,7 +89,7 @@ export default function Home() {
 
         <nav className="flex gap-8 text-sm font-medium">
           <a href="#" className="text-gray-300 hover:text-white">BROWSE</a>
-          <a href="#" className="text-gray-300 hover:text-white">LIVE NOW</a>
+          <a href="/go-live" className="text-gray-300 hover:text-white">GO LIVE</a>
           <a href="/events" className="text-gray-300 hover:text-white">EVENTS</a>
           <SignedIn>
             <a href="/library" className="text-gray-300 hover:text-white">MY LIBRARY</a>
@@ -93,6 +98,26 @@ export default function Home() {
         </nav>
 
         <div className="flex items-center gap-3">
+          {/* Layout Toggle */}
+          <Toggle
+            pressed={layoutMode === "theater"}
+            onPressedChange={(pressed) => setLayoutMode(pressed ? "theater" : "classic")}
+            aria-label="Toggle layout"
+            className="hidden lg:flex items-center justify-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 data-[state=on]:bg-lime-400 data-[state=on]:text-black rounded-full"
+          >
+            {layoutMode === "theater" ? (
+              <>
+                <Layout className="w-4 h-4" />
+                <span className="text-xs font-medium">Theater</span>
+              </>
+            ) : (
+              <>
+                <LayoutGrid className="w-4 h-4" />
+                <span className="text-xs font-medium">Classic</span>
+              </>
+            )}
+          </Toggle>
+
           <button className="px-6 py-2 bg-lime-400 text-black rounded-full font-medium hover:bg-lime-300">
             Subscribe
           </button>
@@ -127,7 +152,7 @@ export default function Home() {
       <main className="pt-20">
         {/* DJ Hero Section */}
         <section className="relative bg-gradient-to-br from-pink-200 via-pink-300 to-pink-200 rounded-3xl mx-4 overflow-hidden">
-          <div className="p-8">
+          <div className="px-8 pt-6 pb-0">
             <div className="flex items-start justify-between mb-6">
               <div>
                 <h1 className="text-6xl font-bold text-black">DJ SNEAK</h1>
@@ -171,44 +196,38 @@ export default function Home() {
               </div>
             </div>
 
-            {/* DJ Video Player */}
-            <div className="relative w-full aspect-video mb-4">
-              <video
-                controls
-                autoPlay
-                muted
-                loop
-                className="w-full h-full rounded-2xl bg-black"
-                src="/2025_02_02_09_43_33_V1.mp4"
-              />
-            </div>
-
-            {/* Live Status Bar */}
-            <div className="flex items-center gap-4 bg-black/80 backdrop-blur-sm rounded-full px-6 py-3 w-fit">
-              <button className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                <MessageSquare className="w-4 h-4 text-black" />
-              </button>
-              <span className="text-sm font-medium">CHAT</span>
-              <div className="flex items-center gap-2 ml-4">
-                <span className="px-3 py-1 bg-gray-700 rounded-full text-xs">House Set</span>
-                <span className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
-                  <span className="w-2 h-2 bg-white rounded-full"></span>
-                  Live
-                </span>
-                <span className="px-3 py-1 bg-red-600 rounded-full text-xs">2.4K Viewers</span>
-                <MoreHorizontal className="w-4 h-4" />
-                <button className="w-6 h-6 bg-white/20 rounded flex items-center justify-center">
-                  🎵
-                </button>
-              </div>
+            {/* Mobile - Video Only */}
+            <div className="lg:hidden relative w-full aspect-video mb-4">
+              {activeStream && activeStream.playbackUrl ? (
+                <video
+                  controls
+                  autoPlay
+                  className="w-full h-full rounded-2xl bg-black"
+                  src={activeStream.playbackUrl}
+                />
+              ) : (
+                <video
+                  controls
+                  autoPlay
+                  muted
+                  loop
+                  className="w-full h-full rounded-2xl bg-black"
+                  src="/2025_02_02_09_43_33_V1.mp4"
+                />
+              )}
+              {activeStream && (
+                <div className="absolute top-4 left-4">
+                  <div className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
+                    <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                    LIVE: {activeStream.title}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Side Action Buttons */}
-          <div className="absolute right-4 bottom-24 flex flex-col gap-3">
-            <button className="w-12 h-12 bg-black/80 rounded-xl flex items-center justify-center hover:bg-black">
-              <span className="text-xl">👤</span>
-            </button>
+          {/* Side Action Buttons - Mobile */}
+          <div className="lg:hidden absolute right-4 bottom-24 flex flex-col gap-3">
             <button
               onClick={handleHeart}
               className={`bg-red-600 rounded-xl flex flex-col items-center justify-center hover:bg-red-700 transition-all px-3 py-2 ${
@@ -219,59 +238,165 @@ export default function Home() {
               <span className="text-xs font-bold mt-1">{heartCount}</span>
             </button>
           </div>
-
-          {/* Expand Button */}
-          <button className="absolute bottom-4 right-12 w-12 h-12 bg-black/80 rounded-full flex items-center justify-center hover:bg-black">
-            <ChevronDown className="w-5 h-5" />
-          </button>
         </section>
 
-        {/* Content Sections */}
-        <div className="px-4 pb-48 pt-8 grid grid-cols-3 gap-8">
-          {/* Upcoming Shows */}
-          <div>
-            <h3 className="text-sm text-zinc-400 mb-4">NEXT SHOW SOON</h3>
-            <div className="bg-gradient-to-br from-pink-200 to-pink-300 rounded-2xl overflow-hidden">
-              <div className="p-4 aspect-square bg-pink-300/50 flex items-center justify-center">
-                <div className="text-black/40 text-sm">DJ Preview</div>
-              </div>
-              <div className="p-4 bg-black/80 backdrop-blur">
-                <div className="flex items-center gap-3 mb-2">
-                  <button className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center">
-                    <Play className="w-4 h-4 fill-white ml-1" />
-                  </button>
-                  <button className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                    <SkipBack className="w-4 h-4" />
-                  </button>
-                  <button className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                    <SkipForward className="w-4 h-4" />
-                  </button>
-                  <button className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                    <Share2 className="w-4 h-4" />
-                  </button>
-                  <button className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                    <ChevronDown className="w-4 h-4" />
-                  </button>
+        {/* Desktop Theater Layout - Video + Chat Side by Side */}
+        {layoutMode === "theater" && (
+          <div className="hidden lg:block px-8 py-8">
+            <div className="grid grid-cols-5 gap-6">
+              {/* Video Player - Takes 3 columns */}
+              <div className="col-span-3">
+                <div className="relative w-full aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
+                  {activeStream && activeStream.playbackUrl ? (
+                    <>
+                      <video
+                        controls
+                        autoPlay
+                        className="w-full h-full"
+                        src={activeStream.playbackUrl}
+                      />
+                      <div className="absolute top-4 left-4">
+                        <div className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
+                          <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                          LIVE: {activeStream.title}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <video
+                      controls
+                      autoPlay
+                      muted
+                      loop
+                      className="w-full h-full"
+                      src="/2025_02_02_09_43_33_V1.mp4"
+                    />
+                  )}
                 </div>
-                <p className="text-xs text-zinc-400">TONIGHT 8PM PST (DOORS OPEN 7PM)</p>
+
+                {/* Video Actions */}
+                <div className="flex items-center gap-3 mt-4">
+                  <button
+                    onClick={handleHeart}
+                    className={`flex items-center gap-2 px-4 py-2 bg-red-600 rounded-full font-medium hover:bg-red-700 transition-all ${
+                      isHeartAnimating ? "scale-110" : ""
+                    }`}
+                  >
+                    <Heart className="w-4 h-4 fill-white" />
+                    <span className="text-sm">{heartCount}</span>
+                  </button>
+                  <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
+                    <Share2 className="w-4 h-4" />
+                    <span className="text-sm">Share</span>
+                  </button>
+                  <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
+                    <Download className="w-4 h-4" />
+                  </button>
+                  <div className="ml-auto flex items-center gap-2">
+                    <span className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
+                      <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                      LIVE
+                    </span>
+                    <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs">2.4K Viewers</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Chat - Takes 2 columns */}
+              <div className="col-span-2">
+                <ChatWindow />
               </div>
             </div>
           </div>
+        )}
 
-          {/* Video Feed */}
-          <div>
-            <Link href="/feed">
-              <h3 className="text-sm text-zinc-400 mb-4 hover:text-lime-400 transition-colors cursor-pointer">
-                LATEST VIDEOS
-              </h3>
-            </Link>
-            <VideoFeed limit={5} />
-          </div>
+        {/* Desktop Classic Layout - Full Width Video */}
+        {layoutMode === "classic" && (
+          <div className="hidden lg:block px-8 py-8">
+            <div className="relative w-full aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl max-w-6xl mx-auto">
+              {activeStream && activeStream.playbackUrl ? (
+                <>
+                  <video
+                    controls
+                    autoPlay
+                    className="w-full h-full"
+                    src={activeStream.playbackUrl}
+                  />
+                  <div className="absolute top-4 left-4">
+                    <div className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
+                      <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                      LIVE: {activeStream.title}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <video
+                  controls
+                  autoPlay
+                  muted
+                  loop
+                  className="w-full h-full"
+                  src="/2025_02_02_09_43_33_V1.mp4"
+                />
+              )}
+            </div>
 
-          {/* Chat Window */}
-          <div>
-            <ChatWindow />
+            {/* Video Actions */}
+            <div className="flex items-center gap-3 mt-4 max-w-6xl mx-auto">
+              <button
+                onClick={handleHeart}
+                className={`flex items-center gap-2 px-4 py-2 bg-red-600 rounded-full font-medium hover:bg-red-700 transition-all ${
+                  isHeartAnimating ? "scale-110" : ""
+                }`}
+              >
+                <Heart className="w-4 h-4 fill-white" />
+                <span className="text-sm">{heartCount}</span>
+              </button>
+              <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
+                <Share2 className="w-4 h-4" />
+                <span className="text-sm">Share</span>
+              </button>
+              <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
+                <Download className="w-4 h-4" />
+              </button>
+              <div className="ml-auto flex items-center gap-2">
+                <span className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
+                  <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                  LIVE
+                </span>
+                <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs">2.4K Viewers</span>
+              </div>
+            </div>
           </div>
+        )}
+
+        {/* Content Sections */}
+        <div className="px-4 lg:px-8 pb-48 pt-8">
+          {layoutMode === "classic" ? (
+            // Classic mode - Chat on the left
+            <div className="max-w-6xl mx-auto">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-1">
+                  <div className="w-full max-w-md">
+                    <ChatWindow />
+                  </div>
+                </div>
+                <div className="lg:col-span-2">
+                  <VideoFeed limit={5} />
+                </div>
+              </div>
+            </div>
+          ) : (
+            // Theater mode - Only show on mobile
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div>
+                <VideoFeed limit={5} />
+              </div>
+              <div className="lg:hidden">
+                <ChatWindow />
+              </div>
+            </div>
+          )}
         </div>
       </main>
 

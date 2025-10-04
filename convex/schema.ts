@@ -57,4 +57,23 @@ export default defineSchema({
   })
     .index("by_artist", ["artist"])
     .index("by_searchedAt", ["searchedAt"]),
+
+  livestreams: defineTable({
+    userId: v.string(), // Clerk user ID of broadcaster
+    userName: v.string(),
+    title: v.string(),
+    description: v.optional(v.string()),
+    status: v.string(), // "active", "ended"
+    startedAt: v.number(), // timestamp
+    endedAt: v.optional(v.number()), // timestamp
+    viewerCount: v.optional(v.number()),
+    // LivePeer stream data
+    livepeerStreamId: v.optional(v.string()),
+    streamKey: v.optional(v.string()),
+    playbackId: v.optional(v.string()),
+    playbackUrl: v.optional(v.string()),
+    rtmpIngestUrl: v.optional(v.string()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_status", ["status"]),
 });
