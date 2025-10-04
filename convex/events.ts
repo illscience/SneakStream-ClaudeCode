@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 // Get all events, sorted by searchedAt (newest first)
 export const getAllEvents = query({
@@ -137,11 +138,77 @@ export const addEvents = mutation({
     const eventIds = [];
 
     for (const event of args.events) {
-      const eventId = await ctx.runMutation(ctx.db.system.get("addEvent"), {
-        ...event,
-        model: args.model,
-      });
-      eventIds.push(eventId);
+      // Normalize artist name for comparison
+      const normalizedArtist = event.artist.toLowerCase().trim();
+
+      // Get all events for this artist
+      const allEvents = await ctx.db.query("events").collect();
+      const artistEvents = allEvents.filter(
+        (e) => e.artist.toLowerCase().trim() === normalizedArtist
+      );
+
+      // Helper function to normalize event names for comparison
+      const normalizeEventName = (name: string) => {
+        return name
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, " ")
+          .replace(/[^\w\s]/g, "");
+      };
+
+      // Helper function to normalize dates for comparison
+      const normalizeDate = (date: string) => {
+        return date.toLowerCase().trim().replace(/\s+/g, " ");
+      };
+
+      const normalizedNewEventName = normalizeEventName(event.eventName);
+      const normalizedNewDate = normalizeDate(event.date);
+
+      // Check for duplicates with fuzzy matching
+      let isDuplicate = false;
+      for (const existingEvent of artistEvents) {
+        const normalizedExistingEventName = normalizeEventName(existingEvent.eventName);
+        const normalizedExistingDate = normalizeDate(existingEvent.date);
+
+        // Check if event names are very similar (same after normalization)
+        const eventNameMatches = normalizedExistingEventName === normalizedNewEventName;
+
+        // Check if dates are similar (same after normalization)
+        const dateMatches = normalizedExistingDate === normalizedNewDate;
+
+        if (eventNameMatches && dateMatches) {
+          // Update the existing event with new searchedAt timestamp
+          await ctx.db.patch(existingEvent._id, {
+            venue: event.venue,
+            location: event.location,
+            time: event.time,
+            url: event.url,
+            description: event.description,
+            model: args.model,
+            searchedAt: Date.now(),
+          });
+          eventIds.push(existingEvent._id);
+          isDuplicate = true;
+          break;
+        }
+      }
+
+      // Insert new event if no duplicate found
+      if (!isDuplicate) {
+        const eventId = await ctx.db.insert("events", {
+          artist: event.artist,
+          eventName: event.eventName,
+          venue: event.venue,
+          location: event.location,
+          date: event.date,
+          time: event.time,
+          url: event.url,
+          description: event.description,
+          model: args.model,
+          searchedAt: Date.now(),
+        });
+        eventIds.push(eventId);
+      }
     }
 
     return eventIds;
@@ -187,6 +254,6 @@ export const cleanupOldEvents = mutation({
       await ctx.db.delete(event._id);
     }
 
-    return { deleted: allEvents.length };
+    return { deleted: oldEvents.length };
   },
 });

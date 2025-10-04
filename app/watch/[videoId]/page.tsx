@@ -88,7 +88,8 @@ export default function WatchPage({
           {video.playbackUrl || video.playbackId ? (
             <div className="aspect-video bg-black rounded-2xl overflow-hidden">
               <Player.Root
-                src={video.playbackUrl || `https://livepeer.studio/api/playback/${video.playbackId}`}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                src={video.playbackUrl || `https://livepeer.studio/api/playback/${video.playbackId}` as any}
                 autoPlay={true}
               >
                 <Player.Container>

@@ -4,6 +4,18 @@ import { api } from "../../../../convex/_generated/api";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
+interface Event {
+  artist: string;
+  eventName: string;
+  venue: string;
+  location: string;
+  date: string;
+  time?: string;
+  url?: string;
+  description?: string;
+  rawResponse?: boolean;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const apiKey = process.env.CLAUDE_API_KEY;
@@ -137,7 +149,7 @@ Only include confirmed upcoming events with specific dates. If you can't find ev
     }
 
     // Store events in Convex database (skip raw response events)
-    const validEvents = events.filter(e => !e.rawResponse);
+    const validEvents = events.filter((e: Event) => !e.rawResponse);
     if (validEvents.length > 0) {
       try {
         for (const event of validEvents) {

@@ -3,6 +3,7 @@
 import { useUser } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { Id } from "../../convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
 import { Film, Plus, Play, Eye, Clock, RefreshCw, Trash2, Heart } from "lucide-react";
 import Link from "next/link";
@@ -22,7 +23,7 @@ export default function LibraryPage() {
   const updateVideoStatus = useMutation(api.videos.updateVideoStatus);
   const deleteVideo = useMutation(api.videos.deleteVideo);
 
-  const handleDelete = async (videoId: any, videoTitle: string) => {
+  const handleDelete = async (videoId: Id<"videos">, videoTitle: string) => {
     if (!confirm(`Are you sure you want to delete "${videoTitle}"? This cannot be undone.`)) {
       return;
     }
@@ -118,7 +119,7 @@ export default function LibraryPage() {
             <h1 className="text-4xl font-bold">My Library</h1>
             <p className="text-zinc-400 mt-2">
               {videos?.length || 0} {videos?.length === 1 ? "video" : "videos"}
-              {videos?.filter((v) => v.status === "processing" || v.status === "uploading").length > 0 && (
+              {videos && videos.filter((v) => v.status === "processing" || v.status === "uploading").length > 0 && (
                 <span className="ml-2 text-yellow-500">
                   ({videos.filter((v) => v.status === "processing" || v.status === "uploading").length} processing)
                 </span>

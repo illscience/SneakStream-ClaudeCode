@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -100,15 +101,15 @@ export default function GoLivePage() {
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-4 bg-black/80 backdrop-blur-sm border-b border-zinc-800">
         <div className="flex items-center gap-4">
-          <a href="/" className="text-xl font-bold hover:text-lime-400 transition-colors">
+          <Link href="/" className="text-xl font-bold hover:text-lime-400 transition-colors">
             DJ SNEAK
-          </a>
+          </Link>
           <span className="text-zinc-500">|</span>
           <span className="text-zinc-400">Go Live</span>
         </div>
-        <a href="/" className="text-zinc-400 hover:text-white">
+        <Link href="/" className="text-zinc-400 hover:text-white">
           <X className="w-6 h-6" />
-        </a>
+        </Link>
       </header>
 
       <main className="pt-24 px-8 pb-16 max-w-4xl mx-auto">
@@ -348,7 +349,7 @@ export default function GoLivePage() {
                       <li>• Your stream will overtake the main broadcast</li>
                       <li>• All viewers will be redirected to your stream</li>
                       <li>• Chat will remain active during your broadcast</li>
-                      <li>• Click "End Stream" when you&apos;re done to restore normal programming</li>
+                      <li>• Click &quot;End Stream&quot; when you&apos;re done to restore normal programming</li>
                     </ul>
                   </div>
                 </div>
@@ -406,7 +407,7 @@ export default function GoLivePage() {
             <p>• Download OBS Studio (free) from obsproject.com</p>
             <p>• Add your stream URL and key to OBS settings</p>
             <p>• Configure your audio sources (DJ equipment, microphone)</p>
-            <p>• Click "Start Streaming" in OBS once you&apos;re ready</p>
+            <p>• Click &quot;Start Streaming&quot; in OBS once you&apos;re ready</p>
             <p>• Your broadcast will appear on the main page instantly</p>
           </div>
         </div>
