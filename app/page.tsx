@@ -227,6 +227,7 @@ export default function Home() {
                 </>
               ) : defaultVideo && defaultVideo.playbackUrl ? (
                 <SyncedVideoPlayer
+                  key={`video-${defaultVideo._id}`}
                   videoId={defaultVideo._id}
                   videoTitle={defaultVideo.title}
                   playbackUrl={defaultVideo.playbackUrl}
@@ -359,6 +360,7 @@ export default function Home() {
                 </>
               ) : defaultVideo && defaultVideo.playbackUrl ? (
                 <SyncedVideoPlayer
+                  key={`video-${defaultVideo._id}`}
                   videoId={defaultVideo._id}
                   videoTitle={defaultVideo.title}
                   playbackUrl={defaultVideo.playbackUrl}
