@@ -9,6 +9,7 @@ import { api } from "../convex/_generated/api";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Toggle } from "@/components/ui/toggle";
+import * as Player from "@livepeer/react/player";
 
 export default function Home() {
   const { user } = useUser();
@@ -33,6 +34,15 @@ export default function Home() {
 
   // Get default video to play when no live stream is active
   const defaultVideo = useQuery(api.videos.getDefaultVideo);
+
+  // Debug logging
+  console.log("Active stream:", activeStream);
+  console.log("Default video:", defaultVideo ? {
+    title: defaultVideo.title,
+    playbackUrl: defaultVideo.playbackUrl,
+    hasPlaybackUrl: !!defaultVideo.playbackUrl,
+    status: defaultVideo.status
+  } : null);
 
   // Create/update user in Convex when they sign in
   useEffect(() => {
@@ -217,19 +227,30 @@ export default function Home() {
                   </div>
                 </>
               ) : defaultVideo && defaultVideo.playbackUrl ? (
-                <>
-                  <video
-                    controls
+                <div className="relative w-full h-full">
+                  <Player.Root
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    src={defaultVideo.playbackUrl as any}
                     autoPlay
-                    className="w-full h-full rounded-2xl bg-black"
-                    src={defaultVideo.playbackUrl}
-                  />
-                  <div className="absolute top-4 left-4">
+                  >
+                    <Player.Container>
+                      <Player.Video className="w-full h-full rounded-2xl" />
+                      <Player.Controls className="flex items-center gap-2 px-4 py-2">
+                        <Player.PlayPauseTrigger />
+                        <Player.Time />
+                        <Player.Seek className="flex-1" />
+                        <Player.MuteTrigger />
+                        <Player.Volume />
+                        <Player.FullscreenTrigger />
+                      </Player.Controls>
+                    </Player.Container>
+                  </Player.Root>
+                  <div className="absolute top-4 left-4 z-10">
                     <div className="px-3 py-1 bg-zinc-800 rounded-full text-xs">
                       {defaultVideo.title}
                     </div>
                   </div>
-                </>
+                </div>
               ) : (
                 <div className="w-full h-full rounded-2xl bg-zinc-900 flex items-center justify-center">
                   <div className="text-center">
@@ -279,19 +300,30 @@ export default function Home() {
                       </div>
                     </>
                   ) : defaultVideo && defaultVideo.playbackUrl ? (
-                    <>
-                      <video
-                        controls
+                    <div className="relative w-full h-full">
+                      <Player.Root
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        src={defaultVideo.playbackUrl as any}
                         autoPlay
-                        className="w-full h-full"
-                        src={defaultVideo.playbackUrl}
-                      />
-                      <div className="absolute top-4 left-4">
+                      >
+                        <Player.Container>
+                          <Player.Video className="w-full h-full" />
+                          <Player.Controls className="flex items-center gap-2 px-4 py-2">
+                            <Player.PlayPauseTrigger />
+                            <Player.Time />
+                            <Player.Seek className="flex-1" />
+                            <Player.MuteTrigger />
+                            <Player.Volume />
+                            <Player.FullscreenTrigger />
+                          </Player.Controls>
+                        </Player.Container>
+                      </Player.Root>
+                      <div className="absolute top-4 left-4 z-10">
                         <div className="px-3 py-1 bg-zinc-800 rounded-full text-xs">
                           {defaultVideo.title}
                         </div>
                       </div>
-                    </>
+                    </div>
                   ) : (
                     <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
                       <div className="text-center">
@@ -359,19 +391,30 @@ export default function Home() {
                   </div>
                 </>
               ) : defaultVideo && defaultVideo.playbackUrl ? (
-                <>
-                  <video
-                    controls
+                <div className="relative w-full h-full">
+                  <Player.Root
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    src={defaultVideo.playbackUrl as any}
                     autoPlay
-                    className="w-full h-full"
-                    src={defaultVideo.playbackUrl}
-                  />
-                  <div className="absolute top-4 left-4">
+                  >
+                    <Player.Container>
+                      <Player.Video className="w-full h-full" />
+                      <Player.Controls className="flex items-center gap-2 px-4 py-2">
+                        <Player.PlayPauseTrigger />
+                        <Player.Time />
+                        <Player.Seek className="flex-1" />
+                        <Player.MuteTrigger />
+                        <Player.Volume />
+                        <Player.FullscreenTrigger />
+                      </Player.Controls>
+                    </Player.Container>
+                  </Player.Root>
+                  <div className="absolute top-4 left-4 z-10">
                     <div className="px-3 py-1 bg-zinc-800 rounded-full text-xs">
                       {defaultVideo.title}
                     </div>
                   </div>
-                </>
+                </div>
               ) : (
                 <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
                   <div className="text-center">
