@@ -24,7 +24,14 @@ export default function UploadPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+      const selectedFile = e.target.files[0];
+      setFile(selectedFile);
+
+      // Auto-populate title with filename (without extension) if title is empty
+      if (!title.trim()) {
+        const fileNameWithoutExt = selectedFile.name.replace(/\.[^/.]+$/, "");
+        setTitle(fileNameWithoutExt);
+      }
     }
   };
 
