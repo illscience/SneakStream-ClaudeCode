@@ -154,6 +154,27 @@ export const setDefaultVideo = mutation({
 
     // Set the new default video
     await ctx.db.patch(args.videoId, { isDefault: true });
+
+    // Initialize synchronized playback state
+    const existingState = await ctx.db
+      .query("playbackState")
+      .first();
+
+    if (existingState) {
+      await ctx.db.patch(existingState._id, {
+        videoId: args.videoId,
+        currentTime: 0,
+        isPlaying: true,
+        updatedAt: Date.now(),
+      });
+    } else {
+      await ctx.db.insert("playbackState", {
+        videoId: args.videoId,
+        currentTime: 0,
+        isPlaying: true,
+        updatedAt: Date.now(),
+      });
+    }
   },
 });
 

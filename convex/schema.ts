@@ -78,4 +78,12 @@ export default defineSchema({
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"]),
+
+  // Synchronized playback state for default video
+  playbackState: defineTable({
+    videoId: v.id("videos"), // Which video is currently playing
+    currentTime: v.number(), // Current playback position in seconds
+    isPlaying: v.boolean(), // Whether video is playing or paused
+    updatedAt: v.number(), // Timestamp of last update
+  }),
 });

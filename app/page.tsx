@@ -3,6 +3,7 @@
 import { Heart, Download, Share2, MoreHorizontal, Play, Pause, SkipBack, SkipForward, Repeat, Volume2, MessageSquare, Tv, ChevronDown, LayoutGrid, Layout } from "lucide-react";
 import ChatWindow from "./components/ChatWindow";
 import VideoFeed from "./components/VideoFeed";
+import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
 import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
@@ -227,30 +228,12 @@ export default function Home() {
                   </div>
                 </>
               ) : defaultVideo && defaultVideo.playbackUrl ? (
-                <div className="relative w-full h-full">
-                  <Player.Root
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    src={defaultVideo.playbackUrl as any}
-                    autoPlay
-                  >
-                    <Player.Container>
-                      <Player.Video loop muted className="w-full h-full rounded-2xl" />
-                      <Player.Controls className="flex items-center gap-2 px-4 py-2">
-                        <Player.PlayPauseTrigger />
-                        <Player.Time />
-                        <Player.Seek className="flex-1" />
-                        <Player.MuteTrigger />
-                        <Player.Volume />
-                        <Player.FullscreenTrigger />
-                      </Player.Controls>
-                    </Player.Container>
-                  </Player.Root>
-                  <div className="absolute top-4 left-4 z-10">
-                    <div className="px-3 py-1 bg-zinc-800 rounded-full text-xs">
-                      {defaultVideo.title}
-                    </div>
-                  </div>
-                </div>
+                <SyncedVideoPlayer
+                  videoId={defaultVideo._id}
+                  videoTitle={defaultVideo.title}
+                  playbackUrl={defaultVideo.playbackUrl}
+                  className="w-full h-full"
+                />
               ) : (
                 <div className="w-full h-full rounded-2xl bg-zinc-900 flex items-center justify-center">
                   <div className="text-center">
@@ -300,30 +283,12 @@ export default function Home() {
                       </div>
                     </>
                   ) : defaultVideo && defaultVideo.playbackUrl ? (
-                    <div className="relative w-full h-full">
-                      <Player.Root
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        src={defaultVideo.playbackUrl as any}
-                        autoPlay
-                      >
-                        <Player.Container>
-                          <Player.Video loop muted className="w-full h-full" />
-                          <Player.Controls className="flex items-center gap-2 px-4 py-2">
-                            <Player.PlayPauseTrigger />
-                            <Player.Time />
-                            <Player.Seek className="flex-1" />
-                            <Player.MuteTrigger />
-                            <Player.Volume />
-                            <Player.FullscreenTrigger />
-                          </Player.Controls>
-                        </Player.Container>
-                      </Player.Root>
-                      <div className="absolute top-4 left-4 z-10">
-                        <div className="px-3 py-1 bg-zinc-800 rounded-full text-xs">
-                          {defaultVideo.title}
-                        </div>
-                      </div>
-                    </div>
+                    <SyncedVideoPlayer
+                      videoId={defaultVideo._id}
+                      videoTitle={defaultVideo.title}
+                      playbackUrl={defaultVideo.playbackUrl}
+                      className="w-full h-full"
+                    />
                   ) : (
                     <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
                       <div className="text-center">
@@ -391,30 +356,12 @@ export default function Home() {
                   </div>
                 </>
               ) : defaultVideo && defaultVideo.playbackUrl ? (
-                <div className="relative w-full h-full">
-                  <Player.Root
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    src={defaultVideo.playbackUrl as any}
-                    autoPlay
-                  >
-                    <Player.Container>
-                      <Player.Video loop muted className="w-full h-full" />
-                      <Player.Controls className="flex items-center gap-2 px-4 py-2">
-                        <Player.PlayPauseTrigger />
-                        <Player.Time />
-                        <Player.Seek className="flex-1" />
-                        <Player.MuteTrigger />
-                        <Player.Volume />
-                        <Player.FullscreenTrigger />
-                      </Player.Controls>
-                    </Player.Container>
-                  </Player.Root>
-                  <div className="absolute top-4 left-4 z-10">
-                    <div className="px-3 py-1 bg-zinc-800 rounded-full text-xs">
-                      {defaultVideo.title}
-                    </div>
-                  </div>
-                </div>
+                <SyncedVideoPlayer
+                  videoId={defaultVideo._id}
+                  videoTitle={defaultVideo.title}
+                  playbackUrl={defaultVideo.playbackUrl}
+                  className="w-full h-full"
+                />
               ) : (
                 <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
                   <div className="text-center">
