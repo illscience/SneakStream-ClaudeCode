@@ -93,7 +93,6 @@ export default function SyncedVideoPlayer({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         src={playbackUrl as any}
         autoPlay
-        muted={isMuted}
         volume={1.0}
       >
         <Player.Container>
