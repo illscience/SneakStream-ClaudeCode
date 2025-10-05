@@ -90,6 +90,14 @@ export default function LibraryPage() {
               playbackUrl: playbackUrl,
               thumbnailUrl: asset.staticMp4Url || undefined,
               duration: asset.videoSpec?.duration || undefined,
+              progress: 1.0,
+            });
+          } else if (asset.status?.phase === "processing") {
+            // Update progress for processing videos
+            await updateVideoStatus({
+              videoId: video._id,
+              status: "processing",
+              progress: asset.status?.progress || 0,
             });
           } else if (asset.status?.phase === "failed") {
             await updateVideoStatus({
@@ -215,9 +223,21 @@ export default function LibraryPage() {
                               : "bg-red-500 text-white"
                           }`}
                         >
-                          {video.status}
+                          {video.status === "processing" && video.progress !== undefined
+                            ? `${Math.round((video.progress || 0) * 100)}%`
+                            : video.status}
                         </span>
                       </div>
+
+                      {/* Progress Bar */}
+                      {(video.status === "processing" || video.status === "uploading") && video.progress !== undefined && (
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-zinc-700">
+                          <div
+                            className="h-full bg-lime-400 transition-all duration-300"
+                            style={{ width: `${(video.progress || 0) * 100}%` }}
+                          />
+                        </div>
+                      )}
                     </div>
 
                     {/* Info */}

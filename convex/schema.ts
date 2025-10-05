@@ -35,6 +35,7 @@ export default defineSchema({
     thumbnailUrl: v.optional(v.string()),
     duration: v.optional(v.number()), // Duration in seconds
     status: v.string(), // "uploading", "processing", "ready", "failed"
+    progress: v.optional(v.number()), // Processing progress (0-1)
     visibility: v.string(), // "public", "private", "followers"
     viewCount: v.optional(v.number()),
     heartCount: v.optional(v.number()),

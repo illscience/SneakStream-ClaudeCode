@@ -32,6 +32,7 @@ export const updateVideoStatus = mutation({
     playbackUrl: v.optional(v.string()),
     thumbnailUrl: v.optional(v.string()),
     duration: v.optional(v.number()),
+    progress: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { videoId, ...updates } = args;
