@@ -69,6 +69,7 @@ export default function SyncedVideoPlayer({
   return (
     <div className={`relative ${className}`}>
       <Player.Root
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         src={playbackUrl as any}
         autoPlay
         loop
