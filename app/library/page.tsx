@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
-import { Film, Plus, Play, Eye, Clock, RefreshCw, Trash2, Heart } from "lucide-react";
+import { Film, Plus, Play, Eye, Clock, RefreshCw, Trash2, Heart, Star } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import Header from "../components/Header";
@@ -22,6 +22,21 @@ export default function LibraryPage() {
 
   const updateVideoStatus = useMutation(api.videos.updateVideoStatus);
   const deleteVideo = useMutation(api.videos.deleteVideo);
+  const setDefaultVideo = useMutation(api.videos.setDefaultVideo);
+  const unsetDefaultVideo = useMutation(api.videos.unsetDefaultVideo);
+
+  const handleSetDefault = async (videoId: Id<"videos">, isCurrentlyDefault: boolean) => {
+    try {
+      if (isCurrentlyDefault) {
+        await unsetDefaultVideo({ videoId });
+      } else {
+        await setDefaultVideo({ videoId });
+      }
+    } catch (error) {
+      console.error("Set default error:", error);
+      alert("Failed to set default video. Please try again.");
+    }
+  };
 
   const handleDelete = async (videoId: Id<"videos">, videoTitle: string) => {
     if (!confirm(`Are you sure you want to delete "${videoTitle}"? This cannot be undone.`)) {
@@ -182,7 +197,13 @@ export default function LibraryPage() {
                       </div>
 
                       {/* Status Badge */}
-                      <div className="absolute top-3 right-3">
+                      <div className="absolute top-3 right-3 flex gap-2">
+                        {video.isDefault && (
+                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-lime-400 text-black flex items-center gap-1">
+                            <Star className="w-3 h-3 fill-current" />
+                            Default
+                          </span>
+                        )}
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-medium ${
                             video.status === "ready"
@@ -237,17 +258,38 @@ export default function LibraryPage() {
                   </div>
                 </Link>
 
-                {/* Delete Button */}
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleDelete(video._id, video.title);
-                  }}
-                  className="absolute top-3 left-3 w-10 h-10 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                  title="Delete video"
-                >
-                  <Trash2 className="w-5 h-5 text-white" />
-                </button>
+                {/* Action Buttons */}
+                <div className="absolute top-3 left-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                  {/* Set as Default Button */}
+                  {video.status === "ready" && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleSetDefault(video._id, video.isDefault || false);
+                      }}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        video.isDefault
+                          ? "bg-lime-400 hover:bg-lime-500 text-black"
+                          : "bg-zinc-800 hover:bg-zinc-700 text-white"
+                      }`}
+                      title={video.isDefault ? "Unset as default" : "Set as default video"}
+                    >
+                      <Star className={`w-5 h-5 ${video.isDefault ? "fill-current" : ""}`} />
+                    </button>
+                  )}
+
+                  {/* Delete Button */}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleDelete(video._id, video.title);
+                    }}
+                    className="w-10 h-10 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center"
+                    title="Delete video"
+                  >
+                    <Trash2 className="w-5 h-5 text-white" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

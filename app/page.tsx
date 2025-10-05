@@ -31,6 +31,9 @@ export default function Home() {
   // Get active live stream
   const activeStream = useQuery(api.livestream.getActiveStream);
 
+  // Get default video to play when no live stream is active
+  const defaultVideo = useQuery(api.videos.getDefaultVideo);
+
   // Create/update user in Convex when they sign in
   useEffect(() => {
     if (user) {
@@ -199,26 +202,40 @@ export default function Home() {
             {/* Mobile - Video Only */}
             <div className="lg:hidden relative w-full aspect-video mb-4">
               {activeStream && activeStream.playbackUrl ? (
-                <video
-                  controls
-                  autoPlay
-                  className="w-full h-full rounded-2xl bg-black"
-                  src={activeStream.playbackUrl}
-                />
+                <>
+                  <video
+                    controls
+                    autoPlay
+                    className="w-full h-full rounded-2xl bg-black"
+                    src={activeStream.playbackUrl}
+                  />
+                  <div className="absolute top-4 left-4">
+                    <div className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
+                      <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                      LIVE: {activeStream.title}
+                    </div>
+                  </div>
+                </>
+              ) : defaultVideo && defaultVideo.playbackUrl ? (
+                <>
+                  <video
+                    controls
+                    autoPlay
+                    className="w-full h-full rounded-2xl bg-black"
+                    src={defaultVideo.playbackUrl}
+                  />
+                  <div className="absolute top-4 left-4">
+                    <div className="px-3 py-1 bg-zinc-800 rounded-full text-xs">
+                      {defaultVideo.title}
+                    </div>
+                  </div>
+                </>
               ) : (
                 <div className="w-full h-full rounded-2xl bg-zinc-900 flex items-center justify-center">
                   <div className="text-center">
                     <div className="text-4xl mb-2">🎵</div>
                     <p className="text-zinc-400">No live stream currently</p>
                     <p className="text-zinc-600 text-sm mt-1">Check back soon</p>
-                  </div>
-                </div>
-              )}
-              {activeStream && (
-                <div className="absolute top-4 left-4">
-                  <div className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
-                    <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                    LIVE: {activeStream.title}
                   </div>
                 </div>
               )}
@@ -258,6 +275,20 @@ export default function Home() {
                         <div className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
                           <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
                           LIVE: {activeStream.title}
+                        </div>
+                      </div>
+                    </>
+                  ) : defaultVideo && defaultVideo.playbackUrl ? (
+                    <>
+                      <video
+                        controls
+                        autoPlay
+                        className="w-full h-full"
+                        src={defaultVideo.playbackUrl}
+                      />
+                      <div className="absolute top-4 left-4">
+                        <div className="px-3 py-1 bg-zinc-800 rounded-full text-xs">
+                          {defaultVideo.title}
                         </div>
                       </div>
                     </>
@@ -324,6 +355,20 @@ export default function Home() {
                     <div className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
                       <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
                       LIVE: {activeStream.title}
+                    </div>
+                  </div>
+                </>
+              ) : defaultVideo && defaultVideo.playbackUrl ? (
+                <>
+                  <video
+                    controls
+                    autoPlay
+                    className="w-full h-full"
+                    src={defaultVideo.playbackUrl}
+                  />
+                  <div className="absolute top-4 left-4">
+                    <div className="px-3 py-1 bg-zinc-800 rounded-full text-xs">
+                      {defaultVideo.title}
                     </div>
                   </div>
                 </>

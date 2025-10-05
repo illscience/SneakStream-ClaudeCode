@@ -137,3 +137,43 @@ export const updateVideo = mutation({
     await ctx.db.patch(videoId, updates);
   },
 });
+
+// Set a video as the default video to play when no live stream is active
+export const setDefaultVideo = mutation({
+  args: { videoId: v.id("videos") },
+  handler: async (ctx, args) => {
+    // First, unset any existing default video
+    const currentDefault = await ctx.db
+      .query("videos")
+      .withIndex("by_isDefault", (q) => q.eq("isDefault", true))
+      .first();
+
+    if (currentDefault) {
+      await ctx.db.patch(currentDefault._id, { isDefault: false });
+    }
+
+    // Set the new default video
+    await ctx.db.patch(args.videoId, { isDefault: true });
+  },
+});
+
+// Unset the default video
+export const unsetDefaultVideo = mutation({
+  args: { videoId: v.id("videos") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.videoId, { isDefault: false });
+  },
+});
+
+// Get the current default video
+export const getDefaultVideo = query({
+  handler: async (ctx) => {
+    const defaultVideo = await ctx.db
+      .query("videos")
+      .withIndex("by_isDefault", (q) => q.eq("isDefault", true))
+      .filter((q) => q.eq(q.field("status"), "ready"))
+      .first();
+
+    return defaultVideo;
+  },
+});

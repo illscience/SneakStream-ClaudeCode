@@ -38,10 +38,12 @@ export default defineSchema({
     visibility: v.string(), // "public", "private", "followers"
     viewCount: v.optional(v.number()),
     heartCount: v.optional(v.number()),
+    isDefault: v.optional(v.boolean()), // Whether this is the default video to play
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"])
-    .index("by_visibility", ["visibility"]),
+    .index("by_visibility", ["visibility"])
+    .index("by_isDefault", ["isDefault"]),
 
   events: defineTable({
     artist: v.string(),
