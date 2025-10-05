@@ -232,10 +232,9 @@ export default function Home() {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     src={defaultVideo.playbackUrl as any}
                     autoPlay
-                    muted
                   >
                     <Player.Container>
-                      <Player.Video className="w-full h-full rounded-2xl" />
+                      <Player.Video muted className="w-full h-full rounded-2xl" />
                       <Player.Controls className="flex items-center gap-2 px-4 py-2">
                         <Player.PlayPauseTrigger />
                         <Player.Time />
@@ -397,10 +396,9 @@ export default function Home() {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     src={defaultVideo.playbackUrl as any}
                     autoPlay
-                    muted
                   >
                     <Player.Container>
-                      <Player.Video className="w-full h-full" />
+                      <Player.Video muted className="w-full h-full" />
                       <Player.Controls className="flex items-center gap-2 px-4 py-2">
                         <Player.PlayPauseTrigger />
                         <Player.Time />
