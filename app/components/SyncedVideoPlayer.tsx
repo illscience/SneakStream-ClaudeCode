@@ -20,51 +20,47 @@ export default function SyncedVideoPlayer({
   className = "",
 }: SyncedVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Get synchronized playback state
+  // Get the initial playback position (only used once on mount)
   const playbackState = useQuery(api.playbackState.getPlaybackState);
   const updatePlaybackState = useMutation(api.playbackState.updatePlaybackState);
 
-  // Sync video position with server state
+  // Set initial position once when component mounts
   useEffect(() => {
-    if (!playbackState || !videoRef.current || playbackState.videoId !== videoId) {
+    if (!playbackState || !videoRef.current || hasInitialized || playbackState.videoId !== videoId) {
       return;
     }
 
     const video = videoRef.current;
-    const timeDiff = Math.abs(video.currentTime - playbackState.currentTime);
+    const now = Date.now();
 
-    // If we're more than 3 seconds out of sync, jump to correct position
-    if (timeDiff > 3 && !isSyncing) {
-      setIsSyncing(true);
-      video.currentTime = playbackState.currentTime;
+    // Calculate where the video should be now based on last saved position
+    const timeSinceUpdate = (now - playbackState.updatedAt) / 1000;
+    const startPosition = playbackState.isPlaying
+      ? playbackState.currentTime + timeSinceUpdate
+      : playbackState.currentTime;
 
-      // Match play/pause state
-      if (playbackState.isPlaying && video.paused) {
-        video.play().catch(console.error);
-      } else if (!playbackState.isPlaying && !video.paused) {
-        video.pause();
-      }
+    video.currentTime = startPosition;
+    setHasInitialized(true);
+  }, [playbackState, videoId, hasInitialized]);
 
-      setTimeout(() => setIsSyncing(false), 1000);
-    }
-  }, [playbackState, videoId, isSyncing]);
-
-  // Update server state periodically (only from one client - can be controlled)
+  // Periodically update the server with current position (for new clients joining)
   useEffect(() => {
+    if (!hasInitialized) return;
+
     const interval = setInterval(() => {
-      if (videoRef.current && !isSyncing) {
+      if (videoRef.current) {
         updatePlaybackState({
           videoId,
           currentTime: videoRef.current.currentTime,
           isPlaying: !videoRef.current.paused,
         }).catch(console.error);
       }
-    }, 5000); // Update every 5 seconds
+    }, 30000); // Update every 30 seconds
 
     return () => clearInterval(interval);
-  }, [videoId, isSyncing, updatePlaybackState]);
+  }, [videoId, hasInitialized, updatePlaybackState]);
 
   return (
     <div className={`relative ${className}`}>
@@ -99,11 +95,6 @@ export default function SyncedVideoPlayer({
           {videoTitle}
         </div>
       </div>
-      {isSyncing && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/50 px-4 py-2 rounded-lg text-sm">
-          Syncing...
-        </div>
-      )}
     </div>
   );
 }
