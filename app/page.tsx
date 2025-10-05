@@ -1,6 +1,6 @@
 'use client';
 
-import { Heart, Download, Share2, MoreHorizontal, Play, Pause, SkipBack, SkipForward, Repeat, Volume2, VolumeX, MessageSquare, Tv, ChevronDown, LayoutGrid, Layout } from "lucide-react";
+import { Heart, Download, Share2, Play, SkipBack, SkipForward, Volume2, VolumeX, Tv, LayoutGrid, Layout } from "lucide-react";
 import ChatWindow from "./components/ChatWindow";
 import VideoFeed from "./components/VideoFeed";
 import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
@@ -8,24 +8,23 @@ import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/n
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Toggle } from "@/components/ui/toggle";
-import * as Player from "@livepeer/react/player";
 
 export default function Home() {
   const { user } = useUser();
   const DJ_SNEAK_ID = "dj-sneak"; // Static ID for DJ Sneak
   const [heartCount, setHeartCount] = useState(0);
   const [isHeartAnimating, setIsHeartAnimating] = useState(false);
-  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">(() => {
-    // Load from localStorage on initial render
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('layoutMode');
-      return (saved === 'classic' || saved === 'theater') ? saved : 'theater';
-    }
-    return 'theater';
-  });
+  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("theater");
   const [isMuted, setIsMuted] = useState(true);
+
+  // Load layout mode from localStorage after hydration
+  useEffect(() => {
+    const saved = localStorage.getItem('layoutMode');
+    if (saved === 'classic' || saved === 'theater') {
+      setLayoutMode(saved);
+    }
+  }, []);
 
   // Save layout mode to localStorage whenever it changes
   useEffect(() => {
@@ -47,14 +46,49 @@ export default function Home() {
   // Get default video to play when no live stream is active
   const defaultVideo = useQuery(api.videos.getDefaultVideo);
 
-  // Debug logging
-  console.log("Active stream:", activeStream);
-  console.log("Default video:", defaultVideo ? {
-    title: defaultVideo.title,
-    playbackUrl: defaultVideo.playbackUrl,
-    hasPlaybackUrl: !!defaultVideo.playbackUrl,
-    status: defaultVideo.status
-  } : null);
+  const renderVideoContent = () => {
+    if (activeStream && activeStream.playbackUrl) {
+      return (
+        <>
+          <video
+            controls
+            autoPlay
+            className="w-full h-full"
+            src={activeStream.playbackUrl}
+          />
+          <div className="absolute top-4 left-4">
+            <div className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
+              <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+              LIVE{activeStream.title ? `: ${activeStream.title}` : ""}
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    if (defaultVideo && defaultVideo.playbackUrl) {
+      return (
+        <SyncedVideoPlayer
+          videoId={defaultVideo._id}
+          videoTitle={defaultVideo.title}
+          playbackUrl={defaultVideo.playbackUrl}
+          className="w-full h-full"
+          isMuted={isMuted}
+          onMutedChange={setIsMuted}
+        />
+      );
+    }
+
+    return (
+      <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl mb-2">🎵</div>
+          <p className="text-zinc-400">No live stream currently</p>
+          <p className="text-zinc-600 text-sm mt-1">Check back soon</p>
+        </div>
+      </div>
+    );
+  };
 
   const handleFollowClick = async () => {
     if (!user) {
@@ -209,41 +243,8 @@ export default function Home() {
             </div>
 
             {/* Mobile - Video Only */}
-            <div className="lg:hidden relative w-full aspect-video mb-4">
-              {activeStream && activeStream.playbackUrl ? (
-                <>
-                  <video
-                    controls
-                    autoPlay
-                    className="w-full h-full rounded-2xl bg-black"
-                    src={activeStream.playbackUrl}
-                  />
-                  <div className="absolute top-4 left-4">
-                    <div className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
-                      <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                      LIVE: {activeStream.title}
-                    </div>
-                  </div>
-                </>
-              ) : defaultVideo && defaultVideo.playbackUrl ? (
-                <SyncedVideoPlayer
-                  key={`video-${defaultVideo._id}`}
-                  videoId={defaultVideo._id}
-                  videoTitle={defaultVideo.title}
-                  playbackUrl={defaultVideo.playbackUrl}
-                  className="w-full h-full"
-                  isMuted={isMuted}
-                  onMutedChange={setIsMuted}
-                />
-              ) : (
-                <div className="w-full h-full rounded-2xl bg-zinc-900 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-4xl mb-2">🎵</div>
-                    <p className="text-zinc-400">No live stream currently</p>
-                    <p className="text-zinc-600 text-sm mt-1">Check back soon</p>
-                  </div>
-                </div>
-              )}
+            <div className="lg:hidden relative w-full aspect-video mb-4 overflow-hidden rounded-2xl bg-zinc-900">
+              {renderVideoContent()}
             </div>
           </div>
 
@@ -261,152 +262,60 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Desktop Theater Layout - Video + Chat Side by Side */}
-        {layoutMode === "theater" && (
-          <div className="hidden lg:block px-8 py-8">
-            <div className="grid grid-cols-5 gap-6">
-              {/* Video Player - Takes 3 columns */}
-              <div className="col-span-3">
-                <div className="relative w-full aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
-                  {activeStream && activeStream.playbackUrl ? (
-                    <>
-                      <video
-                        controls
-                        autoPlay
-                        className="w-full h-full"
-                        src={activeStream.playbackUrl}
-                      />
-                      <div className="absolute top-4 left-4">
-                        <div className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
-                          <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                          LIVE: {activeStream.title}
-                        </div>
-                      </div>
-                    </>
-                  ) : defaultVideo && defaultVideo.playbackUrl ? (
-                    <SyncedVideoPlayer
-                      videoId={defaultVideo._id}
-                      videoTitle={defaultVideo.title}
-                      playbackUrl={defaultVideo.playbackUrl}
-                      className="w-full h-full"
-                      isMuted={isMuted}
-                      onMutedChange={setIsMuted}
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="text-4xl mb-2">🎵</div>
-                        <p className="text-zinc-400">No live stream currently</p>
-                        <p className="text-zinc-600 text-sm mt-1">Check back soon</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Video Actions */}
-                <div className="flex items-center gap-3 mt-4">
-                  <button
-                    onClick={handleHeart}
-                    className={`flex items-center gap-2 px-4 py-2 bg-red-600 rounded-full font-medium hover:bg-red-700 transition-all ${
-                      isHeartAnimating ? "scale-110" : ""
-                    }`}
-                  >
-                    <Heart className="w-4 h-4 fill-white" />
-                    <span className="text-sm">{heartCount}</span>
-                  </button>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
-                    <Share2 className="w-4 h-4" />
-                    <span className="text-sm">Share</span>
-                  </button>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
-                    <Download className="w-4 h-4" />
-                  </button>
-                  <div className="ml-auto flex items-center gap-2">
-                    <span className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
-                      <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                      LIVE
-                    </span>
-                    <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs">2.4K Viewers</span>
-                  </div>
-                </div>
+        {/* Desktop Video Layout */}
+        <div className="hidden lg:block px-8 py-8">
+          <div
+            className={
+              layoutMode === "theater"
+                ? "grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6"
+                : "flex justify-center"
+            }
+          >
+            <div
+              className={
+                layoutMode === "theater"
+                  ? "space-y-4"
+                  : "max-w-6xl w-full space-y-4"
+              }
+            >
+              <div className="relative w-full aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
+                {renderVideoContent()}
               </div>
 
-              {/* Chat - Takes 2 columns */}
-              <div className="col-span-2">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleHeart}
+                  className={`flex items-center gap-2 px-4 py-2 bg-red-600 rounded-full font-medium hover:bg-red-700 transition-all ${
+                    isHeartAnimating ? "scale-110" : ""
+                  }`}
+                >
+                  <Heart className="w-4 h-4 fill-white" />
+                  <span className="text-sm">{heartCount}</span>
+                </button>
+                <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
+                  <Share2 className="w-4 h-4" />
+                  <span className="text-sm">Share</span>
+                </button>
+                <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
+                  <Download className="w-4 h-4" />
+                </button>
+                <div className="ml-auto flex items-center gap-2">
+                  <span className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
+                    <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                    LIVE
+                  </span>
+                  <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs">2.4K Viewers</span>
+                </div>
+              </div>
+            </div>
+
+            {layoutMode === "theater" && (
+              <div>
                 <ChatWindow />
               </div>
-            </div>
+            )}
           </div>
-        )}
-
-        {/* Desktop Classic Layout - Full Width Video */}
-        {layoutMode === "classic" && (
-          <div className="hidden lg:block px-8 py-8">
-            <div className="relative w-full aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl max-w-6xl mx-auto">
-              {activeStream && activeStream.playbackUrl ? (
-                <>
-                  <video
-                    controls
-                    autoPlay
-                    className="w-full h-full"
-                    src={activeStream.playbackUrl}
-                  />
-                  <div className="absolute top-4 left-4">
-                    <div className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
-                      <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                      LIVE: {activeStream.title}
-                    </div>
-                  </div>
-                </>
-              ) : defaultVideo && defaultVideo.playbackUrl ? (
-                <SyncedVideoPlayer
-                  key={`video-${defaultVideo._id}`}
-                  videoId={defaultVideo._id}
-                  videoTitle={defaultVideo.title}
-                  playbackUrl={defaultVideo.playbackUrl}
-                  className="w-full h-full"
-                  isMuted={isMuted}
-                  onMutedChange={setIsMuted}
-                />
-              ) : (
-                <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-4xl mb-2">🎵</div>
-                    <p className="text-zinc-400">No live stream currently</p>
-                    <p className="text-zinc-600 text-sm mt-1">Check back soon</p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Video Actions */}
-            <div className="flex items-center gap-3 mt-4 max-w-6xl mx-auto">
-              <button
-                onClick={handleHeart}
-                className={`flex items-center gap-2 px-4 py-2 bg-red-600 rounded-full font-medium hover:bg-red-700 transition-all ${
-                  isHeartAnimating ? "scale-110" : ""
-                }`}
-              >
-                <Heart className="w-4 h-4 fill-white" />
-                <span className="text-sm">{heartCount}</span>
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
-                <Share2 className="w-4 h-4" />
-                <span className="text-sm">Share</span>
-              </button>
-              <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
-                <Download className="w-4 h-4" />
-              </button>
-              <div className="ml-auto flex items-center gap-2">
-                <span className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
-                  <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                  LIVE
-                </span>
-                <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs">2.4K Viewers</span>
-              </div>
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* Content Sections */}
         <div className="px-4 lg:px-8 pb-48 pt-8">
