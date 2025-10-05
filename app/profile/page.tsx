@@ -50,8 +50,11 @@ export default function ProfilePage() {
   useEffect(() => {
     if (convexUser) {
       setAlias(convexUser.alias);
+    } else if (user && !alias) {
+      // Set initial alias from Clerk while waiting for Convex
+      setAlias(user.username || user.firstName || "User");
     }
-  }, [convexUser]);
+  }, [convexUser, user]);
 
   const handleSaveAlias = async () => {
     if (user && alias.trim()) {
@@ -99,46 +102,45 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="flex-1">
-              <div className="mb-4">
-                {isEditingAlias ? (
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="text"
-                      value={alias}
-                      onChange={(e) => setAlias(e.target.value)}
-                      className="bg-zinc-800 text-white text-2xl font-bold px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime-400"
-                      autoFocus
-                    />
-                    <button
-                      onClick={handleSaveAlias}
-                      className="px-6 py-2 bg-lime-400 text-black rounded-full font-medium hover:bg-lime-300 transition-colors"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={() => {
-                        setAlias(convexUser?.alias || "");
-                        setIsEditingAlias(false);
-                      }}
-                      className="px-6 py-2 bg-zinc-700 text-white rounded-full hover:bg-zinc-600 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <h1 className="text-4xl font-bold bg-gradient-to-r from-lime-400 to-cyan-400 bg-clip-text text-transparent">
-                      {alias}
-                    </h1>
-                    <button
-                      onClick={() => setIsEditingAlias(true)}
-                      className="text-sm text-zinc-400 hover:text-lime-400 underline transition-colors"
-                    >
-                      Edit
-                    </button>
-                  </div>
-                )}
-              </div>
+              {/* Alias Section */}
+              {isEditingAlias ? (
+                <div className="flex items-center gap-3 mb-4">
+                  <input
+                    type="text"
+                    value={alias}
+                    onChange={(e) => setAlias(e.target.value)}
+                    className="bg-zinc-800 text-white text-2xl font-bold px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime-400"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSaveAlias}
+                    className="px-6 py-2 bg-lime-400 text-black rounded-full font-medium hover:bg-lime-300 transition-colors"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => {
+                      setAlias(convexUser?.alias || "");
+                      setIsEditingAlias(false);
+                    }}
+                    className="px-6 py-2 bg-zinc-700 text-white rounded-full hover:bg-zinc-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 mb-4">
+                  <h1 className="text-4xl font-bold text-white">
+                    {alias || user.username || user.firstName || "Set your alias"}
+                  </h1>
+                  <button
+                    onClick={() => setIsEditingAlias(true)}
+                    className="px-4 py-2 bg-lime-400 text-black rounded-full font-medium hover:bg-lime-300 transition-colors text-sm whitespace-nowrap"
+                  >
+                    Edit Alias
+                  </button>
+                </div>
+              )}
               <p className="text-sm text-zinc-400 mb-6">
                 {user.primaryEmailAddress?.emailAddress}
               </p>
