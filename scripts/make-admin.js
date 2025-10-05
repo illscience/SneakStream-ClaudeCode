@@ -1,8 +1,6 @@
 // One-time script to make a user an admin
 // Usage: node scripts/make-admin.js YOUR_CLERK_USER_ID
 
-const { ConvexHttpClient } = require("convex/browser");
-
 const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL;
 
 if (!CONVEX_URL) {
@@ -23,6 +21,7 @@ if (!clerkId) {
 }
 
 async function makeAdmin() {
+  const { ConvexHttpClient } = await import("convex/browser");
   const client = new ConvexHttpClient(CONVEX_URL);
 
   try {

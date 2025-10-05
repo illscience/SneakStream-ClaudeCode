@@ -1,5 +1,15 @@
 import { mutation, query } from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
+
+const DJ_SNEAK_USER: Doc<"users"> = {
+  _id: "dj-sneak" as Id<"users">,
+  _creationTime: 0,
+  clerkId: "dj-sneak",
+  alias: "DJ SNEAK",
+  email: undefined,
+  imageUrl: undefined,
+};
 
 // Create or update user profile
 export const upsertUser = mutation({
@@ -81,14 +91,7 @@ export const getFollowing = query({
 
         // If it's a special ID like "dj-sneak", return a mock user object
         if (!user && follow.followingId === "dj-sneak") {
-          return {
-            _id: "dj-sneak" as any,
-            _creationTime: 0,
-            clerkId: "dj-sneak",
-            alias: "DJ SNEAK",
-            imageUrl: undefined,
-            email: undefined,
-          };
+          return DJ_SNEAK_USER;
         }
 
         return user;

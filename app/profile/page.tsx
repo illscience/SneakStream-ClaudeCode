@@ -4,15 +4,13 @@ import { useUser } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Users, UserPlus, Heart, Music } from "lucide-react";
 import Header from "../components/Header";
+import EditableAlias from "../../components/ui/editable-alias";
 
 export default function ProfilePage() {
   const { user, isLoaded } = useUser();
-  const router = useRouter();
   const [alias, setAlias] = useState("");
-  const [isEditingAlias, setIsEditingAlias] = useState(false);
 
   const upsertUser = useMutation(api.users.upsertUser);
   const convexUser = useQuery(
@@ -45,27 +43,25 @@ export default function ProfilePage() {
         imageUrl: user.imageUrl,
       });
     }
-  }, [user, convexUser]);
+  }, [user, convexUser, upsertUser]);
 
   useEffect(() => {
     if (convexUser) {
       setAlias(convexUser.alias);
     } else if (user && !alias) {
-      // Set initial alias from Clerk while waiting for Convex
       setAlias(user.username || user.firstName || "User");
     }
-  }, [convexUser, user]);
+  }, [convexUser, user, alias]);
 
-  const handleSaveAlias = async () => {
-    if (user && alias.trim()) {
-      await upsertUser({
-        clerkId: user.id,
-        alias: alias.trim(),
-        email: user.primaryEmailAddress?.emailAddress,
-        imageUrl: user.imageUrl,
-      });
-      setIsEditingAlias(false);
-    }
+  const handleAliasSubmit = async (newAlias: string) => {
+    if (!user || !newAlias.trim()) return;
+
+    await upsertUser({
+      clerkId: user.id,
+      alias: newAlias.trim(),
+      email: user.primaryEmailAddress?.emailAddress,
+      imageUrl: user.imageUrl,
+    });
   };
 
   if (!isLoaded || !user) {
@@ -102,45 +98,13 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="flex-1">
-              {/* Alias Section */}
-              {isEditingAlias ? (
-                <div className="flex items-center gap-3 mb-4">
-                  <input
-                    type="text"
-                    value={alias}
-                    onChange={(e) => setAlias(e.target.value)}
-                    className="bg-zinc-800 text-white text-2xl font-bold px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime-400"
-                    autoFocus
-                  />
-                  <button
-                    onClick={handleSaveAlias}
-                    className="px-6 py-2 bg-lime-400 text-black rounded-full font-medium hover:bg-lime-300 transition-colors"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => {
-                      setAlias(convexUser?.alias || "");
-                      setIsEditingAlias(false);
-                    }}
-                    className="px-6 py-2 bg-zinc-700 text-white rounded-full hover:bg-zinc-600 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 mb-4">
-                  <h1 className="text-4xl font-bold text-white">
-                    {alias || user.username || user.firstName || "Set your alias"}
-                  </h1>
-                  <button
-                    onClick={() => setIsEditingAlias(true)}
-                    className="px-4 py-2 bg-lime-400 text-black rounded-full font-medium hover:bg-lime-300 transition-colors text-sm whitespace-nowrap"
-                  >
-                    Edit Alias
-                  </button>
-                </div>
-              )}
+              <div className="mb-4">
+                <EditableAlias
+                  value={alias || user.username || user.firstName || "User"}
+                  onSubmit={handleAliasSubmit}
+                  placeholder="Enter your alias..."
+                />
+              </div>
               <p className="text-sm text-zinc-400 mb-6">
                 {user.primaryEmailAddress?.emailAddress}
               </p>
@@ -164,6 +128,32 @@ export default function ProfilePage() {
                   <span className="text-sm text-zinc-400">Following</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Profile Settings */}
+        <div className="bg-zinc-900 rounded-2xl p-6 mb-6 border border-zinc-800">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-lime-400/10 rounded-full flex items-center justify-center">
+              <Music className="w-5 h-5 text-lime-400" />
+            </div>
+            <h2 className="text-xl font-bold">Profile Settings</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">
+                Alias / Stage Name
+              </label>
+              <EditableAlias
+                value={alias || user.username || user.firstName || "User"}
+                onSubmit={handleAliasSubmit}
+                placeholder="Enter your alias..."
+              />
+              <p className="text-xs text-zinc-500 mt-2">
+                Your alias is displayed in chat and public listings
+              </p>
             </div>
           </div>
         </div>

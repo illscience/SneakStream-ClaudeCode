@@ -32,14 +32,19 @@ export default function ChatWindow() {
     e.preventDefault();
     if (!newMessage.trim()) return;
 
-    await sendMessage({
-      user: displayName,
-      userId: user?.id,
-      userName: displayName,
-      avatarUrl: user?.imageUrl,
-      body: newMessage
-    });
-    setNewMessage("");
+    try {
+      await sendMessage({
+        user: displayName,
+        userId: user?.id,
+        userName: displayName,
+        avatarUrl: user?.imageUrl,
+        body: newMessage
+      });
+      setNewMessage("");
+    } catch (error) {
+      console.error("Failed to send message:", error);
+      alert("Failed to send message. Please try again.");
+    }
   };
 
   return (
@@ -51,7 +56,7 @@ export default function ChatWindow() {
 
       {/* Messages Container */}
       <div className="flex-1 bg-zinc-900/50 rounded-xl overflow-y-auto mb-4 p-4 space-y-3 max-h-[400px]">
-        {messages?.map((message, idx) => (
+        {messages?.map((message) => (
           <div key={message._id} className="flex flex-col gap-1">
             <div className="flex items-baseline gap-2">
               <span className="text-xs font-medium text-lime-400">
@@ -70,12 +75,6 @@ export default function ChatWindow() {
         <div className="flex items-center gap-2 flex-1">
           <span className="text-xs text-zinc-400">Chatting as:</span>
           <span className="text-sm font-medium text-lime-400">{displayName}</span>
-          <a
-            href="/profile"
-            className="text-xs text-zinc-500 hover:text-lime-400 underline"
-          >
-            change
-          </a>
         </div>
       </div>
 

@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ark-ui/react": "^5.25.1",
     "@clerk/nextjs": "^6.33.1",
     "@livepeer/react": "^4.3.6",
     "@radix-ui/react-slot": "^1.2.3",

@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
-import { Play, Eye, Clock } from "lucide-react";
+import { Play, Eye } from "lucide-react";
 
 export default function VideoFeed({ limit }: { limit?: number }) {
   const { user } = useUser();
