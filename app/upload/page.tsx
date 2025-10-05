@@ -240,32 +240,6 @@ export default function UploadPage() {
             />
           </div>
 
-          {/* Visibility */}
-          <div className="mb-8">
-            <label className="block text-sm font-medium text-zinc-400 mb-2">
-              Visibility
-            </label>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { value: "public", label: "Public", desc: "Anyone can watch" },
-                { value: "followers", label: "Followers", desc: "Only followers" },
-                { value: "private", label: "Private", desc: "Only you" },
-              ].map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setVisibility(option.value)}
-                  className={`p-4 rounded-xl border-2 transition-all ${
-                    visibility === option.value
-                      ? "border-lime-400 bg-lime-400/10"
-                      : "border-zinc-700 hover:border-zinc-600"
-                  }`}
-                >
-                  <p className="font-medium mb-1">{option.label}</p>
-                  <p className="text-xs text-zinc-500">{option.desc}</p>
-                </button>
-              ))}
-            </div>
-          </div>
 
           {/* Upload Button */}
           <button
