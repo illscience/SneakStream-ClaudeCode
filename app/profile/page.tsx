@@ -35,20 +35,12 @@ export default function ProfilePage() {
   );
 
   useEffect(() => {
-    if (user && !convexUser) {
-      upsertUser({
-        clerkId: user.id,
-        alias: user.username || user.firstName || "User",
-        email: user.primaryEmailAddress?.emailAddress,
-        imageUrl: user.imageUrl,
-      });
-    }
-  }, [user, convexUser, upsertUser]);
-
-  useEffect(() => {
+    console.log("useEffect triggered - convexUser:", convexUser, "user:", user?.username, "current alias:", alias);
     if (convexUser) {
+      console.log("Setting alias from convexUser:", convexUser.alias);
       setAlias(convexUser.alias);
     } else if (user && !alias) {
+      console.log("Setting alias from user:", user.username || user.firstName || "User");
       setAlias(user.username || user.firstName || "User");
     }
   }, [convexUser, user, alias]);
@@ -56,12 +48,20 @@ export default function ProfilePage() {
   const handleAliasSubmit = async (newAlias: string) => {
     if (!user || !newAlias.trim()) return;
 
-    await upsertUser({
-      clerkId: user.id,
-      alias: newAlias.trim(),
-      email: user.primaryEmailAddress?.emailAddress,
-      imageUrl: user.imageUrl,
-    });
+    console.log("Submitting alias:", newAlias);
+    try {
+      await upsertUser({
+        clerkId: user.id,
+        alias: newAlias.trim(),
+        email: user.primaryEmailAddress?.emailAddress,
+        imageUrl: user.imageUrl,
+      });
+      setAlias(newAlias.trim());
+      console.log("Alias updated successfully");
+    } catch (error) {
+      console.error("Failed to update alias:", error);
+      alert("Failed to update alias. Please try again.");
+    }
   };
 
   if (!isLoaded || !user) {
@@ -100,6 +100,7 @@ export default function ProfilePage() {
             <div className="flex-1">
               <div className="mb-4">
                 <EditableAlias
+                  key={`top-${alias}`}
                   value={alias || user.username || user.firstName || "User"}
                   onSubmit={handleAliasSubmit}
                   placeholder="Enter your alias..."
@@ -147,6 +148,7 @@ export default function ProfilePage() {
                 Alias / Stage Name
               </label>
               <EditableAlias
+                key={`settings-${alias}`}
                 value={alias || user.username || user.firstName || "User"}
                 onSubmit={handleAliasSubmit}
                 placeholder="Enter your alias..."

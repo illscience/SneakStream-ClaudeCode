@@ -29,8 +29,6 @@ export default function Home() {
   const followerCount = useQuery(api.users.getFollowerCount, {
     clerkId: DJ_SNEAK_ID,
   });
-  const upsertUser = useMutation(api.users.upsertUser);
-
   // Get active live stream
   const activeStream = useQuery(api.livestream.getActiveStream);
 
@@ -45,19 +43,6 @@ export default function Home() {
     hasPlaybackUrl: !!defaultVideo.playbackUrl,
     status: defaultVideo.status
   } : null);
-
-
-  // Create/update user in Convex when they sign in
-  useEffect(() => {
-    if (user) {
-      upsertUser({
-        clerkId: user.id,
-        alias: user.username || user.firstName || "User",
-        email: user.primaryEmailAddress?.emailAddress,
-        imageUrl: user.imageUrl,
-      });
-    }
-  }, [user]);
 
   const handleFollowClick = async () => {
     if (!user) {

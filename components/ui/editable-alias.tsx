@@ -10,13 +10,21 @@ interface EditableAliasProps {
 }
 
 export default function EditableAlias({ value, onSubmit, placeholder = "Enter your alias..." }: EditableAliasProps) {
+  console.log("EditableAlias render - value:", value);
+
   return (
     <Editable.Root
+      key={value}
       placeholder={placeholder}
-      value={value}
-      onValueChange={(details) => {
-        if (details.value !== value) {
+      defaultValue={value}
+      onValueCommit={(details) => {
+        console.log("onValueCommit called - details:", details);
+        console.log("Original value:", value, "New value:", details.value);
+        if (details.value.trim() && details.value !== value) {
+          console.log("Calling onSubmit with:", details.value);
           onSubmit(details.value);
+        } else {
+          console.log("Not calling onSubmit - value unchanged or empty");
         }
       }}
     >
@@ -30,7 +38,10 @@ export default function EditableAlias({ value, onSubmit, placeholder = "Enter yo
             <Editable.Control className="flex items-center space-x-2 mt-2">
               {editable.editing ? (
                 <>
-                  <Editable.SubmitTrigger className="p-2 text-black bg-lime-400 hover:bg-lime-300 rounded-full transition-colors">
+                  <Editable.SubmitTrigger
+                    className="p-2 text-black bg-lime-400 hover:bg-lime-300 rounded-full transition-colors"
+                    onClick={() => console.log("Submit button clicked")}
+                  >
                     <Check className="h-5 w-5" />
                   </Editable.SubmitTrigger>
                   <Editable.CancelTrigger className="p-2 text-white bg-zinc-700 hover:bg-zinc-600 rounded-full transition-colors">
@@ -38,7 +49,10 @@ export default function EditableAlias({ value, onSubmit, placeholder = "Enter yo
                   </Editable.CancelTrigger>
                 </>
               ) : (
-                <Editable.EditTrigger className="p-2 text-black bg-lime-400 hover:bg-lime-300 rounded-full transition-colors">
+                <Editable.EditTrigger
+                  className="p-2 text-black bg-lime-400 hover:bg-lime-300 rounded-full transition-colors"
+                  onClick={() => console.log("Edit button clicked")}
+                >
                   <Edit3 className="h-5 w-5" />
                 </Editable.EditTrigger>
               )}
