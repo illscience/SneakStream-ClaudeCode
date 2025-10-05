@@ -232,6 +232,7 @@ export default function Home() {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     src={defaultVideo.playbackUrl as any}
                     autoPlay
+                    muted
                   >
                     <Player.Container>
                       <Player.Video className="w-full h-full rounded-2xl" />
@@ -396,6 +397,7 @@ export default function Home() {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     src={defaultVideo.playbackUrl as any}
                     autoPlay
+                    muted
                   >
                     <Player.Container>
                       <Player.Video className="w-full h-full" />
