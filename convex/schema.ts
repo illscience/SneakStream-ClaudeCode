@@ -40,6 +40,7 @@ export default defineSchema({
     viewCount: v.optional(v.number()),
     heartCount: v.optional(v.number()),
     isDefault: v.optional(v.boolean()), // Whether this is the default video to play
+    startTime: v.optional(v.number()), // Timestamp (t0) when this video became default
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"])
@@ -83,8 +84,9 @@ export default defineSchema({
   // Synchronized playback state for default video
   playbackState: defineTable({
     videoId: v.id("videos"), // Which video is currently playing
-    currentTime: v.number(), // Current playback position in seconds
-    isPlaying: v.boolean(), // Whether video is playing or paused
+    startTime: v.optional(v.number()), // Timestamp (t0) when video started playing
+    currentTime: v.optional(v.number()), // Legacy field - current playback position
+    isPlaying: v.optional(v.boolean()), // Legacy field - whether video is playing
     updatedAt: v.number(), // Timestamp of last update
   }),
 });

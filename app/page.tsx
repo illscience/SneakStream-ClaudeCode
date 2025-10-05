@@ -17,8 +17,20 @@ export default function Home() {
   const DJ_SNEAK_ID = "dj-sneak"; // Static ID for DJ Sneak
   const [heartCount, setHeartCount] = useState(0);
   const [isHeartAnimating, setIsHeartAnimating] = useState(false);
-  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("theater"); // theater = side-by-side
+  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">(() => {
+    // Load from localStorage on initial render
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('layoutMode');
+      return (saved === 'classic' || saved === 'theater') ? saved : 'theater';
+    }
+    return 'theater';
+  });
   const [isMuted, setIsMuted] = useState(true);
+
+  // Save layout mode to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('layoutMode', layoutMode);
+  }, [layoutMode]);
 
   const followUser = useMutation(api.follows.followUser);
   const unfollowUser = useMutation(api.follows.unfollowUser);
@@ -91,7 +103,6 @@ export default function Home() {
         <nav className="flex gap-8 text-sm font-medium">
           <a href="#" className="text-gray-300 hover:text-white">BROWSE</a>
           <a href="/go-live" className="text-gray-300 hover:text-white">GO LIVE</a>
-          <a href="/events" className="text-gray-300 hover:text-white">EVENTS</a>
           <SignedIn>
             <a href="/library" className="text-gray-300 hover:text-white">MY LIBRARY</a>
             <a href="/profile" className="text-gray-300 hover:text-white">PROFILE</a>
@@ -508,21 +519,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Track Info Bar */}
-        <div className="px-8 pb-4">
-          <div className="flex items-center gap-4 text-xs text-zinc-400">
-            <span className="flex items-center gap-2">
-              <span>🏆</span>
-              <span>🎵</span>
-            </span>
-            <span>HOUSE</span>
-            <span>TECHNO</span>
-            <span>TRANCE</span>
-            <span>D&B</span>
-            <span>▶</span>
-            <span>⊙</span>
-          </div>
-        </div>
       </div>
     </div>
   );
