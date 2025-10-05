@@ -234,7 +234,7 @@ export default function Home() {
                     autoPlay
                   >
                     <Player.Container>
-                      <Player.Video muted className="w-full h-full rounded-2xl" />
+                      <Player.Video loop muted className="w-full h-full rounded-2xl" />
                       <Player.Controls className="flex items-center gap-2 px-4 py-2">
                         <Player.PlayPauseTrigger />
                         <Player.Time />
@@ -307,7 +307,7 @@ export default function Home() {
                         autoPlay
                       >
                         <Player.Container>
-                          <Player.Video className="w-full h-full" />
+                          <Player.Video loop muted className="w-full h-full" />
                           <Player.Controls className="flex items-center gap-2 px-4 py-2">
                             <Player.PlayPauseTrigger />
                             <Player.Time />
@@ -398,7 +398,7 @@ export default function Home() {
                     autoPlay
                   >
                     <Player.Container>
-                      <Player.Video muted className="w-full h-full" />
+                      <Player.Video loop muted className="w-full h-full" />
                       <Player.Controls className="flex items-center gap-2 px-4 py-2">
                         <Player.PlayPauseTrigger />
                         <Player.Time />
