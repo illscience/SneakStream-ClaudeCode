@@ -1,6 +1,6 @@
 'use client';
 
-import { Heart, Download, Share2, MoreHorizontal, Play, Pause, SkipBack, SkipForward, Repeat, Volume2, MessageSquare, Tv, ChevronDown, LayoutGrid, Layout } from "lucide-react";
+import { Heart, Download, Share2, MoreHorizontal, Play, Pause, SkipBack, SkipForward, Repeat, Volume2, VolumeX, MessageSquare, Tv, ChevronDown, LayoutGrid, Layout } from "lucide-react";
 import ChatWindow from "./components/ChatWindow";
 import VideoFeed from "./components/VideoFeed";
 import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
@@ -18,6 +18,7 @@ export default function Home() {
   const [heartCount, setHeartCount] = useState(0);
   const [isHeartAnimating, setIsHeartAnimating] = useState(false);
   const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("theater"); // theater = side-by-side
+  const [isMuted, setIsMuted] = useState(true);
 
   const followUser = useMutation(api.follows.followUser);
   const unfollowUser = useMutation(api.follows.unfollowUser);
@@ -44,6 +45,7 @@ export default function Home() {
     hasPlaybackUrl: !!defaultVideo.playbackUrl,
     status: defaultVideo.status
   } : null);
+
 
   // Create/update user in Convex when they sign in
   useEffect(() => {
@@ -233,6 +235,8 @@ export default function Home() {
                   videoTitle={defaultVideo.title}
                   playbackUrl={defaultVideo.playbackUrl}
                   className="w-full h-full"
+                  isMuted={isMuted}
+                  onMutedChange={setIsMuted}
                 />
               ) : (
                 <div className="w-full h-full rounded-2xl bg-zinc-900 flex items-center justify-center">
@@ -288,6 +292,8 @@ export default function Home() {
                       videoTitle={defaultVideo.title}
                       playbackUrl={defaultVideo.playbackUrl}
                       className="w-full h-full"
+                      isMuted={isMuted}
+                      onMutedChange={setIsMuted}
                     />
                   ) : (
                     <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
@@ -361,6 +367,8 @@ export default function Home() {
                   videoTitle={defaultVideo.title}
                   playbackUrl={defaultVideo.playbackUrl}
                   className="w-full h-full"
+                  isMuted={isMuted}
+                  onMutedChange={setIsMuted}
                 />
               ) : (
                 <div className="w-full h-full bg-zinc-900 flex items-center justify-center">
@@ -434,64 +442,82 @@ export default function Home() {
 
       {/* Audio Player Controls */}
       <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-b from-zinc-900 to-black border-t border-zinc-800">
-        {/* Progress Bar */}
-        <div className="h-1 bg-zinc-800">
-          <div className="h-full w-1/3 bg-lime-400"></div>
-        </div>
-
         {/* Controls */}
         <div className="flex items-center justify-between px-8 py-4">
-          {/* Left Controls */}
-          <div className="flex items-center gap-4">
-            <button className="w-12 h-12 bg-white rounded-full flex items-center justify-center hover:bg-gray-200">
-              <Pause className="w-5 h-5 text-black" />
+          {/* Left - Playback Controls */}
+          <div className="flex items-center gap-3 flex-1">
+            <button
+              onClick={() => {
+                const video = document.querySelector('video');
+                if (video) {
+                  if (video.paused) {
+                    video.play();
+                  } else {
+                    video.pause();
+                  }
+                }
+              }}
+              className="w-12 h-12 bg-white rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
+            >
+              <Play className="w-5 h-5 text-black ml-0.5" />
             </button>
-            <button className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700">
-              <MoreHorizontal className="w-5 h-5" />
+            <button
+              onClick={() => {
+                const video = document.querySelector('video');
+                if (video) {
+                  video.currentTime = Math.max(0, video.currentTime - 10);
+                }
+              }}
+              className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700 transition-colors"
+            >
+              <SkipBack className="w-5 h-5" />
             </button>
-            <button className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center hover:bg-red-700">
-              <Heart className="w-5 h-5 fill-white" />
+            <button
+              onClick={() => {
+                const video = document.querySelector('video');
+                if (video) {
+                  video.currentTime = Math.min(video.duration, video.currentTime + 10);
+                }
+              }}
+              className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700 transition-colors"
+            >
+              <SkipForward className="w-5 h-5" />
             </button>
-            <button className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700">
-              <Repeat className="w-5 h-5" />
-            </button>
-            <button className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700">
-              <Share2 className="w-5 h-5" />
+            <button
+              onClick={() => {
+                setIsMuted(!isMuted);
+              }}
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                isMuted
+                  ? 'bg-red-600 hover:bg-red-700'
+                  : 'bg-zinc-800 hover:bg-zinc-700'
+              }`}
+            >
+              {isMuted ? (
+                <VolumeX className="w-5 h-5" />
+              ) : (
+                <Volume2 className="w-5 h-5" />
+              )}
             </button>
           </div>
 
           {/* Center - Now Playing */}
-          <button className="px-8 py-3 bg-lime-400 text-black rounded-full font-bold hover:bg-lime-300">
-            Deep Melodic Vibes Mix
-          </button>
+          <div className="px-8 py-3 bg-lime-400 text-black rounded-full font-bold text-center min-w-[200px]">
+            {defaultVideo?.title || "No video playing"}
+          </div>
 
-          {/* Right Controls */}
-          <div className="flex items-center gap-4">
-            <button className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700">
-              <Heart className="w-5 h-5" />
+          {/* Right - View Controls */}
+          <div className="flex items-center gap-3 flex-1 justify-end">
+            <button
+              onClick={() => setLayoutMode(layoutMode === "mobile" ? "theater" : "mobile")}
+              className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700 transition-colors"
+            >
+              <LayoutGrid className="w-5 h-5" />
             </button>
-            <button className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700">
-              <span className="text-sm">🌐</span>
-            </button>
-            <button className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700">
-              <Pause className="w-4 h-4" />
-            </button>
-            <button className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700">
-              <Pause className="w-4 h-4" />
-            </button>
-            <button className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700">
-              <Volume2 className="w-5 h-5" />
-            </button>
-            <button className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700">
-              <MessageSquare className="w-5 h-5" />
-            </button>
-            <button className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700">
-              <Tv className="w-5 h-5" />
-            </button>
-            <button className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700">
-              <MessageSquare className="w-5 h-5" />
-            </button>
-            <button className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700">
+            <button
+              onClick={() => setLayoutMode("theater")}
+              className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700 transition-colors"
+            >
               <Tv className="w-5 h-5" />
             </button>
           </div>

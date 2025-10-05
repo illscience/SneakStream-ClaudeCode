@@ -11,6 +11,8 @@ interface SyncedVideoPlayerProps {
   videoTitle: string;
   playbackUrl: string;
   className?: string;
+  isMuted?: boolean;
+  onMutedChange?: (muted: boolean) => void;
 }
 
 export default function SyncedVideoPlayer({
@@ -18,6 +20,8 @@ export default function SyncedVideoPlayer({
   videoTitle,
   playbackUrl,
   className = "",
+  isMuted = true,
+  onMutedChange,
 }: SyncedVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -45,6 +49,27 @@ export default function SyncedVideoPlayer({
     setHasInitialized(true);
   }, [playbackState, videoId, hasInitialized]);
 
+  // Set initial volume and muted state
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.volume = 1.0;
+      videoRef.current.muted = isMuted;
+    }
+  }, [isMuted]);
+
+  // Sync muted state changes back to parent
+  useEffect(() => {
+    if (!videoRef.current || !onMutedChange) return;
+
+    const video = videoRef.current;
+    const handleVolumeChange = () => {
+      onMutedChange(video.muted);
+    };
+
+    video.addEventListener('volumechange', handleVolumeChange);
+    return () => video.removeEventListener('volumechange', handleVolumeChange);
+  }, [onMutedChange]);
+
   // Periodically update the server with current position (for new clients joining)
   useEffect(() => {
     if (!hasInitialized) return;
@@ -68,6 +93,8 @@ export default function SyncedVideoPlayer({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         src={playbackUrl as any}
         autoPlay
+        muted={isMuted}
+        volume={1.0}
       >
         <Player.Container>
           <Player.Video
@@ -77,7 +104,6 @@ export default function SyncedVideoPlayer({
               }
             }}
             loop
-            muted
             className="w-full h-full"
           />
           <Player.Controls className="flex items-center gap-2 px-4 py-2">
