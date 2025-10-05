@@ -509,7 +509,7 @@ export default function Home() {
           {/* Right - View Controls */}
           <div className="flex items-center gap-3 flex-1 justify-end">
             <button
-              onClick={() => setLayoutMode(layoutMode === "mobile" ? "theater" : "mobile")}
+              onClick={() => setLayoutMode(layoutMode === "classic" ? "theater" : "classic")}
               className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700 transition-colors"
             >
               <LayoutGrid className="w-5 h-5" />
