@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DJ Sneak - Live Streaming Platform
+
+A Next.js-based live streaming platform for DJ Sneak, featuring live streams, video on demand, and event discovery.
+
+## Features
+
+- 🎵 Live DJ streaming
+- 📹 Video upload and library management
+- ⭐ Default video playback when offline
+- 💬 Real-time chat
+- 🎟️ Event discovery powered by AI
+- 👥 User profiles and following
+- 🔐 Authentication with Clerk
+
+## Tech Stack
+
+- **Framework:** Next.js 15 with Turbopack
+- **Video Infrastructure:** Livepeer Studio
+- **Database:** Convex
+- **Authentication:** Clerk
+- **Styling:** Tailwind CSS
+- **Deployment:** Vercel
 
 ## Getting Started
 
-First, run the development server:
+First, install dependencies:
+
+```bash
+npm install
+```
+
+Then, run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create a `.env.local` file with:
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=
+NEXT_PUBLIC_CONVEX_URL=
+CONVEX_DEPLOY_KEY=
+LIVEPEER_STUDIO_API_KEY=
+NEXT_PUBLIC_LIVEPEER_STUDIO_API_KEY=
+CLAUDE_API_KEY=
+```
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The easiest way to deploy is using the [Vercel Platform](https://vercel.com).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Don't forget to set your environment variables in the Vercel dashboard!
