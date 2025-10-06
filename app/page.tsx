@@ -17,6 +17,7 @@ export default function Home() {
   const [isHeartAnimating, setIsHeartAnimating] = useState(false);
   const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("theater");
   const [isMuted, setIsMuted] = useState(true);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   // Load layout mode from localStorage after hydration
   useEffect(() => {
@@ -33,15 +34,17 @@ export default function Home() {
 
   // Force classic layout on screens below the lg breakpoint
   useEffect(() => {
-    const enforceClassicOnMobile = () => {
-      if (window.innerWidth < 1024 && layoutMode !== 'classic') {
+    const handleResize = () => {
+      const width = window.innerWidth;
+      setIsDesktop(width >= 1024);
+      if (width < 1024 && layoutMode !== 'classic') {
         setLayoutMode('classic');
       }
     };
 
-    enforceClassicOnMobile();
-    window.addEventListener('resize', enforceClassicOnMobile);
-    return () => window.removeEventListener('resize', enforceClassicOnMobile);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [layoutMode]);
 
   const followUser = useMutation(api.follows.followUser);
@@ -174,59 +177,61 @@ export default function Home() {
         </section>
 
         {/* Desktop Video Layout */}
-        <div className="hidden lg:block px-8 py-8">
-          <div
-            className={
-              layoutMode === "theater"
-                ? "grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6"
-                : "flex justify-center"
-            }
-          >
+        {isDesktop && (
+          <div className="px-8 py-8">
             <div
               className={
                 layoutMode === "theater"
-                  ? "space-y-4"
-                  : "max-w-6xl w-full space-y-4"
+                  ? "grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6"
+                  : "flex justify-center"
               }
             >
-              <div className="relative w-full aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
-                {renderVideoContent()}
-              </div>
+              <div
+                className={
+                  layoutMode === "theater"
+                    ? "space-y-4"
+                    : "max-w-6xl w-full space-y-4"
+                }
+              >
+                <div className="relative w-full aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
+                  {renderVideoContent()}
+                </div>
 
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleHeart}
-                  className={`flex items-center gap-2 px-4 py-2 bg-red-600 rounded-full font-medium hover:bg-red-700 transition-all ${
-                    isHeartAnimating ? "scale-110" : ""
-                  }`}
-                >
-                  <Heart className="w-4 h-4 fill-white" />
-                  <span className="text-sm">{heartCount}</span>
-                </button>
-                <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
-                  <Share2 className="w-4 h-4" />
-                  <span className="text-sm">Share</span>
-                </button>
-                <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
-                  <Download className="w-4 h-4" />
-                </button>
-                <div className="ml-auto flex items-center gap-2">
-                  <span className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
-                    <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                    LIVE
-                  </span>
-                  <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs">2.4K Viewers</span>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleHeart}
+                    className={`flex items-center gap-2 px-4 py-2 bg-red-600 rounded-full font-medium hover:bg-red-700 transition-all ${
+                      isHeartAnimating ? "scale-110" : ""
+                    }`}
+                  >
+                    <Heart className="w-4 h-4 fill-white" />
+                    <span className="text-sm">{heartCount}</span>
+                  </button>
+                  <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
+                    <Share2 className="w-4 h-4" />
+                    <span className="text-sm">Share</span>
+                  </button>
+                  <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
+                    <Download className="w-4 h-4" />
+                  </button>
+                  <div className="ml-auto flex items-center gap-2">
+                    <span className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
+                      <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                      LIVE
+                    </span>
+                    <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs">2.4K Viewers</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {layoutMode === "theater" && (
-              <div>
-                <ChatWindow />
-              </div>
-            )}
+              {layoutMode === "theater" && (
+                <div>
+                  <ChatWindow />
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Content Sections */}
         <div className="px-4 lg:px-8 pb-48 pt-8">
