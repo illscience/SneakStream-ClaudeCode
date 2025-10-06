@@ -1,14 +1,14 @@
 'use client';
 
-import { Heart, Download, Share2, Volume2, VolumeX, Tv, LayoutGrid, Layout } from "lucide-react";
+import { Heart, Download, Share2, Volume2, VolumeX, Tv, LayoutGrid, UserPlus, UserCheck } from "lucide-react";
 import ChatWindow from "./components/ChatWindow";
 import VideoFeed from "./components/VideoFeed";
 import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
-import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
+import MainNav from "@/components/navigation/MainNav";
+import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useEffect, useState } from "react";
-import { Toggle } from "@/components/ui/toggle";
 
 export default function Home() {
   const { user } = useUser();
@@ -17,6 +17,7 @@ export default function Home() {
   const [isHeartAnimating, setIsHeartAnimating] = useState(false);
   const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("theater");
   const [isMuted, setIsMuted] = useState(true);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   // Load layout mode from localStorage after hydration
   useEffect(() => {
@@ -29,6 +30,21 @@ export default function Home() {
   // Save layout mode to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('layoutMode', layoutMode);
+  }, [layoutMode]);
+
+  // Force classic layout on screens below the lg breakpoint
+  useEffect(() => {
+    const handleResize = () => {
+      const width = window.innerWidth;
+      setIsDesktop(width >= 1024);
+      if (width < 1024 && layoutMode !== 'classic') {
+        setLayoutMode('classic');
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [layoutMode]);
 
   const followUser = useMutation(api.follows.followUser);
@@ -119,82 +135,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Navigation Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-4 bg-black/80 backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <div className="grid grid-cols-3 gap-1 w-8 h-8">
-            <div className="bg-yellow-400 rounded-sm"></div>
-            <div className="bg-pink-400 rounded-sm"></div>
-            <div className="bg-cyan-400 rounded-sm"></div>
-            <div className="bg-green-400 rounded-sm"></div>
-            <div className="bg-purple-400 rounded-sm"></div>
-            <div className="bg-orange-400 rounded-sm"></div>
-            <div className="bg-red-400 rounded-sm"></div>
-            <div className="bg-blue-400 rounded-sm"></div>
-            <div className="bg-lime-400 rounded-sm"></div>
-          </div>
-          <span className="text-xl font-bold">DJ SNEAK</span>
-        </div>
-
-        <nav className="flex gap-8 text-sm font-medium">
-          <a href="#" className="text-gray-300 hover:text-white">BROWSE</a>
-          <a href="/go-live" className="text-gray-300 hover:text-white">GO LIVE</a>
-          <SignedIn>
-            <a href="/library" className="text-gray-300 hover:text-white">MY LIBRARY</a>
-            <a href="/profile" className="text-gray-300 hover:text-white">PROFILE</a>
-          </SignedIn>
-        </nav>
-
-        <div className="flex items-center gap-3">
-          {/* Layout Toggle */}
-          <Toggle
-            pressed={layoutMode === "theater"}
-            onPressedChange={(pressed) => setLayoutMode(pressed ? "theater" : "classic")}
-            aria-label="Toggle layout"
-            className="hidden lg:flex items-center justify-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 data-[state=on]:bg-lime-400 data-[state=on]:text-black rounded-full"
-          >
-            {layoutMode === "theater" ? (
-              <>
-                <Layout className="w-4 h-4" />
-                <span className="text-xs font-medium">Theater</span>
-              </>
-            ) : (
-              <>
-                <LayoutGrid className="w-4 h-4" />
-                <span className="text-xs font-medium">Classic</span>
-              </>
-            )}
-          </Toggle>
-
-          <button className="px-6 py-2 bg-lime-400 text-black rounded-full font-medium hover:bg-lime-300">
-            Subscribe
-          </button>
-          <SignedOut>
-            <SignInButton mode="modal">
-              <button className="px-6 py-2 bg-white text-black rounded-full font-medium hover:bg-gray-200">
-                Sign In
-              </button>
-            </SignInButton>
-          </SignedOut>
-          <SignedIn>
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: "w-10 h-10"
-                }
-              }}
-            >
-              <UserButton.MenuItems>
-                <UserButton.Link
-                  label="My Profile"
-                  labelIcon={<span>👤</span>}
-                  href="/profile"
-                />
-              </UserButton.MenuItems>
-            </UserButton>
-          </SignedIn>
-        </div>
-      </header>
+      <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
 
       {/* Main Content */}
       <main className="pt-20">
@@ -203,44 +144,15 @@ export default function Home() {
           <div className="px-8 pt-6 pb-0">
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h1 className="text-6xl font-bold text-black">{heroTitle}</h1>
+                <span className="sr-only">{heroTitle}</span>
+                <h1 className="hidden sm:block text-4xl font-bold text-black leading-tight lg:text-6xl">
+                  {heroTitle}
+                </h1>
                 {followerCount !== undefined && (
                   <p className="text-sm text-black/60 mt-2">
                     {followerCount} {followerCount === 1 ? "Follower" : "Followers"}
                   </p>
                 )}
-              </div>
-              <div className="flex gap-3">
-                <button className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center hover:bg-white">
-                  <Download className="w-5 h-5 text-black" />
-                </button>
-                <SignedOut>
-                  <SignInButton mode="modal">
-                    <button className="px-6 py-3 bg-black/90 text-white rounded-full flex items-center gap-2 hover:bg-black">
-                      <span className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-                        <span className="text-black text-xs">👤</span>
-                      </span>
-                      <span className="text-sm font-medium">Follow Artist</span>
-                    </button>
-                  </SignInButton>
-                </SignedOut>
-                <SignedIn>
-                  <button
-                    onClick={handleFollowClick}
-                    className={`px-6 py-3 rounded-full flex items-center gap-2 hover:opacity-90 transition-all ${
-                      isFollowing
-                        ? "bg-white/20 text-white border-2 border-white"
-                        : "bg-black/90 text-white"
-                    }`}
-                  >
-                    <span className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-                      <span className="text-black text-xs">👤</span>
-                    </span>
-                    <span className="text-sm font-medium">
-                      {isFollowing ? "Following" : "Follow Artist"}
-                    </span>
-                  </button>
-                </SignedIn>
               </div>
             </div>
 
@@ -265,59 +177,61 @@ export default function Home() {
         </section>
 
         {/* Desktop Video Layout */}
-        <div className="hidden lg:block px-8 py-8">
-          <div
-            className={
-              layoutMode === "theater"
-                ? "grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6"
-                : "flex justify-center"
-            }
-          >
+        {isDesktop && (
+          <div className="px-8 py-8">
             <div
               className={
                 layoutMode === "theater"
-                  ? "space-y-4"
-                  : "max-w-6xl w-full space-y-4"
+                  ? "grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6"
+                  : "flex justify-center"
               }
             >
-              <div className="relative w-full aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
-                {renderVideoContent()}
-              </div>
+              <div
+                className={
+                  layoutMode === "theater"
+                    ? "space-y-4"
+                    : "max-w-6xl w-full space-y-4"
+                }
+              >
+                <div className="relative w-full aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
+                  {renderVideoContent()}
+                </div>
 
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleHeart}
-                  className={`flex items-center gap-2 px-4 py-2 bg-red-600 rounded-full font-medium hover:bg-red-700 transition-all ${
-                    isHeartAnimating ? "scale-110" : ""
-                  }`}
-                >
-                  <Heart className="w-4 h-4 fill-white" />
-                  <span className="text-sm">{heartCount}</span>
-                </button>
-                <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
-                  <Share2 className="w-4 h-4" />
-                  <span className="text-sm">Share</span>
-                </button>
-                <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
-                  <Download className="w-4 h-4" />
-                </button>
-                <div className="ml-auto flex items-center gap-2">
-                  <span className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
-                    <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                    LIVE
-                  </span>
-                  <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs">2.4K Viewers</span>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleHeart}
+                    className={`flex items-center gap-2 px-4 py-2 bg-red-600 rounded-full font-medium hover:bg-red-700 transition-all ${
+                      isHeartAnimating ? "scale-110" : ""
+                    }`}
+                  >
+                    <Heart className="w-4 h-4 fill-white" />
+                    <span className="text-sm">{heartCount}</span>
+                  </button>
+                  <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
+                    <Share2 className="w-4 h-4" />
+                    <span className="text-sm">Share</span>
+                  </button>
+                  <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
+                    <Download className="w-4 h-4" />
+                  </button>
+                  <div className="ml-auto flex items-center gap-2">
+                    <span className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
+                      <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                      LIVE
+                    </span>
+                    <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs">2.4K Viewers</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {layoutMode === "theater" && (
-              <div>
-                <ChatWindow />
-              </div>
-            )}
+              {layoutMode === "theater" && (
+                <div>
+                  <ChatWindow />
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Content Sections */}
         <div className="px-4 lg:px-8 pb-48 pt-8">
@@ -350,16 +264,16 @@ export default function Home() {
       </main>
 
       {/* Audio Player Controls */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-b from-zinc-900 to-black border-t border-zinc-800">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-gradient-to-b from-zinc-900 to-black">
         {/* Controls */}
-        <div className="flex items-center justify-between px-8 py-4">
+        <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 sm:py-3 lg:px-8 lg:py-4">
           {/* Left - Playback Controls */}
-          <div className="flex items-center gap-3 flex-1">
+          <div className="flex items-center gap-3 sm:gap-4 lg:flex-1">
             <button
               onClick={() => {
                 setIsMuted(!isMuted);
               }}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+              className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
                 isMuted
                   ? 'bg-red-600 hover:bg-red-700'
                   : 'bg-zinc-800 hover:bg-zinc-700'
@@ -371,15 +285,36 @@ export default function Home() {
                 <Volume2 className="w-5 h-5" />
               )}
             </button>
+
+            <SignedOut>
+              <SignInButton mode="modal">
+                <button className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 text-white transition-colors hover:bg-white/10">
+                  <UserPlus className="w-5 h-5" />
+                </button>
+              </SignInButton>
+            </SignedOut>
+
+            <SignedIn>
+              <button
+                onClick={handleFollowClick}
+                className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
+                  isFollowing
+                    ? 'bg-lime-400 text-black hover:bg-lime-300'
+                    : 'bg-zinc-800 text-white hover:bg-zinc-700'
+                }`}
+              >
+                {isFollowing ? <UserCheck className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+              </button>
+            </SignedIn>
           </div>
 
           {/* Center - Now Playing */}
-          <div className="px-8 py-3 bg-lime-400 text-black rounded-full font-bold text-center min-w-[200px]">
+          <div className="flex-1 rounded-full bg-lime-400 px-5 py-2 text-center text-sm font-semibold text-black shadow-sm sm:px-6 sm:py-3 sm:text-base lg:flex-none">
             {defaultVideo?.title || "No video playing"}
           </div>
 
           {/* Right - View Controls */}
-          <div className="flex items-center gap-3 flex-1 justify-end">
+          <div className="hidden lg:flex items-center gap-3 flex-1 justify-end">
             <button
               onClick={() => setLayoutMode(layoutMode === "classic" ? "theater" : "classic")}
               className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700 transition-colors"

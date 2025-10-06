@@ -89,9 +89,9 @@ export default function ChatWindow() {
         />
         <button
           type="submit"
-          className="px-4 py-2 bg-lime-400 text-black rounded-lg font-medium hover:bg-lime-300 transition-colors flex items-center gap-2"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-lime-400 text-black transition-colors hover:bg-lime-300 sm:h-auto sm:min-w-[120px] sm:px-4 sm:py-2 sm:text-sm sm:font-medium"
         >
-          <Send className="w-4 h-4" />
+          <Send className="h-4 w-4" />
         </button>
       </form>
     </div>
