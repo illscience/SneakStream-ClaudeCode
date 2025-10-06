@@ -1,6 +1,6 @@
 'use client';
 
-import { Heart, Download, Share2, Play, SkipBack, SkipForward, Volume2, VolumeX, Tv, LayoutGrid, Layout } from "lucide-react";
+import { Heart, Download, Share2, Volume2, VolumeX, Tv, LayoutGrid, Layout } from "lucide-react";
 import ChatWindow from "./components/ChatWindow";
 import VideoFeed from "./components/VideoFeed";
 import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
@@ -45,6 +45,8 @@ export default function Home() {
 
   // Get default video to play when no live stream is active
   const defaultVideo = useQuery(api.videos.getDefaultVideo);
+
+  const heroTitle = activeStream?.title ?? defaultVideo?.title ?? "DJ SNEAK";
 
   const renderVideoContent = () => {
     if (activeStream && activeStream.playbackUrl) {
@@ -201,7 +203,7 @@ export default function Home() {
           <div className="px-8 pt-6 pb-0">
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h1 className="text-6xl font-bold text-black">DJ SNEAK</h1>
+                <h1 className="text-6xl font-bold text-black">{heroTitle}</h1>
                 {followerCount !== undefined && (
                   <p className="text-sm text-black/60 mt-2">
                     {followerCount} {followerCount === 1 ? "Follower" : "Followers"}
@@ -353,43 +355,6 @@ export default function Home() {
         <div className="flex items-center justify-between px-8 py-4">
           {/* Left - Playback Controls */}
           <div className="flex items-center gap-3 flex-1">
-            <button
-              onClick={() => {
-                const video = document.querySelector('video');
-                if (video) {
-                  if (video.paused) {
-                    video.play();
-                  } else {
-                    video.pause();
-                  }
-                }
-              }}
-              className="w-12 h-12 bg-white rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
-            >
-              <Play className="w-5 h-5 text-black ml-0.5" />
-            </button>
-            <button
-              onClick={() => {
-                const video = document.querySelector('video');
-                if (video) {
-                  video.currentTime = Math.max(0, video.currentTime - 10);
-                }
-              }}
-              className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700 transition-colors"
-            >
-              <SkipBack className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => {
-                const video = document.querySelector('video');
-                if (video) {
-                  video.currentTime = Math.min(video.duration, video.currentTime + 10);
-                }
-              }}
-              className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700 transition-colors"
-            >
-              <SkipForward className="w-5 h-5" />
-            </button>
             <button
               onClick={() => {
                 setIsMuted(!isMuted);
