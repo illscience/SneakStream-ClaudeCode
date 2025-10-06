@@ -288,16 +288,16 @@ export default function Home() {
       </main>
 
       {/* Audio Player Controls */}
-      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-b from-zinc-900 to-black border-t border-zinc-800">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-gradient-to-b from-zinc-900 to-black">
         {/* Controls */}
-        <div className="flex items-center justify-between px-8 py-4">
+        <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 sm:py-3 lg:px-8 lg:py-4">
           {/* Left - Playback Controls */}
-          <div className="flex items-center gap-3 lg:flex-1">
+          <div className="flex items-center gap-3 sm:gap-4 lg:flex-1">
             <button
               onClick={() => {
                 setIsMuted(!isMuted);
               }}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+              className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
                 isMuted
                   ? 'bg-red-600 hover:bg-red-700'
                   : 'bg-zinc-800 hover:bg-zinc-700'
@@ -312,7 +312,7 @@ export default function Home() {
           </div>
 
           {/* Center - Now Playing */}
-          <div className="flex-1 px-8 py-3 bg-lime-400 text-black rounded-full font-bold text-center min-w-[200px] lg:flex-none">
+          <div className="flex-1 rounded-full bg-lime-400 px-5 py-2 text-center text-sm font-semibold text-black shadow-sm sm:px-6 sm:py-3 sm:text-base lg:flex-none">
             {defaultVideo?.title || "No video playing"}
           </div>
 
