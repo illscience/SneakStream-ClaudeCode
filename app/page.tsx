@@ -1,6 +1,6 @@
 'use client';
 
-import { Heart, Download, Share2, Volume2, VolumeX, Tv, LayoutGrid } from "lucide-react";
+import { Heart, Download, Share2, Volume2, VolumeX, Tv, LayoutGrid, UserPlus, UserCheck } from "lucide-react";
 import ChatWindow from "./components/ChatWindow";
 import VideoFeed from "./components/VideoFeed";
 import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
@@ -141,44 +141,15 @@ export default function Home() {
           <div className="px-8 pt-6 pb-0">
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h1 className="text-6xl font-bold text-black">{heroTitle}</h1>
+                <span className="sr-only">{heroTitle}</span>
+                <h1 className="hidden sm:block text-4xl font-bold text-black leading-tight lg:text-6xl">
+                  {heroTitle}
+                </h1>
                 {followerCount !== undefined && (
                   <p className="text-sm text-black/60 mt-2">
                     {followerCount} {followerCount === 1 ? "Follower" : "Followers"}
                   </p>
                 )}
-              </div>
-              <div className="flex gap-3">
-                <button className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center hover:bg-white">
-                  <Download className="w-5 h-5 text-black" />
-                </button>
-                <SignedOut>
-                  <SignInButton mode="modal">
-                    <button className="px-6 py-3 bg-black/90 text-white rounded-full flex items-center gap-2 hover:bg-black">
-                      <span className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-                        <span className="text-black text-xs">👤</span>
-                      </span>
-                      <span className="text-sm font-medium">Follow Artist</span>
-                    </button>
-                  </SignInButton>
-                </SignedOut>
-                <SignedIn>
-                  <button
-                    onClick={handleFollowClick}
-                    className={`px-6 py-3 rounded-full flex items-center gap-2 hover:opacity-90 transition-all ${
-                      isFollowing
-                        ? "bg-white/20 text-white border-2 border-white"
-                        : "bg-black/90 text-white"
-                    }`}
-                  >
-                    <span className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
-                      <span className="text-black text-xs">👤</span>
-                    </span>
-                    <span className="text-sm font-medium">
-                      {isFollowing ? "Following" : "Follow Artist"}
-                    </span>
-                  </button>
-                </SignedIn>
               </div>
             </div>
 
@@ -309,6 +280,27 @@ export default function Home() {
                 <Volume2 className="w-5 h-5" />
               )}
             </button>
+
+            <SignedOut>
+              <SignInButton mode="modal">
+                <button className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 text-white transition-colors hover:bg-white/10">
+                  <UserPlus className="w-5 h-5" />
+                </button>
+              </SignInButton>
+            </SignedOut>
+
+            <SignedIn>
+              <button
+                onClick={handleFollowClick}
+                className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
+                  isFollowing
+                    ? 'bg-lime-400 text-black hover:bg-lime-300'
+                    : 'bg-zinc-800 text-white hover:bg-zinc-700'
+                }`}
+              >
+                {isFollowing ? <UserCheck className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+              </button>
+            </SignedIn>
           </div>
 
           {/* Center - Now Playing */}
