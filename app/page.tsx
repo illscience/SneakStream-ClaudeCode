@@ -1,14 +1,14 @@
 'use client';
 
-import { Heart, Download, Share2, Volume2, VolumeX, Tv, LayoutGrid, Layout } from "lucide-react";
+import { Heart, Download, Share2, Volume2, VolumeX, Tv, LayoutGrid } from "lucide-react";
 import ChatWindow from "./components/ChatWindow";
 import VideoFeed from "./components/VideoFeed";
 import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
-import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
+import MainNav from "@/components/navigation/MainNav";
+import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useEffect, useState } from "react";
-import { Toggle } from "@/components/ui/toggle";
 
 export default function Home() {
   const { user } = useUser();
@@ -29,6 +29,19 @@ export default function Home() {
   // Save layout mode to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('layoutMode', layoutMode);
+  }, [layoutMode]);
+
+  // Force classic layout on screens below the lg breakpoint
+  useEffect(() => {
+    const enforceClassicOnMobile = () => {
+      if (window.innerWidth < 1024 && layoutMode !== 'classic') {
+        setLayoutMode('classic');
+      }
+    };
+
+    enforceClassicOnMobile();
+    window.addEventListener('resize', enforceClassicOnMobile);
+    return () => window.removeEventListener('resize', enforceClassicOnMobile);
   }, [layoutMode]);
 
   const followUser = useMutation(api.follows.followUser);
@@ -119,82 +132,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Navigation Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-4 bg-black/80 backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <div className="grid grid-cols-3 gap-1 w-8 h-8">
-            <div className="bg-yellow-400 rounded-sm"></div>
-            <div className="bg-pink-400 rounded-sm"></div>
-            <div className="bg-cyan-400 rounded-sm"></div>
-            <div className="bg-green-400 rounded-sm"></div>
-            <div className="bg-purple-400 rounded-sm"></div>
-            <div className="bg-orange-400 rounded-sm"></div>
-            <div className="bg-red-400 rounded-sm"></div>
-            <div className="bg-blue-400 rounded-sm"></div>
-            <div className="bg-lime-400 rounded-sm"></div>
-          </div>
-          <span className="text-xl font-bold">DJ SNEAK</span>
-        </div>
-
-        <nav className="flex gap-8 text-sm font-medium">
-          <a href="#" className="text-gray-300 hover:text-white">BROWSE</a>
-          <a href="/go-live" className="text-gray-300 hover:text-white">GO LIVE</a>
-          <SignedIn>
-            <a href="/library" className="text-gray-300 hover:text-white">MY LIBRARY</a>
-            <a href="/profile" className="text-gray-300 hover:text-white">PROFILE</a>
-          </SignedIn>
-        </nav>
-
-        <div className="flex items-center gap-3">
-          {/* Layout Toggle */}
-          <Toggle
-            pressed={layoutMode === "theater"}
-            onPressedChange={(pressed) => setLayoutMode(pressed ? "theater" : "classic")}
-            aria-label="Toggle layout"
-            className="hidden lg:flex items-center justify-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 data-[state=on]:bg-lime-400 data-[state=on]:text-black rounded-full"
-          >
-            {layoutMode === "theater" ? (
-              <>
-                <Layout className="w-4 h-4" />
-                <span className="text-xs font-medium">Theater</span>
-              </>
-            ) : (
-              <>
-                <LayoutGrid className="w-4 h-4" />
-                <span className="text-xs font-medium">Classic</span>
-              </>
-            )}
-          </Toggle>
-
-          <button className="px-6 py-2 bg-lime-400 text-black rounded-full font-medium hover:bg-lime-300">
-            Subscribe
-          </button>
-          <SignedOut>
-            <SignInButton mode="modal">
-              <button className="px-6 py-2 bg-white text-black rounded-full font-medium hover:bg-gray-200">
-                Sign In
-              </button>
-            </SignInButton>
-          </SignedOut>
-          <SignedIn>
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: "w-10 h-10"
-                }
-              }}
-            >
-              <UserButton.MenuItems>
-                <UserButton.Link
-                  label="My Profile"
-                  labelIcon={<span>👤</span>}
-                  href="/profile"
-                />
-              </UserButton.MenuItems>
-            </UserButton>
-          </SignedIn>
-        </div>
-      </header>
+      <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
 
       {/* Main Content */}
       <main className="pt-20">
@@ -354,7 +292,7 @@ export default function Home() {
         {/* Controls */}
         <div className="flex items-center justify-between px-8 py-4">
           {/* Left - Playback Controls */}
-          <div className="flex items-center gap-3 flex-1">
+          <div className="flex items-center gap-3 lg:flex-1">
             <button
               onClick={() => {
                 setIsMuted(!isMuted);
@@ -374,12 +312,12 @@ export default function Home() {
           </div>
 
           {/* Center - Now Playing */}
-          <div className="px-8 py-3 bg-lime-400 text-black rounded-full font-bold text-center min-w-[200px]">
+          <div className="flex-1 px-8 py-3 bg-lime-400 text-black rounded-full font-bold text-center min-w-[200px] lg:flex-none">
             {defaultVideo?.title || "No video playing"}
           </div>
 
           {/* Right - View Controls */}
-          <div className="flex items-center gap-3 flex-1 justify-end">
+          <div className="hidden lg:flex items-center gap-3 flex-1 justify-end">
             <button
               onClick={() => setLayoutMode(layoutMode === "classic" ? "theater" : "classic")}
               className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700 transition-colors"
