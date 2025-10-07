@@ -46,10 +46,12 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 CLERK_SECRET_KEY=
 NEXT_PUBLIC_CONVEX_URL=
 CONVEX_DEPLOY_KEY=
-LIVEPEER_STUDIO_API_KEY=
-NEXT_PUBLIC_LIVEPEER_STUDIO_API_KEY=
+MUX_TOKEN_ID=
+MUX_TOKEN_SECRET=
 CLAUDE_API_KEY=
 ```
+
+To run the live Mux verification suite, export `MUX_LIVE_TEST=1` (with valid `MUX_TOKEN_ID` and `MUX_TOKEN_SECRET`) before executing `npm run test`. Otherwise the live tests are skipped automatically.
 
 ## Deploy on Vercel
 

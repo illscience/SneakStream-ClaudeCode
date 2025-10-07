@@ -70,7 +70,7 @@ export default function LibraryPage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            assetId: video.livepeerAssetId,
+            assetId: video.assetId,
           }),
         });
 

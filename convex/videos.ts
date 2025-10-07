@@ -7,7 +7,9 @@ export const createVideo = mutation({
     userId: v.string(),
     title: v.string(),
     description: v.optional(v.string()),
-    livepeerAssetId: v.string(),
+    assetId: v.optional(v.string()),
+    uploadId: v.optional(v.string()),
+    provider: v.optional(v.string()),
     playbackId: v.optional(v.string()),
     playbackUrl: v.optional(v.string()),
     thumbnailUrl: v.optional(v.string()),
@@ -15,8 +17,10 @@ export const createVideo = mutation({
     visibility: v.string(),
   },
   handler: async (ctx, args) => {
+    const { provider, ...rest } = args;
     return await ctx.db.insert("videos", {
-      ...args,
+      ...rest,
+      provider: provider || "mux",
       status: "processing",
       viewCount: 0,
     });
@@ -33,6 +37,7 @@ export const updateVideoStatus = mutation({
     thumbnailUrl: v.optional(v.string()),
     duration: v.optional(v.number()),
     progress: v.optional(v.number()),
+    assetId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { videoId, ...updates } = args;
