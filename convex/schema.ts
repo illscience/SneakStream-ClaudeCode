@@ -29,8 +29,9 @@ export default defineSchema({
     userId: v.string(), // Clerk user ID of uploader
     title: v.string(),
     description: v.optional(v.string()),
-    provider: v.string(), // e.g., "mux"
+    provider: v.optional(v.string()), // e.g., "mux"
     assetId: v.optional(v.string()), // Mux asset ID
+    livepeerAssetId: v.optional(v.string()), // Legacy Livepeer asset identifier
     uploadId: v.optional(v.string()), // Mux upload ID for direct uploads
     playbackId: v.optional(v.string()), // Mux playback ID
     playbackUrl: v.optional(v.string()), // HLS playback URL
@@ -73,7 +74,7 @@ export default defineSchema({
     startedAt: v.number(), // timestamp
     endedAt: v.optional(v.number()), // timestamp
     viewerCount: v.optional(v.number()),
-    provider: v.string(),
+    provider: v.optional(v.string()),
     streamId: v.optional(v.string()),
     streamKey: v.optional(v.string()),
     playbackId: v.optional(v.string()),

@@ -8,6 +8,7 @@ export const createVideo = mutation({
     title: v.string(),
     description: v.optional(v.string()),
     assetId: v.optional(v.string()),
+    livepeerAssetId: v.optional(v.string()),
     uploadId: v.optional(v.string()),
     provider: v.optional(v.string()),
     playbackId: v.optional(v.string()),
@@ -17,10 +18,15 @@ export const createVideo = mutation({
     visibility: v.string(),
   },
   handler: async (ctx, args) => {
-    const { provider, ...rest } = args;
+    const { provider, assetId, livepeerAssetId, ...rest } = args;
+    const resolvedProvider = provider || (livepeerAssetId ? "livepeer" : "mux");
+    const resolvedAssetId = assetId || livepeerAssetId || undefined;
+
     return await ctx.db.insert("videos", {
       ...rest,
-      provider: provider || "mux",
+      assetId: resolvedAssetId,
+      ...(livepeerAssetId ? { livepeerAssetId } : {}),
+      provider: resolvedProvider,
       status: "processing",
       viewCount: 0,
     });
