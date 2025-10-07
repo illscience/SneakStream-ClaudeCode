@@ -13,11 +13,16 @@ const mockFetch = (responses: Array<{ status?: number; body: unknown }>) => {
     const responseConfig = responses[call] ?? responses[responses.length - 1];
     call += 1;
     const { status = 200, body } = responseConfig;
+    const headers = {
+      get: (_name: string) => undefined,
+    } as Headers;
+
     return {
       ok: status >= 200 && status < 300,
       status,
       json: async () => body,
       text: async () => JSON.stringify(body),
+      headers,
     } as Response;
   });
 };

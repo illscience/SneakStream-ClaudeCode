@@ -64,46 +64,65 @@ export default function LibraryPage() {
 
     try {
       for (const video of processingVideos) {
+        const payload =
+          video.provider === "mux"
+            ? { uploadId: video.uploadId, provider: "mux" }
+            : { assetId: video.assetId, provider: "livepeer" };
+
+        if (!payload.uploadId && !payload.assetId) {
+          continue;
+        }
+
         const response = await fetch("/api/upload/status", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            assetId: video.assetId,
-          }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
         });
 
-        if (response.ok) {
-          const asset = await response.json();
+        if (!response.ok) {
+          continue;
+        }
 
-          // Update based on Livepeer status
+        const asset = await response.json();
+
+        if (video.provider === "mux") {
+          if (asset.assetStatus === "ready") {
+            await updateVideoStatus({
+              videoId: video._id,
+              status: "ready",
+              playbackId: asset.playbackId || undefined,
+              playbackUrl: asset.playbackUrl || undefined,
+              duration: asset.duration || undefined,
+              progress: 1,
+            });
+          } else if (asset.status === "errored") {
+            await updateVideoStatus({ videoId: video._id, status: "failed" });
+          }
+        } else {
           if (asset.status?.phase === "ready") {
-            // Construct playback URL if not provided
-            const playbackUrl = asset.playbackUrl ||
-              (asset.playbackId ? `https://vod-cdn.lp-playback.studio/raw/jxf4iblf6wlsyor6526t4tcmtmqa/catalyst-vod-com/hls/${asset.playbackId}/index.m3u8` : undefined);
+            const playbackUrl =
+              asset.playbackUrl ||
+              (asset.playbackId
+                ? `https://vod-cdn.lp-playback.studio/raw/jxf4iblf6wlsyor6526t4tcmtmqa/catalyst-vod-com/hls/${asset.playbackId}/index.m3u8`
+                : undefined);
 
             await updateVideoStatus({
               videoId: video._id,
               status: "ready",
               playbackId: asset.playbackId,
-              playbackUrl: playbackUrl,
+              playbackUrl,
               thumbnailUrl: asset.staticMp4Url || undefined,
               duration: asset.videoSpec?.duration || undefined,
               progress: 1.0,
             });
           } else if (asset.status?.phase === "processing") {
-            // Update progress for processing videos
             await updateVideoStatus({
               videoId: video._id,
               status: "processing",
               progress: asset.status?.progress || 0,
             });
           } else if (asset.status?.phase === "failed") {
-            await updateVideoStatus({
-              videoId: video._id,
-              status: "failed",
-            });
+            await updateVideoStatus({ videoId: video._id, status: "failed" });
           }
         }
       }
@@ -273,6 +292,9 @@ export default function LibraryPage() {
                             {video.visibility}
                           </span>
                         </div>
+                      </div>
+                      <div className="mt-2 text-[10px] uppercase text-zinc-500">
+                        Provider: {video.provider === "mux" ? "Mux" : "Livepeer"}
                       </div>
                     </div>
                   </div>
