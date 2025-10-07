@@ -35,31 +35,56 @@ export default function ProfilePage() {
   );
 
   useEffect(() => {
-    console.log("useEffect triggered - convexUser:", convexUser, "user:", user?.username, "current alias:", alias);
-    if (convexUser) {
-      console.log("Setting alias from convexUser:", convexUser.alias);
-      setAlias(convexUser.alias);
-    } else if (user && !alias) {
-      console.log("Setting alias from user:", user.username || user.firstName || "User");
-      setAlias(user.username || user.firstName || "User");
+    if (!user) {
+      console.info("[profile] user not loaded; skipping alias sync");
+      return;
     }
-  }, [convexUser, user, alias]);
+
+    if (convexUser) {
+      setAlias((prevAlias) => {
+        if (prevAlias === convexUser.alias) {
+          return prevAlias;
+        }
+
+        console.info("[profile] syncing alias from Convex", {
+          previousAlias: prevAlias,
+          nextAlias: convexUser.alias,
+        });
+        return convexUser.alias;
+      });
+      return;
+    }
+
+    setAlias((prevAlias) => {
+      if (prevAlias) {
+        return prevAlias;
+      }
+
+      const fallbackAlias = user.username || user.firstName || "User";
+      console.info("[profile] defaulting alias from Clerk", { fallbackAlias });
+      return fallbackAlias;
+    });
+  }, [convexUser, user]);
 
   const handleAliasSubmit = async (newAlias: string) => {
     if (!user || !newAlias.trim()) return;
 
-    console.log("Submitting alias:", newAlias);
+    const trimmedAlias = newAlias.trim();
+    console.info("[profile] submitting alias", {
+      trimmedAlias,
+      previousAlias: convexUser?.alias,
+    });
     try {
       await upsertUser({
         clerkId: user.id,
-        alias: newAlias.trim(),
+        alias: trimmedAlias,
         email: user.primaryEmailAddress?.emailAddress,
         imageUrl: user.imageUrl,
       });
-      setAlias(newAlias.trim());
-      console.log("Alias updated successfully");
+      setAlias(trimmedAlias);
+      console.info("[profile] alias mutation completed", { trimmedAlias });
     } catch (error) {
-      console.error("Failed to update alias:", error);
+      console.error("[profile] failed to update alias", error);
       alert("Failed to update alias. Please try again.");
     }
   };

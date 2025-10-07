@@ -2,6 +2,7 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useMutation } from "convex/react";
+import type { Id } from "../../convex/_generated/dataModel";
 import { api } from "../../convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -67,8 +68,11 @@ export default function MuxUploadPage() {
     });
   };
 
-  const pollUploadStatus = async (uploadId: string, videoId: string | null) => {
-    let createdVideoId = videoId;
+  const pollUploadStatus = async (
+    uploadId: string,
+    videoId: Id<"videos"> | null,
+  ) => {
+    let createdVideoId: Id<"videos"> | null = videoId;
     let attempts = 0;
 
     while (!cancelRef.current && attempts < 60) {
