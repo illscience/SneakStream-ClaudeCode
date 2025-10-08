@@ -13,7 +13,6 @@ import { useEffect, useState } from "react";
 export default function Home() {
   const { user } = useUser();
   const DJ_SNEAK_ID = "dj-sneak"; // Static ID for DJ Sneak
-  const [heartCount, setHeartCount] = useState(0);
   const [isHeartAnimating, setIsHeartAnimating] = useState(false);
   const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("theater");
   const [isMuted, setIsMuted] = useState(true);
@@ -63,8 +62,14 @@ export default function Home() {
   // Get default video to play when no live stream is active
   const defaultVideo = useQuery(api.videos.getDefaultVideo);
 
-  // Poll viewer count for active streams
+  // Mutations
   const updateViewerCount = useMutation(api.livestream.updateViewerCount);
+  const incrementHeartCount = useMutation(api.videos.incrementHeartCount);
+
+  // Get heart count from current video
+  const heartCount = defaultVideo?.heartCount || 0;
+
+  // Poll viewer count for active streams
   useEffect(() => {
     if (!activeStream?.playbackId) return;
 
@@ -148,10 +153,13 @@ export default function Home() {
     }
   };
 
-  const handleHeart = () => {
-    setHeartCount(prev => prev + 1);
+  const handleHeart = async () => {
+    if (!defaultVideo?._id) return;
+
     setIsHeartAnimating(true);
     setTimeout(() => setIsHeartAnimating(false), 300);
+
+    await incrementHeartCount({ videoId: defaultVideo._id });
   };
 
   return (
