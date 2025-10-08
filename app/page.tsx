@@ -157,9 +157,11 @@ export default function Home() {
             </div>
 
             {/* Mobile - Video Only */}
-            <div className="lg:hidden relative w-full aspect-video mb-4 overflow-hidden rounded-2xl bg-zinc-900">
-              {renderVideoContent()}
-            </div>
+            {!isDesktop && (
+              <div className="lg:hidden relative w-full aspect-video mb-4 overflow-hidden rounded-2xl bg-zinc-900">
+                {renderVideoContent()}
+              </div>
+            )}
           </div>
 
           {/* Side Action Buttons - Mobile */}
