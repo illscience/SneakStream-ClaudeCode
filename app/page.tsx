@@ -209,18 +209,40 @@ export default function Home() {
                     <Heart className="w-4 h-4 fill-white" />
                     <span className="text-sm">{heartCount}</span>
                   </button>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
+                  <button
+                    onClick={async () => {
+                      if (navigator.share) {
+                        try {
+                          await navigator.share({
+                            title: 'DJ Sneak Live',
+                            text: 'Check out this live DJ stream!',
+                            url: window.location.href,
+                          });
+                        } catch (err) {
+                          // User cancelled or share failed
+                          console.log('Share cancelled or failed:', err);
+                        }
+                      } else {
+                        // Fallback: copy to clipboard
+                        navigator.clipboard.writeText(window.location.href);
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700"
+                  >
                     <Share2 className="w-4 h-4" />
                     <span className="text-sm">Share</span>
                   </button>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
-                    <Download className="w-4 h-4" />
-                  </button>
                   <div className="ml-auto flex items-center gap-2">
-                    <span className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
-                      <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                      LIVE
-                    </span>
+                    {activeStream ? (
+                      <span className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
+                        <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                        LIVE
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 bg-zinc-700 rounded-full text-xs">
+                        REPLAY
+                      </span>
+                    )}
                     <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs">2.4K Viewers</span>
                   </div>
                 </div>
