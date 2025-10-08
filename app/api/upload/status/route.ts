@@ -1,48 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAsset, getMuxPlaybackUrl, getUploadStatus } from "@/lib/mux";
+import { getLivepeerAsset } from "@/lib/livepeer";
+import { getStreamProvider } from "@/lib/streamProvider";
 
 export async function POST(request: NextRequest) {
   try {
-    const { assetId } = await request.json();
+    const { uploadId, assetId, provider: providerOverride } = await request.json();
+    const provider = (providerOverride || getStreamProvider()).toLowerCase();
 
-    const apiKey = process.env.LIVEPEER_STUDIO_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "Livepeer API key not configured" },
-        { status: 500 }
-      );
-    }
-
-    const response = await fetch(
-      `https://livepeer.studio/api/asset/${assetId}`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-        },
+    if (provider === "mux") {
+      if (!uploadId) {
+        return NextResponse.json({ error: "uploadId is required" }, { status: 400 });
       }
-    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Livepeer API error:", errorText);
-      return NextResponse.json(
-        { error: "Failed to get asset status", details: errorText },
-        { status: response.status }
-      );
+      const upload = await getUploadStatus(uploadId);
+
+      let playbackId: string | undefined;
+      let playbackUrl: string | undefined;
+      let duration: number | undefined;
+      let assetStatus: string | undefined;
+
+      if (upload.asset_id) {
+        const asset = await getAsset(upload.asset_id);
+        assetStatus = asset.status;
+        playbackId = asset.playback_ids?.find((p) => p.policy === "public")?.id;
+        playbackUrl = playbackId ? getMuxPlaybackUrl(playbackId) : undefined;
+        duration = asset.duration;
+      }
+
+      return NextResponse.json({
+        provider: "mux",
+        uploadId,
+        status: upload.status,
+        assetId: upload.asset_id,
+        assetStatus,
+        playbackId,
+        playbackUrl,
+        duration,
+      });
     }
 
-    const asset = await response.json();
-    console.log("Asset status for", assetId, ":", JSON.stringify(asset, null, 2));
-
-    // Log download URL and playback URL info
-    if (asset.downloadUrl) {
-      console.log("Download URL:", asset.downloadUrl);
-    }
-    if (asset.playbackUrl) {
-      console.log("Playback URL:", asset.playbackUrl);
+    if (!assetId) {
+      return NextResponse.json({ error: "assetId is required" }, { status: 400 });
     }
 
-    return NextResponse.json(asset);
+    const asset = await getLivepeerAsset(assetId);
+    return NextResponse.json({ provider: "livepeer", ...asset });
   } catch (error) {
     console.error("Status check error:", error);
     return NextResponse.json(

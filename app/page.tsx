@@ -157,9 +157,11 @@ export default function Home() {
             </div>
 
             {/* Mobile - Video Only */}
-            <div className="lg:hidden relative w-full aspect-video mb-4 overflow-hidden rounded-2xl bg-zinc-900">
-              {renderVideoContent()}
-            </div>
+            {!isDesktop && (
+              <div className="lg:hidden relative w-full aspect-video mb-4 overflow-hidden rounded-2xl bg-zinc-900">
+                {renderVideoContent()}
+              </div>
+            )}
           </div>
 
           {/* Side Action Buttons - Mobile */}
@@ -273,14 +275,17 @@ export default function Home() {
               onClick={() => {
                 setIsMuted(!isMuted);
               }}
-              className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
+              className={`flex h-10 items-center justify-center gap-2 rounded-full px-4 transition-colors ${
                 isMuted
                   ? 'bg-red-600 hover:bg-red-700'
                   : 'bg-zinc-800 hover:bg-zinc-700'
               }`}
             >
               {isMuted ? (
-                <VolumeX className="w-5 h-5" />
+                <>
+                  <VolumeX className="w-5 h-5" />
+                  <span className="text-sm font-medium">MUTED</span>
+                </>
               ) : (
                 <Volume2 className="w-5 h-5" />
               )}

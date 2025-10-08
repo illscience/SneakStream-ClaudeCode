@@ -1,48 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createDirectUpload } from "@/lib/mux";
+import { requestLivepeerUpload } from "@/lib/livepeer";
+import { getStreamProvider } from "@/lib/streamProvider";
 
 export async function POST(request: NextRequest) {
   try {
-    const { name } = await request.json();
+    const { name, provider: providerOverride } = await request.json();
+    const provider = (providerOverride || getStreamProvider()).toLowerCase();
 
-    const apiKey = process.env.LIVEPEER_STUDIO_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "Livepeer API key not configured" },
-        { status: 500 }
-      );
+    if (provider === "mux") {
+      const { uploadId, uploadUrl } = await createDirectUpload(name);
+      return NextResponse.json({
+        provider: "mux",
+        uploadId,
+        uploadUrl,
+      });
     }
 
-    const response = await fetch(
-      "https://livepeer.studio/api/asset/request-upload",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Livepeer API error:", errorText);
-      return NextResponse.json(
-        { error: "Failed to request upload URL", details: errorText },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-
-    // Log the response for debugging
-    console.log("Livepeer asset creation response:", JSON.stringify(data, null, 2));
-    console.log("Asset ID:", data.asset?.id);
-    console.log("TUS Endpoint:", data.tusEndpoint);
-
-    return NextResponse.json(data);
+    const livepeerData = await requestLivepeerUpload(name);
+    return NextResponse.json({
+      provider: "livepeer",
+      ...livepeerData,
+    });
   } catch (error) {
     console.error("Upload request error:", error);
     return NextResponse.json(
