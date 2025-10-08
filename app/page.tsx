@@ -164,8 +164,7 @@ export default function Home() {
         <section className="relative bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-2xl mx-4 lg:mx-8 overflow-hidden border border-zinc-700/50">
           <div className="px-4 pt-4 pb-0 lg:px-8 lg:pt-5">
             <div className="mb-4">
-              <span className="sr-only">{heroTitle}</span>
-              <h1 className="hidden sm:block text-4xl font-bold text-white leading-tight lg:text-6xl tracking-tight">
+              <h1 className="text-2xl font-bold text-white leading-tight sm:text-4xl lg:text-6xl tracking-tight">
                 {heroTitle}
               </h1>
             </div>
