@@ -12,7 +12,6 @@ import { useEffect, useState } from "react";
 
 export default function Home() {
   const { user } = useUser();
-  const DJ_SNEAK_ID = "dj-sneak"; // Static ID for DJ Sneak
   const [isHeartAnimating, setIsHeartAnimating] = useState(false);
   const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("theater");
   const [isMuted, setIsMuted] = useState(true);
@@ -47,20 +46,35 @@ export default function Home() {
     return () => window.removeEventListener('resize', handleResize);
   }, [layoutMode]);
 
-  const followUser = useMutation(api.follows.followUser);
-  const unfollowUser = useMutation(api.follows.unfollowUser);
-  const isFollowing = useQuery(
-    api.follows.isFollowing,
-    user?.id ? { followerId: user.id, followingId: DJ_SNEAK_ID } : "skip"
-  );
-  const followerCount = useQuery(api.users.getFollowerCount, {
-    clerkId: DJ_SNEAK_ID,
-  });
   // Get active live stream
   const activeStream = useQuery(api.livestream.getActiveStream);
 
   // Get default video to play when no live stream is active
   const defaultVideo = useQuery(api.videos.getDefaultVideo);
+
+  // Get the streamer's userId (from active stream or default video)
+  const streamerId = activeStream?.userId || defaultVideo?.userId;
+
+  // Get streamer user info
+  const streamerUser = useQuery(
+    api.users.getUserByClerkId,
+    streamerId ? { clerkId: streamerId } : "skip"
+  );
+
+  // Follow/unfollow mutations and queries
+  const followUser = useMutation(api.follows.followUser);
+  const unfollowUser = useMutation(api.follows.unfollowUser);
+  const isFollowing = useQuery(
+    api.follows.isFollowing,
+    user?.id && streamerId ? { followerId: user.id, followingId: streamerId } : "skip"
+  );
+  const followerCount = useQuery(
+    api.users.getFollowerCount,
+    streamerId ? { clerkId: streamerId } : "skip"
+  );
+
+  // Check if viewing own content
+  const isOwnContent = user?.id === streamerId;
 
   // Mutations
   const updateViewerCount = useMutation(api.livestream.updateViewerCount);
@@ -135,20 +149,20 @@ export default function Home() {
   };
 
   const handleFollowClick = async () => {
-    if (!user) {
-      // Trigger sign in modal
+    if (!user || !streamerId) {
+      // Trigger sign in modal or no streamer
       return;
     }
 
     if (isFollowing) {
       await unfollowUser({
         followerId: user.id,
-        followingId: DJ_SNEAK_ID,
+        followingId: streamerId,
       });
     } else {
       await followUser({
         followerId: user.id,
-        followingId: DJ_SNEAK_ID,
+        followingId: streamerId,
       });
     }
   };
@@ -338,26 +352,38 @@ export default function Home() {
               )}
             </button>
 
-            <SignedOut>
-              <SignInButton mode="modal">
-                <button className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 text-white transition-colors hover:bg-white/10">
-                  <UserPlus className="w-5 h-5" />
-                </button>
-              </SignInButton>
-            </SignedOut>
+            {streamerUser && (
+              <div className="flex items-center gap-0 bg-zinc-800/70 rounded-full border border-zinc-700/50 overflow-hidden">
+                <div className="px-4 py-2">
+                  <span className="text-sm font-semibold text-white">{streamerUser.alias}</span>
+                </div>
 
-            <SignedIn>
-              <button
-                onClick={handleFollowClick}
-                className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
-                  isFollowing
-                    ? 'bg-lime-400 text-black hover:bg-lime-300'
-                    : 'bg-zinc-800 text-white hover:bg-zinc-700'
-                }`}
-              >
-                {isFollowing ? <UserCheck className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
-              </button>
-            </SignedIn>
+                {!isOwnContent && (
+                  <>
+                    <SignedOut>
+                      <SignInButton mode="modal">
+                        <button className="flex h-10 w-10 items-center justify-center border-l border-zinc-700/50 text-white transition-colors hover:bg-white/10">
+                          <UserPlus className="w-5 h-5" />
+                        </button>
+                      </SignInButton>
+                    </SignedOut>
+
+                    <SignedIn>
+                      <button
+                        onClick={handleFollowClick}
+                        className={`flex h-10 w-10 items-center justify-center border-l border-zinc-700/50 transition-colors ${
+                          isFollowing
+                            ? 'bg-lime-400 text-black hover:bg-lime-500'
+                            : 'text-white hover:bg-zinc-700'
+                        }`}
+                      >
+                        {isFollowing ? <UserCheck className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+                      </button>
+                    </SignedIn>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Right - View Controls */}
