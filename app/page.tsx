@@ -18,6 +18,7 @@ export default function Home() {
   const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("theater");
   const [isMuted, setIsMuted] = useState(true);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [viewerCount, setViewerCount] = useState<number>(0);
 
   // Load layout mode from localStorage after hydration
   useEffect(() => {
@@ -61,6 +62,34 @@ export default function Home() {
 
   // Get default video to play when no live stream is active
   const defaultVideo = useQuery(api.videos.getDefaultVideo);
+
+  // Poll viewer count for active streams
+  const updateViewerCount = useMutation(api.livestream.updateViewerCount);
+  useEffect(() => {
+    if (!activeStream?.playbackId) return;
+
+    const fetchViewers = async () => {
+      try {
+        const response = await fetch(`/api/viewers?playbackId=${activeStream.playbackId}`);
+        const data = await response.json();
+        if (data.viewers !== undefined) {
+          setViewerCount(data.viewers);
+          // Update Convex so all clients see the same count
+          await updateViewerCount({
+            streamId: activeStream._id,
+            viewerCount: data.viewers,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch viewer count:", error);
+      }
+    };
+
+    fetchViewers();
+    const interval = setInterval(fetchViewers, 30000); // Poll every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [activeStream?.playbackId, activeStream?._id, updateViewerCount]);
 
   const heroTitle = activeStream?.title ?? defaultVideo?.title ?? "DJ SNEAK";
 
@@ -243,7 +272,11 @@ export default function Home() {
                         REPLAY
                       </span>
                     )}
-                    <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs">2.4K Viewers</span>
+                    {activeStream && (
+                      <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs">
+                        {viewerCount.toLocaleString()} {viewerCount === 1 ? 'Viewer' : 'Viewers'}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

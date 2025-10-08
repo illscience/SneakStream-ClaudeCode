@@ -176,3 +176,31 @@ export async function deleteLiveStream(liveStreamId: string): Promise<void> {
     method: "DELETE",
   });
 }
+
+export interface MuxViewerData {
+  total_row_count: number | null;
+  timeframe: number[];
+  data: Array<{
+    value: number;
+    date?: string;
+  }>;
+}
+
+export async function getCurrentViewers(playbackId: string): Promise<number> {
+  try {
+    const response = await muxRequest<MuxViewerData>(
+      `/data/v1/real-time/metrics/viewers?filters[]=playback_id:${playbackId}`,
+      { method: "GET" }
+    );
+
+    // Return the most recent viewer count, or 0 if no data
+    if (response.data && response.data.length > 0) {
+      return response.data[0].value || 0;
+    }
+
+    return 0;
+  } catch (error) {
+    console.error("Failed to fetch viewer count from Mux:", error);
+    return 0;
+  }
+}

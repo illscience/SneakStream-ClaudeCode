@@ -95,10 +95,6 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
             )}
           </Toggle>
 
-          <button className="rounded-full bg-lime-400 px-5 py-2 text-sm font-semibold text-black transition-colors hover:bg-lime-300">
-            Subscribe
-          </button>
-
           <SignedOut>
             <SignInButton mode="modal">
               <button className="rounded-full border border-white/20 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/10">
@@ -140,10 +136,6 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
                 )
               ))}
             </div>
-
-            <button className="w-full rounded-full bg-lime-400 px-5 py-3 text-sm font-semibold text-black transition-colors hover:bg-lime-300">
-              Subscribe
-            </button>
 
             <SignedOut>
               <SignInButton mode="modal">
