@@ -96,20 +96,12 @@ export default function Home() {
   const renderVideoContent = () => {
     if (activeStream && activeStream.playbackUrl) {
       return (
-        <>
-          <video
-            controls
-            autoPlay
-            className="w-full h-full"
-            src={activeStream.playbackUrl}
-          />
-          <div className="absolute top-4 left-4">
-            <div className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
-              <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-              LIVE{activeStream.title ? `: ${activeStream.title}` : ""}
-            </div>
-          </div>
-        </>
+        <video
+          controls
+          autoPlay
+          className="w-full h-full"
+          src={activeStream.playbackUrl}
+        />
       );
     }
 
@@ -359,11 +351,6 @@ export default function Home() {
                 {isFollowing ? <UserCheck className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
               </button>
             </SignedIn>
-          </div>
-
-          {/* Center - Now Playing */}
-          <div className="flex-1 rounded-full bg-lime-400 px-5 py-2 text-center text-sm font-semibold text-black shadow-sm sm:px-6 sm:py-3 sm:text-base lg:flex-none">
-            {defaultVideo?.title || "No video playing"}
           </div>
 
           {/* Right - View Controls */}

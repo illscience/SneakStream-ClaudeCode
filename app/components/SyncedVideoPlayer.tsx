@@ -187,11 +187,6 @@ export default function SyncedVideoPlayer({
       >
         <Maximize2 className="h-4 w-4" />
       </button>
-      <div className="absolute top-4 left-4 z-10">
-        <div className="px-3 py-1 bg-zinc-800 rounded-full text-xs">
-          {videoTitle}
-        </div>
-      </div>
     </div>
   );
 }
