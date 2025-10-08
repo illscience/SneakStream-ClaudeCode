@@ -169,20 +169,13 @@ export default function Home() {
       {/* Main Content */}
       <main className="pt-20">
         {/* DJ Hero Section */}
-        <section className="relative bg-gradient-to-br from-pink-200 via-pink-300 to-pink-200 rounded-3xl mx-4 overflow-hidden">
-          <div className="px-8 pt-6 pb-0">
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <span className="sr-only">{heroTitle}</span>
-                <h1 className="hidden sm:block text-4xl font-bold text-black leading-tight lg:text-6xl">
-                  {heroTitle}
-                </h1>
-                {followerCount !== undefined && (
-                  <p className="text-sm text-black/60 mt-2">
-                    {followerCount} {followerCount === 1 ? "Follower" : "Followers"}
-                  </p>
-                )}
-              </div>
+        <section className="relative bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-2xl mx-4 lg:mx-8 overflow-hidden border border-zinc-700/50">
+          <div className="px-4 pt-4 pb-0 lg:px-8 lg:pt-5">
+            <div className="mb-4">
+              <span className="sr-only">{heroTitle}</span>
+              <h1 className="hidden sm:block text-4xl font-bold text-white leading-tight lg:text-6xl tracking-tight">
+                {heroTitle}
+              </h1>
             </div>
 
             {/* Mobile - Video Only */}

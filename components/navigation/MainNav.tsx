@@ -26,12 +26,12 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
   const handleLinkClick = () => setMobileOpen(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/80 backdrop-blur-md">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 lg:px-8">
-        <div className="flex items-center gap-3">
+    <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/90 backdrop-blur-xl">
+      <div className="flex w-full items-center justify-between px-4 py-4 lg:px-8">
+        <div className="flex items-center gap-4">
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="flex items-center justify-center rounded-full border border-white/10 p-2 text-white transition-colors hover:bg-white/10 lg:hidden"
+            className="flex items-center justify-center rounded-lg border border-white/10 p-2 text-white transition-colors hover:bg-white/5 lg:hidden"
             aria-expanded={mobileOpen}
             aria-controls="primary-navigation"
             aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
@@ -39,7 +39,7 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
 
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-3">
             <span className="grid h-9 w-9 grid-cols-3 gap-0.5">
               <span className="rounded-sm bg-yellow-400" />
               <span className="rounded-sm bg-pink-400" />
@@ -51,11 +51,11 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
               <span className="rounded-sm bg-blue-400" />
               <span className="rounded-sm bg-lime-400" />
             </span>
-            <span className="text-lg font-semibold tracking-tight">DJ SNEAK</span>
+            <span className="text-xl font-bold tracking-tight">DJ SNEAK</span>
           </Link>
         </div>
 
-        <nav className="hidden items-center gap-6 text-sm font-medium uppercase text-gray-300 lg:flex">
+        <nav className="hidden items-center gap-8 text-sm font-medium uppercase text-gray-400 lg:flex">
           {navLinks.map(({ href, label, authOnly }) => {
             if (authOnly) {
               return (
@@ -75,7 +75,7 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
           })}
         </nav>
 
-        <div className="hidden items-center gap-3 lg:flex">
+        <div className="hidden items-center gap-4 lg:flex">
           <Toggle
             pressed={layoutMode === "theater"}
             onPressedChange={(pressed) => onLayoutChange(pressed ? "theater" : "classic")}
