@@ -5,13 +5,15 @@ import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Radio, Video, Settings, X, Monitor, Mic, Users, MessageSquare, Save } from "lucide-react";
+import { Radio, Video, Settings, Monitor, Mic, Users, MessageSquare, Save } from "lucide-react";
+import MainNav from "@/components/navigation/MainNav";
 
 export default function MuxGoLivePage() {
   const { user } = useUser();
   const [streamTitle, setStreamTitle] = useState("");
   const [streamDescription, setStreamDescription] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("classic");
 
   const [videoQuality, setVideoQuality] = useState("1080p");
   const [videoBitrate, setVideoBitrate] = useState("6000");
@@ -92,18 +94,7 @@ export default function MuxGoLivePage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-4 bg-black/80 backdrop-blur-sm border-b border-zinc-800">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="text-xl font-bold hover:text-lime-400 transition-colors">
-            DJ SNEAK
-          </Link>
-          <span className="text-zinc-500">|</span>
-          <span className="text-zinc-400">Go Live</span>
-        </div>
-        <Link href="/" className="text-zinc-400 hover:text-white">
-          <X className="w-6 h-6" />
-        </Link>
-      </header>
+      <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
 
       <main className="pt-24 px-8 pb-16 max-w-4xl mx-auto">
         {activeStream && (

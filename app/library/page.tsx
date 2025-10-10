@@ -8,12 +8,13 @@ import { useRouter } from "next/navigation";
 import { Film, Plus, Play, Eye, Clock, RefreshCw, Trash2, Heart, Star } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import Header from "../components/Header";
+import MainNav from "@/components/navigation/MainNav";
 
 export default function LibraryPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const [checking, setChecking] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("classic");
 
   const videos = useQuery(
     api.videos.getUserVideos,
@@ -154,7 +155,7 @@ export default function LibraryPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <Header title="MY LIBRARY" />
+      <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
       <div className="max-w-7xl mx-auto p-8 pt-24">
         <div className="flex items-center justify-between mb-8">
           <div>

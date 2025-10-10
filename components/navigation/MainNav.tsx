@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Menu, X, LayoutGrid, Layout } from "lucide-react";
 import { Toggle } from "@/components/ui/toggle";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
@@ -14,7 +15,7 @@ interface MainNavProps {
 }
 
 const navLinks = [
-  { href: "/", label: "Browse" },
+  { href: "/", label: "Home" },
   { href: "/go-live", label: "Go Live" },
   { href: "/library", label: "My Library", authOnly: true },
   { href: "/profile", label: "Profile", authOnly: true },
@@ -22,8 +23,11 @@ const navLinks = [
 
 export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
 
   const handleLinkClick = () => setMobileOpen(false);
+
+  const isActive = (href: string) => pathname === href;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/90 backdrop-blur-xl">
@@ -57,10 +61,15 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
 
         <nav className="hidden items-center gap-8 text-sm font-medium uppercase text-gray-400 lg:flex">
           {navLinks.map(({ href, label, authOnly }) => {
+            const active = isActive(href);
+            const linkClasses = `relative transition-colors hover:text-white pb-1 ${
+              active ? "text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-white" : ""
+            }`;
+
             if (authOnly) {
               return (
                 <SignedIn key={href}>
-                  <Link className="transition-colors hover:text-white" href={href}>
+                  <Link className={linkClasses} href={href}>
                     {label}
                   </Link>
                 </SignedIn>
@@ -68,7 +77,7 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
             }
 
             return (
-              <Link key={href} className="transition-colors hover:text-white" href={href}>
+              <Link key={href} className={linkClasses} href={href}>
                 {label}
               </Link>
             );
@@ -122,19 +131,24 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
         >
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2 text-sm font-medium uppercase text-gray-200">
-              {navLinks.map(({ href, label, authOnly }) => (
-                authOnly ? (
+              {navLinks.map(({ href, label, authOnly }) => {
+                const active = isActive(href);
+                const mobileLinkClasses = `rounded-full px-4 py-3 text-center transition-colors ${
+                  active ? "bg-white text-black font-semibold" : "bg-white/5 hover:bg-white/10"
+                }`;
+
+                return authOnly ? (
                   <SignedIn key={href}>
-                    <Link href={href} onClick={handleLinkClick} className="rounded-full bg-white/5 px-4 py-3 text-center transition-colors hover:bg-white/10">
+                    <Link href={href} onClick={handleLinkClick} className={mobileLinkClasses}>
                       {label}
                     </Link>
                   </SignedIn>
                 ) : (
-                  <Link key={href} href={href} onClick={handleLinkClick} className="rounded-full bg-white/5 px-4 py-3 text-center transition-colors hover:bg-white/10">
+                  <Link key={href} href={href} onClick={handleLinkClick} className={mobileLinkClasses}>
                     {label}
                   </Link>
-                )
-              ))}
+                );
+              })}
             </div>
 
             <SignedOut>
