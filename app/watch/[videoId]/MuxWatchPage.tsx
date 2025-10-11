@@ -80,6 +80,7 @@ export default function MuxWatchPage({
                 videoTitle={video.title}
                 playbackUrl={video.playbackUrl}
                 className="w-full h-full"
+                enableSync={false}
               />
             </div>
           ) : (

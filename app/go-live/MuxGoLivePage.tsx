@@ -82,8 +82,8 @@ export default function MuxGoLivePage() {
           });
 
           hlsRef.current.on(Hls.Events.ERROR, (_event: unknown, data: { fatal?: boolean; type?: string }) => {
-            console.error("HLS error:", data);
             if (data.fatal) {
+              console.error("HLS fatal error:", data);
               if (data.type === "networkError") {
                 console.log("Network error, will retry...");
                 setStreamStatus("waiting");
