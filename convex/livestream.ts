@@ -76,9 +76,14 @@ export const startStream = mutation({
   },
 });
 
-// End a stream
+// End a stream and optionally save recording to library
 export const endStream = mutation({
-  args: { streamId: v.id("livestreams") },
+  args: {
+    streamId: v.id("livestreams"),
+    assetId: v.optional(v.string()),
+    playbackId: v.optional(v.string()),
+    duration: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
     const stream = await ctx.db.get(args.streamId);
     if (!stream) {
@@ -89,6 +94,24 @@ export const endStream = mutation({
       status: "ended",
       endedAt: Date.now(),
     });
+
+    // If we have asset info, save recording to library
+    if (args.assetId && args.playbackId) {
+      await ctx.db.insert("videos", {
+        userId: stream.userId,
+        title: stream.title,
+        description: stream.description,
+        provider: "mux",
+        assetId: args.assetId,
+        playbackId: args.playbackId,
+        playbackUrl: `https://stream.mux.com/${args.playbackId}.m3u8`,
+        duration: args.duration,
+        status: "ready",
+        visibility: "public",
+        viewCount: 0,
+        heartCount: 0,
+      });
+    }
 
     return args.streamId;
   },

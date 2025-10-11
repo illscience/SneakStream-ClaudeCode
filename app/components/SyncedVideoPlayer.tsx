@@ -8,12 +8,13 @@ import { useEffect, useRef, useState } from "react";
 import { Id } from "../../convex/_generated/dataModel";
 
 interface SyncedVideoPlayerProps {
-  videoId: Id<"videos">;
+  videoId: Id<"videos"> | Id<"livestreams">;
   videoTitle: string;
   playbackUrl: string;
   className?: string;
   isMuted?: boolean;
   onMutedChange?: (muted: boolean) => void;
+  isLiveStream?: boolean;
 }
 
 export default function SyncedVideoPlayer({
@@ -23,13 +24,17 @@ export default function SyncedVideoPlayer({
   className = "",
   isMuted = true,
   onMutedChange,
+  isLiveStream = false,
 }: SyncedVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Get the video with startTime (t0)
-  const defaultVideo = useQuery(api.videos.getDefaultVideo);
+  // Get the video with startTime (t0) - only for non-live streams
+  const defaultVideo = useQuery(
+    api.videos.getDefaultVideo,
+    isLiveStream ? "skip" : undefined
+  );
 
   // Attach playback URL via hls.js when needed
   useEffect(() => {
@@ -41,14 +46,17 @@ export default function SyncedVideoPlayer({
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = playbackUrl;
     } else if (Hls.isSupported()) {
-      hls = new Hls({ enableWorker: true });
+      hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: isLiveStream,
+      });
       hls.loadSource(playbackUrl);
       hls.attachMedia(video);
     } else {
       video.src = playbackUrl;
     }
 
-    video.loop = true;
+    video.loop = !isLiveStream; // Don't loop live streams
     video.autoplay = true;
     video.playsInline = true;
 
@@ -75,8 +83,10 @@ export default function SyncedVideoPlayer({
     };
   }, [playbackUrl]);
 
-  // Calculate current playback position based on t0
+  // Calculate current playback position based on t0 (skip for live streams)
   useEffect(() => {
+    if (isLiveStream) return; // No syncing needed for live streams
+
     const video = videoRef.current;
     if (!defaultVideo || defaultVideo.startTime === undefined || !video || hasInitialized || defaultVideo._id !== videoId) {
       return;
@@ -98,7 +108,7 @@ export default function SyncedVideoPlayer({
     } else {
       video.addEventListener("loadedmetadata", syncToStart, { once: true });
     }
-  }, [defaultVideo, videoId, hasInitialized]);
+  }, [defaultVideo, videoId, hasInitialized, isLiveStream]);
 
   useEffect(() => {
     setHasInitialized(false);

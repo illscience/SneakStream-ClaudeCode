@@ -116,11 +116,14 @@ export default function Home() {
   const renderVideoContent = () => {
     if (activeStream && activeStream.playbackUrl) {
       return (
-        <video
-          controls
-          autoPlay
+        <SyncedVideoPlayer
+          videoId={activeStream._id}
+          videoTitle={activeStream.title}
+          playbackUrl={activeStream.playbackUrl}
           className="w-full h-full"
-          src={activeStream.playbackUrl}
+          isMuted={isMuted}
+          onMutedChange={setIsMuted}
+          isLiveStream={true}
         />
       );
     }

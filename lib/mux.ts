@@ -141,6 +141,7 @@ export interface MuxLiveStream {
   new_asset_settings?: {
     playback_policy?: string[];
   };
+  recent_asset_ids?: string[];
 }
 
 export async function createLiveStream(name: string): Promise<{
@@ -169,6 +170,10 @@ export async function createLiveStream(name: string): Promise<{
     playbackUrl: playbackId ? getMuxPlaybackUrl(playbackId) : undefined,
     rtmpIngestUrl: "rtmp://global-live.mux.com:5222/app",
   };
+}
+
+export async function getLiveStream(liveStreamId: string): Promise<MuxLiveStream> {
+  return muxRequest<MuxLiveStream>(`/video/v1/live-streams/${liveStreamId}`);
 }
 
 export async function deleteLiveStream(liveStreamId: string): Promise<void> {

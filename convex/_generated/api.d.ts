@@ -18,6 +18,7 @@ import type * as events from "../events.js";
 import type * as follows from "../follows.js";
 import type * as livestream from "../livestream.js";
 import type * as playbackState from "../playbackState.js";
+import type * as streamCredentials from "../streamCredentials.js";
 import type * as users from "../users.js";
 import type * as videos from "../videos.js";
 
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   follows: typeof follows;
   livestream: typeof livestream;
   playbackState: typeof playbackState;
+  streamCredentials: typeof streamCredentials;
   users: typeof users;
   videos: typeof videos;
 }>;
