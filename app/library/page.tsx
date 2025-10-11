@@ -23,7 +23,6 @@ export default function LibraryPage() {
   );
 
   const updateVideoStatus = useMutation(api.videos.updateVideoStatus);
-  const deleteVideo = useMutation(api.videos.deleteVideo);
   const setDefaultVideo = useMutation(api.videos.setDefaultVideo);
   const unsetDefaultVideo = useMutation(api.videos.unsetDefaultVideo);
 
@@ -41,15 +40,26 @@ export default function LibraryPage() {
   };
 
   const handleDelete = async (videoId: Id<"videos">, videoTitle: string) => {
-    if (!confirm(`Are you sure you want to delete "${videoTitle}"? This cannot be undone.`)) {
+    if (!confirm(`Are you sure you want to delete "${videoTitle}"?\n\nThis will also delete the video from Mux and cannot be undone.`)) {
       return;
     }
 
     try {
-      await deleteVideo({ videoId });
+      const response = await fetch("/api/video/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ videoId }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to delete video");
+      }
+
+      console.log("Video deleted successfully");
     } catch (error) {
       console.error("Delete error:", error);
-      alert("Failed to delete video. Please try again.");
+      alert(`Failed to delete video: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   };
 
