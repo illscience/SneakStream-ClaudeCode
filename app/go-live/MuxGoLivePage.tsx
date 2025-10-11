@@ -6,6 +6,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Radio, Video, Eye, CheckCircle, Volume2 } from "lucide-react";
 import MainNav from "@/components/navigation/MainNav";
+import Hls from "hls.js";
 
 type StreamStep = "idle" | "preview" | "live";
 
@@ -40,7 +41,7 @@ export default function MuxGoLivePage() {
     if (!video || !previewStream?.playbackUrl) return;
 
     console.log("Setting up preview player with URL:", previewStream.playbackUrl);
-    let hls: any = null;
+    let hls: Hls | null = null;
 
     const setupPlayer = async () => {
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -65,7 +66,7 @@ export default function MuxGoLivePage() {
             video.play().catch(err => console.error("Play error:", err));
           });
 
-          hls.on(Hls.Events.ERROR, (event: any, data: any) => {
+          hls.on(Hls.Events.ERROR, (_event: unknown, data: { fatal?: boolean; type?: string }) => {
             console.error("HLS error:", data);
             if (data.fatal) {
               if (data.type === "networkError") {
@@ -108,9 +109,9 @@ export default function MuxGoLivePage() {
 
     const checkAudio = () => {
       // Check if video element has audio tracks
-      const hasAudioTrack = video.mozHasAudio ||
-                           Boolean(video.webkitAudioDecodedByteCount) ||
-                           Boolean((video as any).audioTracks && (video as any).audioTracks.length);
+      const hasAudioTrack = (video as HTMLVideoElement & { mozHasAudio?: boolean; webkitAudioDecodedByteCount?: number; audioTracks?: { length: number } }).mozHasAudio ||
+                           Boolean((video as HTMLVideoElement & { webkitAudioDecodedByteCount?: number }).webkitAudioDecodedByteCount) ||
+                           Boolean((video as HTMLVideoElement & { audioTracks?: { length: number } }).audioTracks?.length);
 
       if (hasAudioTrack) {
         console.log("Audio detected in stream");
