@@ -22,6 +22,27 @@ export default function ChatWindow() {
 
   // No auto-scroll - keep focus at the top where input is
 
+  const formatTimestamp = (timestamp: number) => {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (seconds < 60) return "just now";
+    if (minutes === 1) return "1 min ago";
+    if (minutes < 60) return `${minutes} mins ago`;
+    if (hours === 1) return "1 hour ago";
+    if (hours < 4) return `${hours} hours ago`;
+    if (hours < 24) return "today";
+    if (days === 1) return "yesterday";
+    if (days < 7) return `${days} days ago`;
+    if (days < 30) return "last week";
+    if (days < 60) return "last month";
+    return "a while ago";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
@@ -82,6 +103,9 @@ export default function ChatWindow() {
                 {message.userName || message.user || "Anonymous"}
               </span>
               <span className="text-xs text-zinc-600">·</span>
+              <span className="text-xs text-zinc-500">
+                {formatTimestamp(message._creationTime)}
+              </span>
             </div>
             <p className="text-sm text-white break-words">{message.body}</p>
           </div>
