@@ -4,6 +4,7 @@ import { Heart, Download, Share2, Volume2, VolumeX, Tv, LayoutGrid, UserPlus, Us
 import ChatWindow from "./components/ChatWindow";
 import VideoFeed from "./components/VideoFeed";
 import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
+import VideoTimer from "./components/VideoTimer";
 import MainNav from "@/components/navigation/MainNav";
 import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
@@ -193,8 +194,20 @@ export default function Home() {
 
             {/* Mobile - Video Only */}
             {!isDesktop && (
-              <div className="lg:hidden relative w-full aspect-video mb-4 overflow-hidden rounded-2xl bg-zinc-900">
-                {renderVideoContent()}
+              <div className="lg:hidden space-y-3">
+                <div className="relative w-full aspect-video overflow-hidden rounded-2xl bg-zinc-900">
+                  {renderVideoContent()}
+                </div>
+
+                {/* Mobile Timer - only show for default video */}
+                {!activeStream && defaultVideo?.startTime !== undefined && defaultVideo?.duration && (
+                  <div className="flex justify-center">
+                    <VideoTimer
+                      startTime={defaultVideo.startTime}
+                      duration={defaultVideo.duration}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -234,7 +247,7 @@ export default function Home() {
                   {renderVideoContent()}
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <button
                     onClick={handleHeart}
                     className={`flex items-center gap-2 px-4 py-2 bg-red-600 rounded-full font-medium hover:bg-red-700 transition-all ${
@@ -267,6 +280,15 @@ export default function Home() {
                     <Share2 className="w-4 h-4" />
                     <span className="text-sm">Share</span>
                   </button>
+
+                  {/* Video Timer - only show for default video */}
+                  {!activeStream && defaultVideo?.startTime !== undefined && defaultVideo?.duration && (
+                    <VideoTimer
+                      startTime={defaultVideo.startTime}
+                      duration={defaultVideo.duration}
+                    />
+                  )}
+
                   <div className="ml-auto flex items-center gap-2">
                     {activeStream ? (
                       <span className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
