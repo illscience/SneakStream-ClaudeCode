@@ -24,6 +24,8 @@ export default function MuxGoLivePage() {
   } | null>(null);
   const [hasAudio, setHasAudio] = useState(false);
   const [streamStatus, setStreamStatus] = useState<"waiting" | "connected" | "error">("waiting");
+  const [editingTitle, setEditingTitle] = useState("");
+  const [isTitleEditing, setIsTitleEditing] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -433,19 +435,58 @@ export default function MuxGoLivePage() {
               {/* Editable Title */}
               <div>
                 <label className="text-zinc-400 text-sm mb-2 block font-medium">Stream Title</label>
-                <input
-                  type="text"
-                  value={activeStream.title}
-                  onChange={async (e) => {
-                    const newTitle = e.target.value;
-                    await updateStreamTitle({
-                      streamId: activeStream._id,
-                      title: newTitle,
-                    });
-                  }}
-                  className="w-full px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-xl text-white focus:outline-none focus:border-lime-400 transition-colors"
-                  placeholder="Enter stream title..."
-                />
+                {!isTitleEditing ? (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-xl text-white">
+                      {activeStream.title}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setEditingTitle(activeStream.title);
+                        setIsTitleEditing(true);
+                      }}
+                      className="px-4 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl font-medium transition-colors text-white"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      await updateStreamTitle({
+                        streamId: activeStream._id,
+                        title: editingTitle,
+                      });
+                      setIsTitleEditing(false);
+                    }}
+                    className="flex flex-col gap-2"
+                  >
+                    <input
+                      type="text"
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      className="w-full px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-xl text-white focus:outline-none focus:border-lime-400 transition-colors"
+                      placeholder="Enter stream title..."
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        className="flex-1 px-4 py-2 bg-lime-400 text-black font-semibold rounded-xl hover:bg-lime-300 transition-colors"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsTitleEditing(false)}
+                        className="flex-1 px-4 py-2 bg-zinc-800 text-white font-medium rounded-xl hover:bg-zinc-700 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
 
               {/* Stream Details */}
