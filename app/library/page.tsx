@@ -254,43 +254,48 @@ export default function LibraryPage() {
     <div className="min-h-screen bg-black text-white">
       <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
       <div className="max-w-7xl mx-auto p-8 pt-24">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-4xl font-bold">My Library</h1>
-            <p className="text-zinc-400 mt-2">
-              {videos?.length || 0} {videos?.length === 1 ? "video" : "videos"}
-              {videos && videos.filter((v) => v.status === "processing" || v.status === "uploading").length > 0 && (
-                <span className="ml-2 text-yellow-500">
-                  ({videos.filter((v) => v.status === "processing" || v.status === "uploading").length} processing)
-                </span>
-              )}
-            </p>
+        <div className="flex flex-col gap-4 mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl md:text-4xl font-bold">My Library</h1>
+              <p className="text-zinc-400 mt-2 text-sm md:text-base">
+                {videos?.length || 0} {videos?.length === 1 ? "video" : "videos"}
+                {videos && videos.filter((v) => v.status === "processing" || v.status === "uploading").length > 0 && (
+                  <span className="ml-2 text-yellow-500">
+                    ({videos.filter((v) => v.status === "processing" || v.status === "uploading").length} processing)
+                  </span>
+                )}
+              </p>
+            </div>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={syncRecordings}
               disabled={syncing}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-full font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 md:px-6 md:py-3 bg-blue-600 text-white rounded-full text-sm md:text-base font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
               title="Import all Mux recordings into library"
             >
-              <RefreshCw className={`w-5 h-5 ${syncing ? "animate-spin" : ""}`} />
-              {syncing ? "Importing..." : "Import from Mux"}
+              <RefreshCw className={`w-4 h-4 md:w-5 md:h-5 ${syncing ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">{syncing ? "Importing..." : "Import from Mux"}</span>
+              <span className="sm:hidden">Import</span>
             </button>
             {videos?.some((v) => v.status === "processing" || v.status === "uploading") && (
               <button
                 onClick={checkProcessingVideos}
                 disabled={checking}
-                className="flex items-center gap-2 px-6 py-3 bg-zinc-800 text-white rounded-full font-medium hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 md:px-6 md:py-3 bg-zinc-800 text-white rounded-full text-sm md:text-base font-medium hover:bg-zinc-700 transition-colors disabled:opacity-50"
               >
-                <RefreshCw className={`w-5 h-5 ${checking ? "animate-spin" : ""}`} />
-                {checking ? "Checking..." : "Refresh Status"}
+                <RefreshCw className={`w-4 h-4 md:w-5 md:h-5 ${checking ? "animate-spin" : ""}`} />
+                <span className="hidden sm:inline">{checking ? "Checking..." : "Refresh Status"}</span>
+                <span className="sm:hidden">Refresh</span>
               </button>
             )}
             <Link href="/upload">
-              <button className="flex items-center gap-2 px-6 py-3 bg-lime-400 text-black rounded-full font-medium hover:bg-lime-300 transition-colors">
-                <Plus className="w-5 h-5" />
-                Upload Video
+              <button className="flex items-center gap-2 px-4 py-2 md:px-6 md:py-3 bg-lime-400 text-black rounded-full text-sm md:text-base font-medium hover:bg-lime-300 transition-colors">
+                <Plus className="w-4 h-4 md:w-5 md:h-5" />
+                <span className="hidden sm:inline">Upload Video</span>
+                <span className="sm:hidden">Upload</span>
               </button>
             </Link>
           </div>
@@ -452,8 +457,8 @@ export default function LibraryPage() {
                   </div>
                 </Link>
 
-                {/* Action Buttons */}
-                <div className="absolute top-3 left-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                {/* Action Buttons - Always visible on mobile, hover on desktop */}
+                <div className="absolute top-3 left-3 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10">
                   {/* Set as Default Button */}
                   {video.status === "ready" && (
                     <button
@@ -461,10 +466,10 @@ export default function LibraryPage() {
                         e.preventDefault();
                         handleSetDefault(video._id, video.isDefault || false);
                       }}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg ${
                         video.isDefault
                           ? "bg-lime-400 hover:bg-lime-500 text-black"
-                          : "bg-zinc-800 hover:bg-zinc-700 text-white"
+                          : "bg-zinc-800/90 hover:bg-zinc-700 text-white backdrop-blur-sm"
                       }`}
                       title={video.isDefault ? "Unset as default" : "Set as default video"}
                     >
@@ -478,7 +483,7 @@ export default function LibraryPage() {
                       e.preventDefault();
                       handleDelete(video._id, video.title);
                     }}
-                    className="w-10 h-10 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center"
+                    className="w-10 h-10 bg-red-600/90 hover:bg-red-700 rounded-full flex items-center justify-center shadow-lg backdrop-blur-sm"
                     title="Delete video"
                   >
                     <Trash2 className="w-5 h-5 text-white" />
