@@ -141,6 +141,7 @@ export interface MuxLiveStream {
   new_asset_settings?: {
     playback_policy?: string[];
   };
+  recent_asset_ids?: string[];
 }
 
 export async function createLiveStream(name: string): Promise<{
@@ -171,8 +172,40 @@ export async function createLiveStream(name: string): Promise<{
   };
 }
 
+export async function getLiveStream(liveStreamId: string): Promise<MuxLiveStream> {
+  return muxRequest<MuxLiveStream>(`/video/v1/live-streams/${liveStreamId}`);
+}
+
 export async function deleteLiveStream(liveStreamId: string): Promise<void> {
   await muxRequest(`/video/v1/live-streams/${liveStreamId}`, {
     method: "DELETE",
   });
+}
+
+export interface MuxViewerData {
+  total_row_count: number | null;
+  timeframe: number[];
+  data: Array<{
+    value: number;
+    date?: string;
+  }>;
+}
+
+export async function getCurrentViewers(playbackId: string): Promise<number> {
+  try {
+    const response = await muxRequest<MuxViewerData>(
+      `/data/v1/real-time/metrics/viewers?filters[]=playback_id:${playbackId}`,
+      { method: "GET" }
+    );
+
+    // Return the most recent viewer count, or 0 if no data
+    if (response.data && response.data.length > 0) {
+      return response.data[0].value || 0;
+    }
+
+    return 0;
+  } catch (error) {
+    console.error("Failed to fetch viewer count from Mux:", error);
+    return 0;
+  }
 }

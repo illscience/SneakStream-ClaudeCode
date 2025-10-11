@@ -6,19 +6,33 @@ const PUBLIC_FLAG =
 const SERVER_PROVIDER = process.env.STREAM_PROVIDER?.toLowerCase();
 
 function resolveProvider() {
-  if (SERVER_PROVIDER) {
-    return SERVER_PROVIDER;
+  // Allow an explicit server-side override first so deployments can opt back into Livepeer if needed.
+  if (SERVER_PROVIDER === "livepeer") {
+    return "livepeer";
   }
-  if (PUBLIC_PROVIDER) {
-    return PUBLIC_PROVIDER;
+  if (SERVER_PROVIDER === "mux") {
+    return "mux";
   }
+
+  // Respect any explicit client-side override exposed via NEXT_PUBLIC_STREAM_PROVIDER.
+  if (PUBLIC_PROVIDER === "livepeer") {
+    return "livepeer";
+  }
+  if (PUBLIC_PROVIDER === "mux") {
+    return "mux";
+  }
+
+  // Legacy public flags should still enable the Mux experience automatically.
   if (PUBLIC_FLAG) {
     return "mux";
   }
+
+  // Fall back to Mux when credentials are present or when no provider is specified.
   if (process.env.MUX_TOKEN_ID && (process.env.MUX_TOKEN_SECRET || process.env.MUX_SECRET_KEY)) {
     return "mux";
   }
-  return "livepeer";
+
+  return "mux";
 }
 
 export function getStreamProvider(): "mux" | "livepeer" {

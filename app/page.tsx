@@ -4,6 +4,7 @@ import { Heart, Download, Share2, Volume2, VolumeX, Tv, LayoutGrid, UserPlus, Us
 import ChatWindow from "./components/ChatWindow";
 import VideoFeed from "./components/VideoFeed";
 import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
+import VideoTimer from "./components/VideoTimer";
 import MainNav from "@/components/navigation/MainNav";
 import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
@@ -12,12 +13,11 @@ import { useEffect, useState } from "react";
 
 export default function Home() {
   const { user } = useUser();
-  const DJ_SNEAK_ID = "dj-sneak"; // Static ID for DJ Sneak
-  const [heartCount, setHeartCount] = useState(0);
   const [isHeartAnimating, setIsHeartAnimating] = useState(false);
   const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("theater");
   const [isMuted, setIsMuted] = useState(true);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [viewerCount, setViewerCount] = useState<number>(0);
 
   // Load layout mode from localStorage after hydration
   useEffect(() => {
@@ -47,40 +47,84 @@ export default function Home() {
     return () => window.removeEventListener('resize', handleResize);
   }, [layoutMode]);
 
-  const followUser = useMutation(api.follows.followUser);
-  const unfollowUser = useMutation(api.follows.unfollowUser);
-  const isFollowing = useQuery(
-    api.follows.isFollowing,
-    user?.id ? { followerId: user.id, followingId: DJ_SNEAK_ID } : "skip"
-  );
-  const followerCount = useQuery(api.users.getFollowerCount, {
-    clerkId: DJ_SNEAK_ID,
-  });
   // Get active live stream
   const activeStream = useQuery(api.livestream.getActiveStream);
 
   // Get default video to play when no live stream is active
   const defaultVideo = useQuery(api.videos.getDefaultVideo);
 
+  // Get the streamer's userId (from active stream or default video)
+  const streamerId = activeStream?.userId || defaultVideo?.userId;
+
+  // Get streamer user info
+  const streamerUser = useQuery(
+    api.users.getUserByClerkId,
+    streamerId ? { clerkId: streamerId } : "skip"
+  );
+
+  // Follow/unfollow mutations and queries
+  const followUser = useMutation(api.follows.followUser);
+  const unfollowUser = useMutation(api.follows.unfollowUser);
+  const isFollowing = useQuery(
+    api.follows.isFollowing,
+    user?.id && streamerId ? { followerId: user.id, followingId: streamerId } : "skip"
+  );
+  const followerCount = useQuery(
+    api.users.getFollowerCount,
+    streamerId ? { clerkId: streamerId } : "skip"
+  );
+
+  // Check if viewing own content
+  const isOwnContent = user?.id === streamerId;
+
+  // Mutations
+  const updateViewerCount = useMutation(api.livestream.updateViewerCount);
+  const incrementHeartCount = useMutation(api.videos.incrementHeartCount);
+
+  // Get heart count from current video
+  const heartCount = defaultVideo?.heartCount || 0;
+
+  // Poll viewer count for active streams
+  useEffect(() => {
+    if (!activeStream?.playbackId) return;
+
+    const fetchViewers = async () => {
+      try {
+        const response = await fetch(`/api/viewers?playbackId=${activeStream.playbackId}`);
+        const data = await response.json();
+        if (data.viewers !== undefined) {
+          setViewerCount(data.viewers);
+          // Update Convex so all clients see the same count
+          await updateViewerCount({
+            streamId: activeStream._id,
+            viewerCount: data.viewers,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch viewer count:", error);
+      }
+    };
+
+    fetchViewers();
+    const interval = setInterval(fetchViewers, 30000); // Poll every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [activeStream?.playbackId, activeStream?._id, updateViewerCount]);
+
   const heroTitle = activeStream?.title ?? defaultVideo?.title ?? "DJ SNEAK";
 
   const renderVideoContent = () => {
     if (activeStream && activeStream.playbackUrl) {
       return (
-        <>
-          <video
-            controls
-            autoPlay
-            className="w-full h-full"
-            src={activeStream.playbackUrl}
-          />
-          <div className="absolute top-4 left-4">
-            <div className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
-              <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-              LIVE{activeStream.title ? `: ${activeStream.title}` : ""}
-            </div>
-          </div>
-        </>
+        <SyncedVideoPlayer
+          videoId={activeStream._id}
+          videoTitle={activeStream.title}
+          playbackUrl={activeStream.playbackUrl}
+          className="w-full h-full"
+          isMuted={isMuted}
+          onMutedChange={setIsMuted}
+          isLiveStream={true}
+        />
       );
     }
 
@@ -109,28 +153,31 @@ export default function Home() {
   };
 
   const handleFollowClick = async () => {
-    if (!user) {
-      // Trigger sign in modal
+    if (!user || !streamerId) {
+      // Trigger sign in modal or no streamer
       return;
     }
 
     if (isFollowing) {
       await unfollowUser({
         followerId: user.id,
-        followingId: DJ_SNEAK_ID,
+        followingId: streamerId,
       });
     } else {
       await followUser({
         followerId: user.id,
-        followingId: DJ_SNEAK_ID,
+        followingId: streamerId,
       });
     }
   };
 
-  const handleHeart = () => {
-    setHeartCount(prev => prev + 1);
+  const handleHeart = async () => {
+    if (!defaultVideo?._id) return;
+
     setIsHeartAnimating(true);
     setTimeout(() => setIsHeartAnimating(false), 300);
+
+    await incrementHeartCount({ videoId: defaultVideo._id });
   };
 
   return (
@@ -140,26 +187,30 @@ export default function Home() {
       {/* Main Content */}
       <main className="pt-20">
         {/* DJ Hero Section */}
-        <section className="relative bg-gradient-to-br from-pink-200 via-pink-300 to-pink-200 rounded-3xl mx-4 overflow-hidden">
-          <div className="px-8 pt-6 pb-0">
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <span className="sr-only">{heroTitle}</span>
-                <h1 className="hidden sm:block text-4xl font-bold text-black leading-tight lg:text-6xl">
-                  {heroTitle}
-                </h1>
-                {followerCount !== undefined && (
-                  <p className="text-sm text-black/60 mt-2">
-                    {followerCount} {followerCount === 1 ? "Follower" : "Followers"}
-                  </p>
-                )}
-              </div>
+        <section className="relative bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 rounded-2xl mx-4 lg:mx-8 overflow-hidden border border-zinc-700/50">
+          <div className="px-4 pt-4 pb-0 lg:px-8 lg:pt-5">
+            <div className="mb-4">
+              <h1 className="text-2xl font-bold text-white leading-tight sm:text-4xl lg:text-6xl tracking-tight">
+                {heroTitle}
+              </h1>
             </div>
 
             {/* Mobile - Video Only */}
             {!isDesktop && (
-              <div className="lg:hidden relative w-full aspect-video mb-4 overflow-hidden rounded-2xl bg-zinc-900">
-                {renderVideoContent()}
+              <div className="lg:hidden space-y-3">
+                <div className="relative w-full aspect-video overflow-hidden rounded-2xl bg-zinc-900">
+                  {renderVideoContent()}
+                </div>
+
+                {/* Mobile Timer - only show for default video */}
+                {!activeStream && defaultVideo?.startTime !== undefined && defaultVideo?.duration && (
+                  <div className="flex justify-center">
+                    <VideoTimer
+                      startTime={defaultVideo.startTime}
+                      duration={defaultVideo.duration}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -199,7 +250,7 @@ export default function Home() {
                   {renderVideoContent()}
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <button
                     onClick={handleHeart}
                     className={`flex items-center gap-2 px-4 py-2 bg-red-600 rounded-full font-medium hover:bg-red-700 transition-all ${
@@ -209,19 +260,54 @@ export default function Home() {
                     <Heart className="w-4 h-4 fill-white" />
                     <span className="text-sm">{heartCount}</span>
                   </button>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
+                  <button
+                    onClick={async () => {
+                      if (navigator.share) {
+                        try {
+                          await navigator.share({
+                            title: 'DJ Sneak Live',
+                            text: 'Check out this live DJ stream!',
+                            url: window.location.href,
+                          });
+                        } catch (err) {
+                          // User cancelled or share failed
+                          console.log('Share cancelled or failed:', err);
+                        }
+                      } else {
+                        // Fallback: copy to clipboard
+                        navigator.clipboard.writeText(window.location.href);
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700"
+                  >
                     <Share2 className="w-4 h-4" />
                     <span className="text-sm">Share</span>
                   </button>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full font-medium hover:bg-zinc-700">
-                    <Download className="w-4 h-4" />
-                  </button>
+
+                  {/* Video Timer - only show for default video */}
+                  {!activeStream && defaultVideo?.startTime !== undefined && defaultVideo?.duration && (
+                    <VideoTimer
+                      startTime={defaultVideo.startTime}
+                      duration={defaultVideo.duration}
+                    />
+                  )}
+
                   <div className="ml-auto flex items-center gap-2">
-                    <span className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
-                      <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                      LIVE
-                    </span>
-                    <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs">2.4K Viewers</span>
+                    {activeStream ? (
+                      <span className="px-3 py-1 bg-red-600 rounded-full text-xs flex items-center gap-1">
+                        <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                        LIVE
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 bg-zinc-700 rounded-full text-xs">
+                        REPLAY
+                      </span>
+                    )}
+                    {activeStream && (
+                      <span className="px-3 py-1 bg-zinc-800 rounded-full text-xs">
+                        {viewerCount.toLocaleString()} {viewerCount === 1 ? 'Viewer' : 'Viewers'}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -291,31 +377,38 @@ export default function Home() {
               )}
             </button>
 
-            <SignedOut>
-              <SignInButton mode="modal">
-                <button className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 text-white transition-colors hover:bg-white/10">
-                  <UserPlus className="w-5 h-5" />
-                </button>
-              </SignInButton>
-            </SignedOut>
+            {streamerUser && (
+              <div className="flex items-center gap-0 bg-zinc-800/70 rounded-full border border-zinc-700/50 overflow-hidden">
+                <div className="px-4 py-2">
+                  <span className="text-sm font-semibold text-white">{streamerUser.alias}</span>
+                </div>
 
-            <SignedIn>
-              <button
-                onClick={handleFollowClick}
-                className={`flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
-                  isFollowing
-                    ? 'bg-lime-400 text-black hover:bg-lime-300'
-                    : 'bg-zinc-800 text-white hover:bg-zinc-700'
-                }`}
-              >
-                {isFollowing ? <UserCheck className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
-              </button>
-            </SignedIn>
-          </div>
+                {!isOwnContent && (
+                  <>
+                    <SignedOut>
+                      <SignInButton mode="modal">
+                        <button className="flex h-10 w-10 items-center justify-center border-l border-zinc-700/50 text-white transition-colors hover:bg-white/10">
+                          <UserPlus className="w-5 h-5" />
+                        </button>
+                      </SignInButton>
+                    </SignedOut>
 
-          {/* Center - Now Playing */}
-          <div className="flex-1 rounded-full bg-lime-400 px-5 py-2 text-center text-sm font-semibold text-black shadow-sm sm:px-6 sm:py-3 sm:text-base lg:flex-none">
-            {defaultVideo?.title || "No video playing"}
+                    <SignedIn>
+                      <button
+                        onClick={handleFollowClick}
+                        className={`flex h-10 w-10 items-center justify-center border-l border-zinc-700/50 transition-colors ${
+                          isFollowing
+                            ? 'bg-lime-400 text-black hover:bg-lime-500'
+                            : 'text-white hover:bg-zinc-700'
+                        }`}
+                      >
+                        {isFollowing ? <UserCheck className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+                      </button>
+                    </SignedIn>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Right - View Controls */}

@@ -92,4 +92,16 @@ export default defineSchema({
     isPlaying: v.optional(v.boolean()), // Legacy field - whether video is playing
     updatedAt: v.number(), // Timestamp of last update
   }),
+
+  // Persistent stream credentials per user
+  streamCredentials: defineTable({
+    userId: v.string(), // Clerk user ID
+    provider: v.string(), // "mux" or "livepeer"
+    streamId: v.string(), // Provider's stream ID
+    streamKey: v.string(), // RTMP stream key
+    playbackId: v.string(), // Playback ID
+    playbackUrl: v.string(), // HLS playback URL
+    rtmpIngestUrl: v.string(), // RTMP ingest URL
+    createdAt: v.number(),
+  }).index("by_user", ["userId"]),
 });

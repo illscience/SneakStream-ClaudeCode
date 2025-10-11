@@ -5,12 +5,13 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useEffect, useState } from "react";
 import { Users, UserPlus, Heart, Music } from "lucide-react";
-import Header from "../components/Header";
+import MainNav from "@/components/navigation/MainNav";
 import EditableAlias from "../../components/ui/editable-alias";
 
 export default function ProfilePage() {
   const { user, isLoaded } = useUser();
   const [alias, setAlias] = useState("");
+  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("classic");
 
   const upsertUser = useMutation(api.users.upsertUser);
   const convexUser = useQuery(
@@ -102,27 +103,27 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <Header title="PROFILE" />
+      <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
 
       {/* Header with gradient */}
       <div className="relative bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500 h-48 mt-16">
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 -mt-20">
+      <div className="max-w-6xl mx-auto px-4 -mt-16 sm:-mt-20">
         {/* Profile Card */}
-        <div className="bg-zinc-900 rounded-3xl p-8 mb-6 border border-zinc-800">
-          <div className="flex items-start gap-6 mb-8">
-            <div className="relative">
+        <div className="bg-zinc-900 rounded-3xl p-6 sm:p-8 mb-6 border border-zinc-800">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-8">
+            <div className="relative flex-shrink-0">
               <img
                 src={user.imageUrl}
                 alt={alias}
-                className="w-32 h-32 rounded-full border-4 border-lime-400 shadow-xl"
+                className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-lime-400 shadow-xl object-cover"
               />
               <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-lime-400 rounded-full flex items-center justify-center">
                 <Music className="w-5 h-5 text-black" />
               </div>
             </div>
-            <div className="flex-1">
+            <div className="flex-1 text-center sm:text-left w-full">
               <div className="mb-4">
                 <EditableAlias
                   key={`top-${alias}`}
@@ -136,7 +137,7 @@ export default function ProfilePage() {
               </p>
 
               {/* Stats */}
-              <div className="flex gap-6">
+              <div className="flex flex-wrap justify-center sm:justify-start gap-3 sm:gap-6">
                 <div className="flex items-center gap-2 px-4 py-2 bg-zinc-800 rounded-full">
                   <Users className="w-4 h-4 text-lime-400" />
                   <span className="font-semibold text-lime-400">

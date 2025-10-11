@@ -8,12 +8,13 @@ import { useEffect, useRef, useState } from "react";
 import { Id } from "../../convex/_generated/dataModel";
 
 interface SyncedVideoPlayerProps {
-  videoId: Id<"videos">;
+  videoId: Id<"videos"> | Id<"livestreams">;
   videoTitle: string;
   playbackUrl: string;
   className?: string;
   isMuted?: boolean;
   onMutedChange?: (muted: boolean) => void;
+  isLiveStream?: boolean;
 }
 
 export default function SyncedVideoPlayer({
@@ -23,13 +24,17 @@ export default function SyncedVideoPlayer({
   className = "",
   isMuted = true,
   onMutedChange,
+  isLiveStream = false,
 }: SyncedVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Get the video with startTime (t0)
-  const defaultVideo = useQuery(api.videos.getDefaultVideo);
+  // Get the video with startTime (t0) - only for non-live streams
+  const defaultVideo = useQuery(
+    api.videos.getDefaultVideo,
+    isLiveStream ? "skip" : undefined
+  );
 
   // Attach playback URL via hls.js when needed
   useEffect(() => {
@@ -41,16 +46,23 @@ export default function SyncedVideoPlayer({
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = playbackUrl;
     } else if (Hls.isSupported()) {
-      hls = new Hls({ enableWorker: true });
+      hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: isLiveStream,
+      });
       hls.loadSource(playbackUrl);
       hls.attachMedia(video);
     } else {
       video.src = playbackUrl;
     }
 
-    video.loop = true;
+    video.loop = !isLiveStream; // Don't loop live streams
     video.autoplay = true;
     video.playsInline = true;
+
+    // Enable background audio playback on iOS
+    video.setAttribute('webkit-playsinline', 'true');
+    video.setAttribute('x-webkit-airplay', 'allow');
 
     const handlePlayAttempt = () => {
       const playPromise = video.play();
@@ -71,8 +83,10 @@ export default function SyncedVideoPlayer({
     };
   }, [playbackUrl]);
 
-  // Calculate current playback position based on t0
+  // Calculate current playback position based on t0 (skip for live streams)
   useEffect(() => {
+    if (isLiveStream) return; // No syncing needed for live streams
+
     const video = videoRef.current;
     if (!defaultVideo || defaultVideo.startTime === undefined || !video || hasInitialized || defaultVideo._id !== videoId) {
       return;
@@ -94,7 +108,7 @@ export default function SyncedVideoPlayer({
     } else {
       video.addEventListener("loadedmetadata", syncToStart, { once: true });
     }
-  }, [defaultVideo, videoId, hasInitialized]);
+  }, [defaultVideo, videoId, hasInitialized, isLiveStream]);
 
   useEffect(() => {
     setHasInitialized(false);
@@ -160,6 +174,63 @@ export default function SyncedVideoPlayer({
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
+  // Resume playback when page becomes visible (e.g., after unlocking phone)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && video.paused) {
+        // Re-sync position when coming back from background
+        if (defaultVideo && defaultVideo.startTime !== undefined) {
+          const startTime = defaultVideo.startTime;
+          const duration = defaultVideo.duration || 0;
+          const now = Date.now();
+          const elapsedTime = (now - startTime) / 1000;
+          const correctPosition = duration > 0 ? elapsedTime % duration : elapsedTime;
+          video.currentTime = correctPosition;
+        }
+
+        // Attempt to resume playback
+        const playPromise = video.play();
+        if (playPromise) {
+          playPromise.catch((error) => {
+            console.log("Auto-play on visibility change blocked:", error);
+          });
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [defaultVideo]);
+
+  // Set up Media Session API for background audio control
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: videoTitle,
+      artist: "DJ SNEAK",
+      album: "Live Stream",
+    });
+
+    // Disable default play/pause actions since we handle them ourselves
+    navigator.mediaSession.setActionHandler("play", () => {
+      videoRef.current?.play();
+    });
+
+    navigator.mediaSession.setActionHandler("pause", () => {
+      videoRef.current?.pause();
+    });
+
+    return () => {
+      navigator.mediaSession.metadata = null;
+      navigator.mediaSession.setActionHandler("play", null);
+      navigator.mediaSession.setActionHandler("pause", null);
+    };
+  }, [videoTitle]);
+
   const toggleFullscreen = () => {
     const video = videoRef.current;
     if (!video) return;
@@ -178,6 +249,8 @@ export default function SyncedVideoPlayer({
         className="h-full w-full rounded-2xl bg-black object-cover"
         muted={isMuted}
         playsInline
+        webkit-playsinline="true"
+        x-webkit-airplay="allow"
       />
       <button
         type="button"
@@ -187,11 +260,6 @@ export default function SyncedVideoPlayer({
       >
         <Maximize2 className="h-4 w-4" />
       </button>
-      <div className="absolute top-4 left-4 z-10">
-        <div className="px-3 py-1 bg-zinc-800 rounded-full text-xs">
-          {videoTitle}
-        </div>
-      </div>
     </div>
   );
 }

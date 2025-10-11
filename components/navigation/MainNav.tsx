@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Menu, X, LayoutGrid, Layout } from "lucide-react";
 import { Toggle } from "@/components/ui/toggle";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
+import LogoShimmer from "./LogoShimmer";
 
 type LayoutMode = "classic" | "theater";
 
@@ -14,7 +16,7 @@ interface MainNavProps {
 }
 
 const navLinks = [
-  { href: "/", label: "Browse" },
+  { href: "/", label: "Home" },
   { href: "/go-live", label: "Go Live" },
   { href: "/library", label: "My Library", authOnly: true },
   { href: "/profile", label: "Profile", authOnly: true },
@@ -22,16 +24,107 @@ const navLinks = [
 
 export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoTextColor, setLogoTextColor] = useState<string | null>(null);
+  const [letterColors, setLetterColors] = useState<(string | null)[]>(Array(8).fill(null));
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const handleLogoTextShimmer = (event: Event) => {
+      const customEvent = event as CustomEvent<{ color: string | null }>;
+      setLogoTextColor(customEvent.detail.color);
+    };
+
+    window.addEventListener("logoTextShimmer", handleLogoTextShimmer);
+    return () => window.removeEventListener("logoTextShimmer", handleLogoTextShimmer);
+  }, []);
+
+  const triggerLetterAnimation = () => {
+    const colors = [
+      "text-amber-600",
+      "text-fuchsia-600",
+      "text-sky-600",
+      "text-emerald-600",
+      "text-violet-600",
+      "text-rose-600",
+      "text-indigo-600",
+      "text-lime-600",
+    ];
+
+    const logoText = "DJ SNEAK";
+    const letterCount = logoText.length;
+
+    let letterIndex = 0;
+    const animateLetter = (delay: number) => {
+      if (letterIndex >= letterCount) {
+        // Clear all letters after animation
+        setTimeout(() => {
+          setLetterColors(Array(letterCount).fill(null));
+        }, 600);
+        return;
+      }
+
+      const currentLetterIndex = letterIndex;
+      const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+      setTimeout(() => {
+        setLetterColors(prev => {
+          const newColors = [...prev];
+          newColors[currentLetterIndex] = randomColor;
+          return newColors;
+        });
+
+        // Clear this letter after random duration (600-1000ms)
+        setTimeout(() => {
+          setLetterColors(prev => {
+            const newColors = [...prev];
+            newColors[currentLetterIndex] = null;
+            return newColors;
+          });
+        }, Math.random() * 400 + 600);
+      }, delay);
+
+      letterIndex++;
+      // Random delay: 50/50 chance snappy (30-120ms) or laggy (250-600ms)
+      const nextDelay = Math.random() < 0.5
+        ? Math.random() * 90 + 30
+        : Math.random() * 350 + 250;
+      animateLetter(delay + nextDelay);
+    };
+
+    animateLetter(0);
+  };
+
+  // Auto-trigger animation every 10-30 seconds
+  useEffect(() => {
+    const scheduleNextAnimation = () => {
+      const delay = Math.random() * 20000 + 10000; // 10-30 seconds
+      return setTimeout(() => {
+        triggerLetterAnimation();
+        scheduleNextAnimation();
+      }, delay);
+    };
+
+    const timeout = scheduleNextAnimation();
+    return () => clearTimeout(timeout);
+  }, []);
+
+  const handleLogoTextClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    triggerLetterAnimation();
+  };
 
   const handleLinkClick = () => setMobileOpen(false);
 
+  const isActive = (href: string) => pathname === href;
+
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/80 backdrop-blur-md">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3 lg:px-8">
-        <div className="flex items-center gap-3">
+    <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/5 bg-black/90 backdrop-blur-xl">
+      <div className="flex w-full items-center justify-between px-4 py-4 lg:px-8">
+        <div className="flex items-center gap-4">
           <button
             onClick={() => setMobileOpen(!mobileOpen)}
-            className="flex items-center justify-center rounded-full border border-white/10 p-2 text-white transition-colors hover:bg-white/10 lg:hidden"
+            className="flex items-center justify-center rounded-lg border border-white/10 p-2 text-white transition-colors hover:bg-white/5 lg:hidden"
             aria-expanded={mobileOpen}
             aria-controls="primary-navigation"
             aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
@@ -39,28 +132,39 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
 
-          <Link href="/" className="flex items-center gap-2">
-            <span className="grid h-9 w-9 grid-cols-3 gap-0.5">
-              <span className="rounded-sm bg-yellow-400" />
-              <span className="rounded-sm bg-pink-400" />
-              <span className="rounded-sm bg-cyan-400" />
-              <span className="rounded-sm bg-green-400" />
-              <span className="rounded-sm bg-purple-400" />
-              <span className="rounded-sm bg-orange-400" />
-              <span className="rounded-sm bg-red-400" />
-              <span className="rounded-sm bg-blue-400" />
-              <span className="rounded-sm bg-lime-400" />
+          <Link href="/" className="flex items-center gap-3">
+            <LogoShimmer />
+            <span
+              onClick={handleLogoTextClick}
+              className="text-xl font-bold tracking-tight cursor-pointer"
+            >
+              {"DJ SNEAK".split("").map((letter, index) => (
+                <span
+                  key={index}
+                  className={`transition-all duration-300 ${
+                    letterColors[index]
+                      ? `${letterColors[index]} brightness-125 saturate-150`
+                      : "text-white"
+                  }`}
+                >
+                  {letter}
+                </span>
+              ))}
             </span>
-            <span className="text-lg font-semibold tracking-tight">DJ SNEAK</span>
           </Link>
         </div>
 
-        <nav className="hidden items-center gap-6 text-sm font-medium uppercase text-gray-300 lg:flex">
+        <nav className="hidden items-center gap-8 text-sm font-medium uppercase text-gray-400 lg:flex">
           {navLinks.map(({ href, label, authOnly }) => {
+            const active = isActive(href);
+            const linkClasses = `relative transition-colors hover:text-white pb-1 ${
+              active ? "text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-white" : ""
+            }`;
+
             if (authOnly) {
               return (
                 <SignedIn key={href}>
-                  <Link className="transition-colors hover:text-white" href={href}>
+                  <Link className={linkClasses} href={href}>
                     {label}
                   </Link>
                 </SignedIn>
@@ -68,14 +172,14 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
             }
 
             return (
-              <Link key={href} className="transition-colors hover:text-white" href={href}>
+              <Link key={href} className={linkClasses} href={href}>
                 {label}
               </Link>
             );
           })}
         </nav>
 
-        <div className="hidden items-center gap-3 lg:flex">
+        <div className="hidden items-center gap-4 lg:flex">
           <Toggle
             pressed={layoutMode === "theater"}
             onPressedChange={(pressed) => onLayoutChange(pressed ? "theater" : "classic")}
@@ -94,10 +198,6 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
               </>
             )}
           </Toggle>
-
-          <button className="rounded-full bg-lime-400 px-5 py-2 text-sm font-semibold text-black transition-colors hover:bg-lime-300">
-            Subscribe
-          </button>
 
           <SignedOut>
             <SignInButton mode="modal">
@@ -126,24 +226,25 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
         >
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2 text-sm font-medium uppercase text-gray-200">
-              {navLinks.map(({ href, label, authOnly }) => (
-                authOnly ? (
+              {navLinks.map(({ href, label, authOnly }) => {
+                const active = isActive(href);
+                const mobileLinkClasses = `rounded-full px-4 py-3 text-center transition-colors ${
+                  active ? "bg-white text-black font-semibold" : "bg-white/5 hover:bg-white/10"
+                }`;
+
+                return authOnly ? (
                   <SignedIn key={href}>
-                    <Link href={href} onClick={handleLinkClick} className="rounded-full bg-white/5 px-4 py-3 text-center transition-colors hover:bg-white/10">
+                    <Link href={href} onClick={handleLinkClick} className={mobileLinkClasses}>
                       {label}
                     </Link>
                   </SignedIn>
                 ) : (
-                  <Link key={href} href={href} onClick={handleLinkClick} className="rounded-full bg-white/5 px-4 py-3 text-center transition-colors hover:bg-white/10">
+                  <Link key={href} href={href} onClick={handleLinkClick} className={mobileLinkClasses}>
                     {label}
                   </Link>
-                )
-              ))}
+                );
+              })}
             </div>
-
-            <button className="w-full rounded-full bg-lime-400 px-5 py-3 text-sm font-semibold text-black transition-colors hover:bg-lime-300">
-              Subscribe
-            </button>
 
             <SignedOut>
               <SignInButton mode="modal">

@@ -128,6 +128,19 @@ export const incrementViewCount = mutation({
   },
 });
 
+// Increment heart count
+export const incrementHeartCount = mutation({
+  args: { videoId: v.id("videos") },
+  handler: async (ctx, args) => {
+    const video = await ctx.db.get(args.videoId);
+    if (video) {
+      await ctx.db.patch(args.videoId, {
+        heartCount: (video.heartCount || 0) + 1,
+      });
+    }
+  },
+});
+
 // Delete video
 export const deleteVideo = mutation({
   args: { videoId: v.id("videos") },

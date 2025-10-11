@@ -20,13 +20,28 @@ export default function ChatWindow() {
 
   const displayName = convexUser?.alias || user?.username || user?.firstName || "Anonymous";
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  // No auto-scroll - keep focus at the top where input is
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  const formatTimestamp = (timestamp: number) => {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (seconds < 60) return "just now";
+    if (minutes === 1) return "1 min ago";
+    if (minutes < 60) return `${minutes} mins ago`;
+    if (hours === 1) return "1 hour ago";
+    if (hours < 4) return `${hours} hours ago`;
+    if (hours < 24) return "today";
+    if (days === 1) return "yesterday";
+    if (days < 7) return `${days} days ago`;
+    if (days < 30) return "last week";
+    if (days < 60) return "last month";
+    return "a while ago";
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,22 +69,6 @@ export default function ChatWindow() {
         <h3 className="text-sm text-zinc-400 uppercase">Live Chat</h3>
       </div>
 
-      {/* Messages Container */}
-      <div className="flex-1 bg-zinc-900/50 rounded-xl overflow-y-auto mb-4 p-4 space-y-3 max-h-[400px]">
-        {messages?.map((message) => (
-          <div key={message._id} className="flex flex-col gap-1">
-            <div className="flex items-baseline gap-2">
-              <span className="text-xs font-medium text-lime-400">
-                {message.userName || message.user || "Anonymous"}
-              </span>
-              <span className="text-xs text-zinc-600">·</span>
-            </div>
-            <p className="text-sm text-white break-words">{message.body}</p>
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-
       {/* Username Display */}
       <div className="mb-2 flex items-center gap-2">
         <div className="flex items-center gap-2 flex-1">
@@ -79,7 +78,7 @@ export default function ChatWindow() {
       </div>
 
       {/* Message Input */}
-      <form onSubmit={handleSubmit} className="flex gap-2">
+      <form onSubmit={handleSubmit} className="flex gap-2 mb-4">
         <input
           type="text"
           value={newMessage}
@@ -94,6 +93,24 @@ export default function ChatWindow() {
           <Send className="h-4 w-4" />
         </button>
       </form>
+
+      {/* Messages Container - Reverse Chronological */}
+      <div className="flex-1 bg-zinc-900/50 rounded-xl overflow-y-auto p-4 space-y-3 max-h-[400px]">
+        {messages?.slice().reverse().map((message) => (
+          <div key={message._id} className="flex flex-col gap-1">
+            <div className="flex items-baseline gap-2">
+              <span className="text-xs font-medium text-lime-400">
+                {message.userName || message.user || "Anonymous"}
+              </span>
+              <span className="text-xs text-zinc-600">·</span>
+              <span className="text-xs text-zinc-500">
+                {formatTimestamp(message._creationTime)}
+              </span>
+            </div>
+            <p className="text-sm text-white break-words">{message.body}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

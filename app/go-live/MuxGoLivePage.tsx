@@ -1,76 +1,243 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useState, useRef, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Radio, Video, Settings, X, Monitor, Mic, Users, MessageSquare, Save } from "lucide-react";
+import { Radio, Video, Eye, CheckCircle, Volume2 } from "lucide-react";
+import MainNav from "@/components/navigation/MainNav";
+import Hls from "hls.js";
+
+type StreamStep = "idle" | "preview" | "live";
 
 export default function MuxGoLivePage() {
   const { user } = useUser();
-  const [streamTitle, setStreamTitle] = useState("");
-  const [streamDescription, setStreamDescription] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
-  const [videoQuality, setVideoQuality] = useState("1080p");
-  const [videoBitrate, setVideoBitrate] = useState("6000");
-  const [audioBitrate, setAudioBitrate] = useState("320");
-  const [audioSampleRate, setAudioSampleRate] = useState("48000");
-  const [chatEnabled, setChatEnabled] = useState(true);
-  const [slowMode, setSlowMode] = useState(false);
-  const [slowModeInterval, setSlowModeInterval] = useState("5");
-  const [recordStream, setRecordStream] = useState(true);
-  const [visibility, setVisibility] = useState("public");
+  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("classic");
+  const [streamStep, setStreamStep] = useState<StreamStep>("idle");
+  const [previewStream, setPreviewStream] = useState<{
+    streamId: string;
+    streamKey: string;
+    playbackId: string;
+    playbackUrl: string;
+    rtmpIngestUrl: string;
+  } | null>(null);
+  const [hasAudio, setHasAudio] = useState(false);
+  const [streamStatus, setStreamStatus] = useState<"waiting" | "connected" | "error">("waiting");
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const activeStream = useQuery(api.livestream.getActiveStream);
   const startStream = useMutation(api.livestream.startStream);
   const endStream = useMutation(api.livestream.endStream);
+  const savedCredentials = useQuery(
+    api.streamCredentials.getOrCreateCredentials,
+    user?.id ? { userId: user.id } : "skip"
+  );
+  const saveCredentials = useMutation(api.streamCredentials.saveCredentials);
 
-  const handleGoLive = async () => {
+  // Setup HLS player for preview
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !previewStream?.playbackUrl) return;
+
+    console.log("Setting up preview player with URL:", previewStream.playbackUrl);
+    let hls: Hls | null = null;
+
+    const setupPlayer = async () => {
+      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        // Native HLS support (Safari)
+        console.log("Using native HLS support");
+        video.src = previewStream.playbackUrl;
+        video.play().catch(err => console.error("Play error:", err));
+      } else {
+        // Use HLS.js for other browsers
+        console.log("Using HLS.js");
+        const Hls = (await import("hls.js")).default;
+        if (Hls.isSupported()) {
+          hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+            debug: true,
+          });
+
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            console.log("HLS manifest parsed, starting playback");
+            setStreamStatus("connected");
+            video.play().catch(err => console.error("Play error:", err));
+          });
+
+          hls.on(Hls.Events.ERROR, (_event: unknown, data: { fatal?: boolean; type?: string }) => {
+            console.error("HLS error:", data);
+            if (data.fatal) {
+              if (data.type === "networkError") {
+                console.log("Network error, will retry...");
+                setStreamStatus("waiting");
+                // Retry loading after a delay
+                setTimeout(() => {
+                  if (hls) {
+                    hls.loadSource(previewStream.playbackUrl);
+                  }
+                }, 3000);
+              } else {
+                setStreamStatus("error");
+              }
+            }
+          });
+
+          hls.loadSource(previewStream.playbackUrl);
+          hls.attachMedia(video);
+        } else {
+          console.error("HLS not supported in this browser");
+        }
+      }
+    };
+
+    setupPlayer();
+
+    return () => {
+      if (hls) {
+        console.log("Destroying HLS player");
+        hls.destroy();
+      }
+    };
+  }, [previewStream]);
+
+  // Detect audio in preview video
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || streamStatus !== "connected") return;
+
+    const checkAudio = () => {
+      // Check if video element has audio tracks
+      const hasAudioTrack = (video as HTMLVideoElement & { mozHasAudio?: boolean; webkitAudioDecodedByteCount?: number; audioTracks?: { length: number } }).mozHasAudio ||
+                           Boolean((video as HTMLVideoElement & { webkitAudioDecodedByteCount?: number }).webkitAudioDecodedByteCount) ||
+                           Boolean((video as HTMLVideoElement & { audioTracks?: { length: number } }).audioTracks?.length);
+
+      if (hasAudioTrack) {
+        console.log("Audio detected in stream");
+        setHasAudio(true);
+      }
+    };
+
+    // Check periodically for audio
+    const audioCheckInterval = setInterval(checkAudio, 1000);
+
+    video.addEventListener("loadedmetadata", checkAudio);
+    video.addEventListener("playing", checkAudio);
+
+    return () => {
+      clearInterval(audioCheckInterval);
+      video.removeEventListener("loadedmetadata", checkAudio);
+      video.removeEventListener("playing", checkAudio);
+    };
+  }, [streamStatus]);
+
+  const handleStartPreview = async () => {
     if (!user) return;
     setIsLoading(true);
     try {
-      const response = await fetch("/api/stream/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: streamTitle || "Live Stream", provider: "mux" }),
-      });
+      let streamData;
 
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Failed to create Mux live stream");
+      // Check if user has saved credentials
+      if (savedCredentials) {
+        // Reuse existing stream
+        streamData = {
+          streamId: savedCredentials.streamId,
+          streamKey: savedCredentials.streamKey,
+          playbackId: savedCredentials.playbackId,
+          playbackUrl: savedCredentials.playbackUrl,
+          rtmpIngestUrl: savedCredentials.rtmpIngestUrl,
+        };
+        console.log("Reusing existing stream credentials");
+      } else {
+        // Create new stream
+        const response = await fetch("/api/stream/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "DJ SNEAK Live", provider: "mux" }),
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || "Failed to create Mux live stream");
+        }
+
+        streamData = await response.json();
+
+        // Save credentials for reuse
+        await saveCredentials({
+          userId: user.id,
+          provider: "mux",
+          streamId: streamData.streamId,
+          streamKey: streamData.streamKey,
+          playbackId: streamData.playbackId,
+          playbackUrl: streamData.playbackUrl,
+          rtmpIngestUrl: streamData.rtmpIngestUrl,
+        });
+        console.log("Created and saved new stream credentials");
       }
 
-      const streamData = await response.json();
-
-      await startStream({
-        userId: user.id,
-        userName: user.fullName || user.username || "Anonymous",
-        title: streamTitle || "Live Stream",
-        description: streamDescription,
-        provider: "mux",
-        streamId: streamData.streamId,
-        streamKey: streamData.streamKey,
-        playbackId: streamData.playbackId,
-        playbackUrl: streamData.playbackUrl,
-        rtmpIngestUrl: streamData.rtmpIngestUrl,
-      });
-
-      setStreamTitle("");
-      setStreamDescription("");
+      setPreviewStream(streamData);
+      setStreamStep("preview");
     } catch (error) {
-      console.error("Failed to start mux stream", error);
-      alert(error instanceof Error ? error.message : "Failed to start stream");
+      console.error("Failed to start preview", error);
+      alert(error instanceof Error ? error.message : "Failed to start preview");
     }
     setIsLoading(false);
+  };
+
+  const handleConfirmGoLive = async () => {
+    if (!user || !previewStream) return;
+    setIsLoading(true);
+    try {
+      await startStream({
+        userId: user.id,
+        userName: user.fullName || user.username || "DJ SNEAK",
+        title: "DJ SNEAK Live",
+        description: "Live DJ set",
+        provider: "mux",
+        streamId: previewStream.streamId,
+        streamKey: previewStream.streamKey,
+        playbackId: previewStream.playbackId,
+        playbackUrl: previewStream.playbackUrl,
+        rtmpIngestUrl: previewStream.rtmpIngestUrl,
+      });
+      setStreamStep("live");
+      setPreviewStream(null);
+    } catch (error) {
+      console.error("Failed to go live", error);
+      alert(error instanceof Error ? error.message : "Failed to go live");
+    }
+    setIsLoading(false);
+  };
+
+  const handleCancelPreview = () => {
+    setStreamStep("idle");
+    setPreviewStream(null);
+    setHasAudio(false);
+    setStreamStatus("waiting");
   };
 
   const handleEndStream = async () => {
     if (!activeStream) return;
     setIsLoading(true);
     try {
-      await endStream({ streamId: activeStream._id });
+      // Fetch the asset info from Mux
+      const response = await fetch("/api/stream/end", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ streamId: activeStream.streamId }),
+      });
+
+      const assetData = await response.json();
+
+      // End stream and save recording
+      await endStream({
+        streamId: activeStream._id,
+        assetId: assetData.assetId,
+        playbackId: assetData.playbackId,
+        duration: assetData.duration,
+      });
     } catch (error) {
       console.error("Failed to end stream:", error);
     }
@@ -92,290 +259,166 @@ export default function MuxGoLivePage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-4 bg-black/80 backdrop-blur-sm border-b border-zinc-800">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="text-xl font-bold hover:text-lime-400 transition-colors">
-            DJ SNEAK
-          </Link>
-          <span className="text-zinc-500">|</span>
-          <span className="text-zinc-400">Go Live</span>
-        </div>
-        <Link href="/" className="text-zinc-400 hover:text-white">
-          <X className="w-6 h-6" />
-        </Link>
-      </header>
+      <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
 
-      <main className="pt-24 px-8 pb-16 max-w-4xl mx-auto">
+      <main className="pt-24 px-4 lg:px-8 pb-16 max-w-2xl mx-auto">
         {activeStream && (
           <div className="mb-8 p-6 bg-red-600/20 border border-red-600 rounded-2xl">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-3 h-3 bg-red-600 rounded-full animate-pulse"></div>
-                <div>
-                  <h3 className="font-bold">You&apos;re Live via Mux!</h3>
-                  <p className="text-sm text-zinc-300">Broadcasting to all viewers</p>
+                <div className="flex-1">
+                  <h3 className="font-bold">You&apos;re Live!</h3>
+                  <p className="text-sm text-zinc-300">Broadcasting on the main feed</p>
                 </div>
               </div>
               <button
                 onClick={handleEndStream}
                 disabled={isLoading}
-                className="px-6 py-2 bg-red-600 hover:bg-red-700 rounded-full font-medium transition-colors disabled:opacity-50"
+                className="w-full px-6 py-3 bg-red-600 hover:bg-red-700 rounded-full font-semibold transition-colors disabled:opacity-50"
               >
                 End Stream
               </button>
-            </div>
-            <div className="mt-4 pt-4 border-t border-red-600/30">
-              <p className="text-sm font-medium">{activeStream.title}</p>
-              {activeStream.description && (
-                <p className="text-sm text-zinc-400 mt-1">{activeStream.description}</p>
-              )}
             </div>
           </div>
         )}
 
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-lime-400 rounded-full flex items-center justify-center">
-              <Radio className="w-6 h-6 text-black" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">Start Broadcasting with Mux</h1>
-              <p className="text-zinc-400">Take over the main stream and broadcast to all viewers</p>
-            </div>
-          </div>
-
-          {!activeStream && (
-            <div className="space-y-6">
+          {!activeStream && streamStep === "idle" && (
+            <div className="text-center space-y-6">
+              <div className="flex justify-center">
+                <div className="w-20 h-20 bg-lime-400 rounded-full flex items-center justify-center">
+                  <Radio className="w-10 h-10 text-black" />
+                </div>
+              </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Stream Title</label>
-                <input
-                  type="text"
-                  value={streamTitle}
-                  onChange={(event) => setStreamTitle(event.target.value)}
-                  placeholder="Friday Night Session"
-                  className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg focus:outline-none focus:border-lime-400"
-                />
+                <h1 className="text-3xl font-bold mb-2">Go Live</h1>
+                <p className="text-zinc-400">Preview your stream before going live</p>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Description (optional)</label>
-                <textarea
-                  value={streamDescription}
-                  onChange={(event) => setStreamDescription(event.target.value)}
-                  rows={4}
-                  placeholder="Let viewers know what to expect"
-                  className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg focus:outline-none focus:border-lime-400 resize-none"
-                />
-              </div>
-
-              {/* reuse same settings UI as Livepeer */}
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div className="bg-zinc-800/50 border border-zinc-700 rounded-xl p-4">
-                    <div className="flex items-center gap-2 text-sm font-medium text-lime-400">
-                      <Monitor className="w-4 h-4" />
-                      <span>Video Settings</span>
-                    </div>
-                    <div className="mt-4 space-y-3">
-                      <label className="block text-sm">
-                        Quality
-                        <select
-                          value={videoQuality}
-                          onChange={(event) => setVideoQuality(event.target.value)}
-                          className="mt-1 w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm"
-                        >
-                          <option value="1080p">1080p (Recommended)</option>
-                          <option value="720p">720p</option>
-                          <option value="480p">480p</option>
-                        </select>
-                      </label>
-                      <label className="block text-sm">
-                        Video Bitrate (kbps)
-                        <input
-                          type="number"
-                          value={videoBitrate}
-                          onChange={(event) => setVideoBitrate(event.target.value)}
-                          className="mt-1 w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm"
-                        />
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="bg-zinc-800/50 border border-zinc-700 rounded-xl p-4">
-                    <div className="flex items-center gap-2 text-sm font-medium text-lime-400">
-                      <Mic className="w-4 h-4" />
-                      <span>Audio Settings</span>
-                    </div>
-                    <div className="mt-4 space-y-3">
-                      <label className="block text-sm">
-                        Audio Bitrate (kbps)
-                        <input
-                          type="number"
-                          value={audioBitrate}
-                          onChange={(event) => setAudioBitrate(event.target.value)}
-                          className="mt-1 w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm"
-                        />
-                      </label>
-                      <label className="block text-sm">
-                        Sample Rate (Hz)
-                        <input
-                          type="number"
-                          value={audioSampleRate}
-                          onChange={(event) => setAudioSampleRate(event.target.value)}
-                          className="mt-1 w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm"
-                        />
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="bg-zinc-800/50 border border-zinc-700 rounded-xl p-4">
-                    <div className="flex items-center gap-2 text-sm font-medium text-lime-400">
-                      <MessageSquare className="w-4 h-4" />
-                      <span>Chat Settings</span>
-                    </div>
-                    <div className="mt-4 space-y-3">
-                      <label className="flex items-center justify-between">
-                        <span className="text-sm">Enable Chat</span>
-                        <input
-                          type="checkbox"
-                          checked={chatEnabled}
-                          onChange={(event) => setChatEnabled(event.target.checked)}
-                          className="w-5 h-5 accent-lime-400"
-                        />
-                      </label>
-                      <label className="flex items-center justify-between">
-                        <div className="text-sm">
-                          <p>Slow Mode</p>
-                          <p className="text-xs text-zinc-500">Limit messages from the same user</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={slowMode}
-                            onChange={(event) => setSlowMode(event.target.checked)}
-                            className="w-5 h-5 accent-lime-400"
-                          />
-                          <input
-                            type="number"
-                            min="3"
-                            value={slowModeInterval}
-                            onChange={(event) => setSlowModeInterval(event.target.value)}
-                            className="w-20 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm"
-                          />
-                          <span className="text-xs text-zinc-500">seconds</span>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="bg-zinc-800/50 border border-zinc-700 rounded-xl p-4">
-                    <div className="flex items-center gap-2 text-sm font-medium text-lime-400">
-                      <Users className="w-4 h-4" />
-                      <span>Privacy & Recording</span>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm mb-2">Visibility</label>
-                        <select
-                          value={visibility}
-                          onChange={(event) => setVisibility(event.target.value)}
-                          className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg focus:outline-none focus:border-lime-400 text-sm"
-                        >
-                          <option value="public">Public - Anyone can watch</option>
-                          <option value="followers">Followers Only</option>
-                          <option value="private">Private - Invite only</option>
-                        </select>
-                      </div>
-
-                      <label className="flex items-center justify-between">
-                        <span className="text-sm">Record Stream (Mux always records by default)</span>
-                        <input
-                          type="checkbox"
-                          checked={recordStream}
-                          onChange={(event) => setRecordStream(event.target.checked)}
-                          className="w-5 h-5 accent-lime-400"
-                        />
-                      </label>
-                    </div>
-                  </div>
-
-                  <button className="w-full py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 text-sm">
-                    <Save className="w-4 h-4" />
-                    Save Settings as Default
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-4 bg-zinc-800/50 rounded-xl border border-zinc-700">
-                <div className="flex items-start gap-3">
-                  <Settings className="w-5 h-5 text-lime-400 mt-0.5" />
-                  <div className="flex-1">
-                    <h3 className="font-medium mb-1">Stream Configuration</h3>
-                    <ul className="text-sm text-zinc-400 space-y-1">
-                      <li>• Your stream will overtake the main broadcast</li>
-                      <li>• All viewers will be redirected to your stream</li>
-                      <li>• Chat will remain active during your broadcast</li>
-                      <li>• Click &quot;End Stream&quot; when you&apos;re done to restore normal programming</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
               <button
-                onClick={handleGoLive}
-                disabled={isLoading || !streamTitle.trim()}
-                className="w-full py-4 bg-lime-400 text-black font-bold rounded-full hover:bg-lime-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                onClick={handleStartPreview}
+                disabled={isLoading}
+                className="w-full py-6 bg-lime-400 text-black font-bold text-xl rounded-full hover:bg-lime-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
               >
-                <Video className="w-5 h-5" />
-                {isLoading ? "Starting..." : "Go Live"}
+                <Eye className="w-6 h-6" />
+                {isLoading ? "Setting Up..." : "Start Preview"}
               </button>
+            </div>
+          )}
+
+          {!activeStream && streamStep === "preview" && previewStream && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold mb-2">Stream Preview</h2>
+                <p className="text-zinc-400 text-sm">Connect your encoder and verify video & audio</p>
+                {previewStream.playbackId && (
+                  <p className="text-xs text-zinc-600 mt-1">Playback ID: {previewStream.playbackId}</p>
+                )}
+              </div>
+
+              {/* Video Preview */}
+              <div className="relative aspect-video bg-zinc-950 rounded-xl overflow-hidden border border-zinc-700">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  muted={false}
+                  playsInline
+                  controls
+                  className="w-full h-full"
+                />
+                {streamStatus === "waiting" && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/90">
+                    <div className="text-center">
+                      <div className="w-12 h-12 border-4 border-lime-400 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+                      <p className="text-white font-medium">Waiting for stream...</p>
+                      <p className="text-zinc-400 text-sm mt-1">Start streaming from OBS</p>
+                    </div>
+                  </div>
+                )}
+                {streamStatus === "connected" && hasAudio && (
+                  <div className="absolute top-4 right-4 bg-lime-400 text-black px-3 py-1 rounded-full flex items-center gap-2 text-sm font-semibold">
+                    <CheckCircle className="w-4 h-4" />
+                    Audio Detected
+                  </div>
+                )}
+                {streamStatus === "connected" && !hasAudio && (
+                  <div className="absolute top-4 right-4 bg-yellow-500 text-black px-3 py-1 rounded-full flex items-center gap-2 text-sm font-semibold">
+                    <Volume2 className="w-4 h-4" />
+                    No Audio
+                  </div>
+                )}
+              </div>
+
+              {/* Stream Details */}
+              <div className="p-4 bg-zinc-800/50 border border-zinc-700 rounded-xl">
+                <h3 className="font-bold mb-3 text-sm text-zinc-400">ENCODER SETTINGS</h3>
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <p className="text-zinc-500 mb-1">RTMP URL:</p>
+                    <code className="block px-3 py-2 bg-zinc-900 rounded border border-zinc-700 text-lime-400 break-all font-mono">
+                      {previewStream.rtmpIngestUrl}
+                    </code>
+                  </div>
+                  <div>
+                    <p className="text-zinc-500 mb-1">Stream Key:</p>
+                    <code className="block px-3 py-2 bg-zinc-900 rounded border border-zinc-700 text-lime-400 break-all font-mono">
+                      {previewStream.streamKey}
+                    </code>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCancelPreview}
+                  disabled={isLoading}
+                  className="flex-1 py-4 bg-zinc-800 text-white font-semibold rounded-full hover:bg-zinc-700 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmGoLive}
+                  disabled={isLoading}
+                  className="flex-1 py-4 bg-lime-400 text-black font-bold rounded-full hover:bg-lime-300 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <Video className="w-5 h-5" />
+                  {isLoading ? "Going Live..." : "Confirm & Go Live"}
+                </button>
+              </div>
+
+              <p className="text-center text-xs text-zinc-500">
+                Make sure you can see video and hear audio before going live
+              </p>
             </div>
           )}
 
           {activeStream && (
             <div className="space-y-6">
               <div className="p-6 bg-lime-400/10 border border-lime-400/30 rounded-xl">
-                <h3 className="font-bold mb-3 text-lime-400">Configure Your Encoder</h3>
+                <h3 className="font-bold mb-4 text-lime-400 text-lg">Stream Details</h3>
                 <div className="space-y-4 text-sm">
                   <div>
-                    <p className="text-zinc-400 mb-1">Stream URL (RTMP):</p>
-                    <code className="block px-3 py-2 bg-zinc-900 rounded border border-zinc-700 text-lime-400 break-all">
+                    <p className="text-zinc-400 mb-1 font-medium">RTMP URL:</p>
+                    <code className="block px-3 py-2 bg-zinc-900 rounded border border-zinc-700 text-lime-400 break-all font-mono text-xs">
                       {ingestUrl}
                     </code>
                   </div>
                   <div>
-                    <p className="text-zinc-400 mb-1">Stream Key:</p>
-                    <code className="block px-3 py-2 bg-zinc-900 rounded border border-zinc-700 text-lime-400 break-all">
+                    <p className="text-zinc-400 mb-1 font-medium">Stream Key:</p>
+                    <code className="block px-3 py-2 bg-zinc-900 rounded border border-zinc-700 text-lime-400 break-all font-mono text-xs">
                       {activeStream.streamKey || "—"}
                     </code>
                   </div>
-                  <div>
-                    <p className="text-zinc-400 mb-1">Playback URL (HLS):</p>
-                    <code className="block px-3 py-2 bg-zinc-900 rounded border border-zinc-700 text-lime-400 break-all">
-                      {activeStream.playbackUrl || (activeStream.playbackId ? `https://stream.mux.com/${activeStream.playbackId}.m3u8` : "—")}
-                    </code>
+                  <div className="pt-4 border-t border-zinc-700">
+                    <p className="text-zinc-400 text-xs">
+                      Use OBS, Streamlabs, or any RTMP encoder to broadcast. Your stream will appear on the main feed and be automatically recorded.
+                    </p>
                   </div>
-                  <p className="text-zinc-400 italic">
-                    Use OBS, Streamlabs, or any RTMP-compatible software to start broadcasting.
-                  </p>
                 </div>
               </div>
             </div>
           )}
-        </div>
-
-        <div className="mt-8 p-6 bg-zinc-900/50 border border-zinc-800 rounded-2xl">
-          <h3 className="font-bold mb-3">Need Help?</h3>
-          <div className="text-sm text-zinc-400 space-y-2">
-            <p>• Download OBS Studio (free) from obsproject.com</p>
-            <p>• Add the Mux ingest URL and stream key to OBS settings</p>
-            <p>• Configure your audio sources (DJ equipment, microphone)</p>
-            <p>• Click &quot;Start Streaming&quot; in OBS once you&apos;re ready</p>
-            <p>• Your broadcast will appear on the main page instantly</p>
-          </div>
         </div>
       </main>
     </div>
