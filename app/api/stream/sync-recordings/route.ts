@@ -114,6 +114,9 @@ export async function POST(request: NextRequest) {
       errors: errors.length,
     });
 
+    console.log("[sync-recordings] Skipped details:", skippedStreams);
+    console.log("[sync-recordings] Error details:", errors);
+
     return NextResponse.json({
       success: true,
       synced: syncedVideos,

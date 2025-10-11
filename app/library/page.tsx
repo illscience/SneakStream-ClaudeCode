@@ -149,14 +149,37 @@ export default function LibraryPage() {
       const result = await response.json();
 
       if (result.success) {
-        const { summary } = result;
-        alert(
-          `Sync complete!\n\n` +
+        const { summary, skipped, errors } = result;
+        let message = `Sync complete!\n\n` +
           `Videos synced: ${summary.videosSynced}\n` +
           `Streams skipped: ${summary.streamsSkipped}\n` +
-          `Errors: ${summary.errors}\n\n` +
-          (summary.videosSynced > 0 ? "Check MY LIBRARY for your recordings!" : "No new recordings found.")
-        );
+          `Errors: ${summary.errors}\n\n`;
+
+        // Show skip reasons
+        if (skipped && skipped.length > 0) {
+          message += `\nSkip reasons:\n`;
+          skipped.forEach((skip: any, i: number) => {
+            if (i < 5) { // Only show first 5
+              message += `- ${skip.reason}\n`;
+            }
+          });
+          if (skipped.length > 5) {
+            message += `... and ${skipped.length - 5} more\n`;
+          }
+        }
+
+        // Show errors
+        if (errors && errors.length > 0) {
+          message += `\nErrors:\n`;
+          errors.forEach((err: any, i: number) => {
+            if (i < 3) { // Only show first 3
+              message += `- Stream ${err.streamId || err.assetId}: ${err.error}\n`;
+            }
+          });
+        }
+
+        message += `\n` + (summary.videosSynced > 0 ? "Check MY LIBRARY for your recordings!" : "No new recordings found.");
+        alert(message);
       } else {
         throw new Error(result.error || "Sync failed");
       }
