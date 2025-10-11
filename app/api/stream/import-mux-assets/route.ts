@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAsset } from "@/lib/mux";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { env } from "process";
@@ -73,7 +72,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get playback ID
-        const playbackId = asset.playback_ids?.find((p: any) => p.policy === "public")?.id;
+        const playbackId = asset.playback_ids?.find((p: { policy: string; id: string }) => p.policy === "public")?.id;
         if (!playbackId) {
           skipped.push({ assetId: asset.id, reason: "No public playback ID" });
           continue;

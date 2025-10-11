@@ -197,7 +197,7 @@ export default function LibraryPage() {
         if (skipped && skipped.length > 0) {
           message += `\nSkip reasons:\n`;
           const reasonCounts: Record<string, number> = {};
-          skipped.forEach((skip: any) => {
+          skipped.forEach((skip: { reason: string }) => {
             reasonCounts[skip.reason] = (reasonCounts[skip.reason] || 0) + 1;
           });
           Object.entries(reasonCounts).forEach(([reason, count]) => {
@@ -208,7 +208,7 @@ export default function LibraryPage() {
         // Show errors
         if (errors && errors.length > 0) {
           message += `\nErrors:\n`;
-          errors.forEach((err: any, i: number) => {
+          errors.forEach((err: { assetId: string; error: string }, i: number) => {
             if (i < 3) { // Only show first 3
               message += `- Asset ${err.assetId}: ${err.error}\n`;
             }
