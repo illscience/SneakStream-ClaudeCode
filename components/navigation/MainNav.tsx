@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, LayoutGrid, Layout } from "lucide-react";
 import { Toggle } from "@/components/ui/toggle";
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
+import LogoShimmer from "./LogoShimmer";
 
 type LayoutMode = "classic" | "theater";
 
@@ -23,7 +24,95 @@ const navLinks = [
 
 export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoTextColor, setLogoTextColor] = useState<string | null>(null);
+  const [letterColors, setLetterColors] = useState<(string | null)[]>(Array(8).fill(null));
   const pathname = usePathname();
+
+  useEffect(() => {
+    const handleLogoTextShimmer = (event: Event) => {
+      const customEvent = event as CustomEvent<{ color: string | null }>;
+      setLogoTextColor(customEvent.detail.color);
+    };
+
+    window.addEventListener("logoTextShimmer", handleLogoTextShimmer);
+    return () => window.removeEventListener("logoTextShimmer", handleLogoTextShimmer);
+  }, []);
+
+  const triggerLetterAnimation = () => {
+    const colors = [
+      "text-amber-600",
+      "text-fuchsia-600",
+      "text-sky-600",
+      "text-emerald-600",
+      "text-violet-600",
+      "text-rose-600",
+      "text-indigo-600",
+      "text-lime-600",
+    ];
+
+    const logoText = "DJ SNEAK";
+    const letterCount = logoText.length;
+
+    let letterIndex = 0;
+    const animateLetter = (delay: number) => {
+      if (letterIndex >= letterCount) {
+        // Clear all letters after animation
+        setTimeout(() => {
+          setLetterColors(Array(letterCount).fill(null));
+        }, 600);
+        return;
+      }
+
+      const currentLetterIndex = letterIndex;
+      const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+      setTimeout(() => {
+        setLetterColors(prev => {
+          const newColors = [...prev];
+          newColors[currentLetterIndex] = randomColor;
+          return newColors;
+        });
+
+        // Clear this letter after random duration (600-1000ms)
+        setTimeout(() => {
+          setLetterColors(prev => {
+            const newColors = [...prev];
+            newColors[currentLetterIndex] = null;
+            return newColors;
+          });
+        }, Math.random() * 400 + 600);
+      }, delay);
+
+      letterIndex++;
+      // Random delay: 50/50 chance snappy (30-120ms) or laggy (250-600ms)
+      const nextDelay = Math.random() < 0.5
+        ? Math.random() * 90 + 30
+        : Math.random() * 350 + 250;
+      animateLetter(delay + nextDelay);
+    };
+
+    animateLetter(0);
+  };
+
+  // Auto-trigger animation every 10-30 seconds
+  useEffect(() => {
+    const scheduleNextAnimation = () => {
+      const delay = Math.random() * 20000 + 10000; // 10-30 seconds
+      return setTimeout(() => {
+        triggerLetterAnimation();
+        scheduleNextAnimation();
+      }, delay);
+    };
+
+    const timeout = scheduleNextAnimation();
+    return () => clearTimeout(timeout);
+  }, []);
+
+  const handleLogoTextClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    triggerLetterAnimation();
+  };
 
   const handleLinkClick = () => setMobileOpen(false);
 
@@ -44,18 +133,24 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
           </button>
 
           <Link href="/" className="flex items-center gap-3">
-            <span className="grid h-9 w-9 grid-cols-3 gap-0.5">
-              <span className="rounded-sm bg-yellow-400" />
-              <span className="rounded-sm bg-pink-400" />
-              <span className="rounded-sm bg-cyan-400" />
-              <span className="rounded-sm bg-green-400" />
-              <span className="rounded-sm bg-purple-400" />
-              <span className="rounded-sm bg-orange-400" />
-              <span className="rounded-sm bg-red-400" />
-              <span className="rounded-sm bg-blue-400" />
-              <span className="rounded-sm bg-lime-400" />
+            <LogoShimmer />
+            <span
+              onClick={handleLogoTextClick}
+              className="text-xl font-bold tracking-tight cursor-pointer"
+            >
+              {"DJ SNEAK".split("").map((letter, index) => (
+                <span
+                  key={index}
+                  className={`transition-all duration-300 ${
+                    letterColors[index]
+                      ? `${letterColors[index]} brightness-125 saturate-150`
+                      : "text-white"
+                  }`}
+                >
+                  {letter}
+                </span>
+              ))}
             </span>
-            <span className="text-xl font-bold tracking-tight">DJ SNEAK</span>
           </Link>
         </div>
 
