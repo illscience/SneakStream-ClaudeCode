@@ -160,6 +160,37 @@ export default function SyncedVideoPlayer({
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
 
+  // Resume playback when page becomes visible (e.g., after unlocking phone)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && video.paused) {
+        // Re-sync position when coming back from background
+        if (defaultVideo && defaultVideo.startTime !== undefined) {
+          const startTime = defaultVideo.startTime;
+          const duration = defaultVideo.duration || 0;
+          const now = Date.now();
+          const elapsedTime = (now - startTime) / 1000;
+          const correctPosition = duration > 0 ? elapsedTime % duration : elapsedTime;
+          video.currentTime = correctPosition;
+        }
+
+        // Attempt to resume playback
+        const playPromise = video.play();
+        if (playPromise) {
+          playPromise.catch((error) => {
+            console.log("Auto-play on visibility change blocked:", error);
+          });
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [defaultVideo]);
+
   const toggleFullscreen = () => {
     const video = videoRef.current;
     if (!video) return;
