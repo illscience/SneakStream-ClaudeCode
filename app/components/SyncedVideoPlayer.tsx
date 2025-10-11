@@ -59,6 +59,7 @@ export default function SyncedVideoPlayer({
     video.loop = !isLiveStream; // Don't loop live streams
     video.autoplay = true;
     video.playsInline = true;
+    video.muted = isMuted; // Set muted state BEFORE attempting play
 
     // Enable background audio playback on iOS
     video.setAttribute('webkit-playsinline', 'true');
@@ -67,7 +68,8 @@ export default function SyncedVideoPlayer({
     const handlePlayAttempt = () => {
       const playPromise = video.play();
       if (playPromise) {
-        playPromise.catch(() => {
+        playPromise.catch((error) => {
+          console.log("Autoplay blocked, waiting for user interaction:", error.message);
           // Allow user gesture to start playback later
         });
       }
@@ -81,7 +83,7 @@ export default function SyncedVideoPlayer({
       }
       video.pause();
     };
-  }, [playbackUrl]);
+  }, [playbackUrl, isLiveStream, isMuted]);
 
   // Calculate current playback position based on t0 (skip for live streams)
   useEffect(() => {

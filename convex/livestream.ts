@@ -129,3 +129,16 @@ export const updateViewerCount = mutation({
     });
   },
 });
+
+// Update stream title
+export const updateStreamTitle = mutation({
+  args: {
+    streamId: v.id("livestreams"),
+    title: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.streamId, {
+      title: args.title,
+    });
+  },
+});
