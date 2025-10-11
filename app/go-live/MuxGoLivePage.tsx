@@ -238,6 +238,8 @@ export default function MuxGoLivePage() {
     if (!activeStream) return;
     setIsLoading(true);
     try {
+      console.log("Ending stream with ID:", activeStream.streamId);
+
       // Fetch the asset info from Mux
       const response = await fetch("/api/stream/end", {
         method: "POST",
@@ -245,17 +247,35 @@ export default function MuxGoLivePage() {
         body: JSON.stringify({ streamId: activeStream.streamId }),
       });
 
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to end stream");
+      }
+
       const assetData = await response.json();
+      console.log("Asset data from Mux:", assetData);
 
       // End stream and save recording
-      await endStream({
-        streamId: activeStream._id,
-        assetId: assetData.assetId,
-        playbackId: assetData.playbackId,
-        duration: assetData.duration,
-      });
+      if (assetData.assetId && assetData.playbackId) {
+        console.log("Saving recording to library...");
+        await endStream({
+          streamId: activeStream._id,
+          assetId: assetData.assetId,
+          playbackId: assetData.playbackId,
+          duration: assetData.duration,
+        });
+        console.log("Recording saved successfully!");
+        alert("Stream ended! Your recording is being saved to MY LIBRARY.");
+      } else {
+        console.warn("Asset not ready yet. Recording will be available shortly.");
+        await endStream({
+          streamId: activeStream._id,
+        });
+        alert("Stream ended! Recording is still processing and will appear in MY LIBRARY shortly.");
+      }
     } catch (error) {
       console.error("Failed to end stream:", error);
+      alert(error instanceof Error ? error.message : "Failed to end stream");
     }
     setIsLoading(false);
   };
