@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
-import { Film, Plus, Play, Eye, Clock, RefreshCw, Trash2, Heart, Star } from "lucide-react";
+import { Film, Plus, Play, Eye, Clock, RefreshCw, Trash2, Heart, Star, Edit2, Check, X } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import MainNav from "@/components/navigation/MainNav";
@@ -16,6 +16,8 @@ export default function LibraryPage() {
   const [checking, setChecking] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("classic");
+  const [editingVideoId, setEditingVideoId] = useState<Id<"videos"> | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
 
   const videos = useQuery(
     api.videos.getUserVideos,
@@ -23,6 +25,7 @@ export default function LibraryPage() {
   );
 
   const updateVideoStatus = useMutation(api.videos.updateVideoStatus);
+  const updateVideo = useMutation(api.videos.updateVideo);
   const setDefaultVideo = useMutation(api.videos.setDefaultVideo);
   const unsetDefaultVideo = useMutation(api.videos.unsetDefaultVideo);
 
@@ -37,6 +40,30 @@ export default function LibraryPage() {
       console.error("Set default error:", error);
       alert("Failed to set default video. Please try again.");
     }
+  };
+
+  const handleStartEdit = (videoId: Id<"videos">, currentTitle: string) => {
+    setEditingVideoId(videoId);
+    setEditingTitle(currentTitle);
+  };
+
+  const handleSaveEdit = async (videoId: Id<"videos">) => {
+    try {
+      await updateVideo({
+        videoId,
+        title: editingTitle,
+      });
+      setEditingVideoId(null);
+      setEditingTitle("");
+    } catch (error) {
+      console.error("Update error:", error);
+      alert("Failed to update title. Please try again.");
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingVideoId(null);
+    setEditingTitle("");
   };
 
   const handleDelete = async (videoId: Id<"videos">, videoTitle: string) => {
@@ -341,9 +368,54 @@ export default function LibraryPage() {
 
                     {/* Info */}
                     <div className="p-4">
-                      <h3 className="font-bold mb-2 line-clamp-2 group-hover:text-lime-400 transition-colors">
-                        {video.title}
-                      </h3>
+                      {editingVideoId === video._id ? (
+                        <div className="mb-2 flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={editingTitle}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-white focus:outline-none focus:border-lime-400"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                handleSaveEdit(video._id);
+                              } else if (e.key === "Escape") {
+                                handleCancelEdit();
+                              }
+                            }}
+                          />
+                          <button
+                            onClick={() => handleSaveEdit(video._id)}
+                            className="w-8 h-8 bg-lime-400 hover:bg-lime-500 rounded flex items-center justify-center"
+                            title="Save"
+                          >
+                            <Check className="w-4 h-4 text-black" />
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="w-8 h-8 bg-zinc-700 hover:bg-zinc-600 rounded flex items-center justify-center"
+                            title="Cancel"
+                          >
+                            <X className="w-4 h-4 text-white" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mb-2 flex items-center gap-2 group/title">
+                          <h3 className="flex-1 font-bold line-clamp-2 group-hover:text-lime-400 transition-colors">
+                            {video.title}
+                          </h3>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleStartEdit(video._id, video.title);
+                            }}
+                            className="opacity-0 group-hover/title:opacity-100 w-7 h-7 bg-zinc-700 hover:bg-zinc-600 rounded flex items-center justify-center transition-opacity"
+                            title="Edit title"
+                          >
+                            <Edit2 className="w-4 h-4 text-white" />
+                          </button>
+                        </div>
+                      )}
                       {video.description && (
                         <p className="text-sm text-zinc-500 mb-3 line-clamp-2">
                           {video.description}
