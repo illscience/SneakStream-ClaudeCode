@@ -5,7 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, X, LayoutGrid, Layout } from "lucide-react";
 import { Toggle } from "@/components/ui/toggle";
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
+import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import LogoShimmer from "./LogoShimmer";
 
 type LayoutMode = "classic" | "theater";
@@ -27,6 +29,11 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
   const [logoTextColor, setLogoTextColor] = useState<string | null>(null);
   const [letterColors, setLetterColors] = useState<(string | null)[]>(Array(8).fill(null));
   const pathname = usePathname();
+  const { user } = useUser();
+  const activeStream = useQuery(api.livestream.getActiveStream);
+
+  // Check if current user is the one streaming
+  const isUserLive = activeStream && user?.id === activeStream.userId;
 
   useEffect(() => {
     const handleLogoTextShimmer = (event: Event) => {
@@ -151,6 +158,12 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
                 </span>
               ))}
             </span>
+            {activeStream && (
+              <span className="flex items-center gap-1 bg-red-600 px-2 py-1 rounded text-xs font-bold text-white">
+                <span className="w-1.5 h-1.5 bg-white rounded-sm animate-pulse"></span>
+                LIVE
+              </span>
+            )}
           </Link>
         </div>
 
@@ -165,7 +178,12 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
               return (
                 <SignedIn key={href}>
                   <Link className={linkClasses} href={href}>
-                    {label}
+                    <span className="flex items-center gap-2">
+                      {label}
+                      {href === "/go-live" && isUserLive && (
+                        <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
+                      )}
+                    </span>
                   </Link>
                 </SignedIn>
               );
@@ -173,7 +191,12 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
 
             return (
               <Link key={href} className={linkClasses} href={href}>
-                {label}
+                <span className="flex items-center gap-2">
+                  {label}
+                  {href === "/go-live" && isUserLive && (
+                    <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
+                  )}
+                </span>
               </Link>
             );
           })}
@@ -235,12 +258,22 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
                 return authOnly ? (
                   <SignedIn key={href}>
                     <Link href={href} onClick={handleLinkClick} className={mobileLinkClasses}>
-                      {label}
+                      <span className="flex items-center justify-center gap-2">
+                        {label}
+                        {href === "/go-live" && isUserLive && (
+                          <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
+                        )}
+                      </span>
                     </Link>
                   </SignedIn>
                 ) : (
                   <Link key={href} href={href} onClick={handleLinkClick} className={mobileLinkClasses}>
-                    {label}
+                    <span className="flex items-center justify-center gap-2">
+                      {label}
+                      {href === "/go-live" && isUserLive && (
+                        <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
+                      )}
+                    </span>
                   </Link>
                 );
               })}
