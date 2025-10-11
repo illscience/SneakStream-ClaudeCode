@@ -182,6 +182,12 @@ export async function deleteLiveStream(liveStreamId: string): Promise<void> {
   });
 }
 
+export async function deleteAsset(assetId: string): Promise<void> {
+  await muxRequest(`/video/v1/assets/${assetId}`, {
+    method: "DELETE",
+  });
+}
+
 export interface MuxViewerData {
   total_row_count: number | null;
   timeframe: number[];

@@ -15,6 +15,7 @@ interface SyncedVideoPlayerProps {
   isMuted?: boolean;
   onMutedChange?: (muted: boolean) => void;
   isLiveStream?: boolean;
+  enableSync?: boolean; // When false, plays independently without syncing to global timeline
 }
 
 export default function SyncedVideoPlayer({
@@ -25,15 +26,16 @@ export default function SyncedVideoPlayer({
   isMuted = true,
   onMutedChange,
   isLiveStream = false,
+  enableSync = true,
 }: SyncedVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Get the video with startTime (t0) - only for non-live streams
+  // Get the video with startTime (t0) - only for synced, non-live streams
   const defaultVideo = useQuery(
     api.videos.getDefaultVideo,
-    isLiveStream ? "skip" : undefined
+    (isLiveStream || !enableSync) ? "skip" : undefined
   );
 
   // Attach playback URL via hls.js when needed
@@ -59,6 +61,7 @@ export default function SyncedVideoPlayer({
     video.loop = !isLiveStream; // Don't loop live streams
     video.autoplay = true;
     video.playsInline = true;
+    video.muted = isMuted; // Set initial muted state
 
     // Enable background audio playback on iOS
     video.setAttribute('webkit-playsinline', 'true');
@@ -67,7 +70,8 @@ export default function SyncedVideoPlayer({
     const handlePlayAttempt = () => {
       const playPromise = video.play();
       if (playPromise) {
-        playPromise.catch(() => {
+        playPromise.catch((error) => {
+          console.log("Autoplay blocked, waiting for user interaction:", error.message);
           // Allow user gesture to start playback later
         });
       }
@@ -81,11 +85,11 @@ export default function SyncedVideoPlayer({
       }
       video.pause();
     };
-  }, [playbackUrl]);
+  }, [playbackUrl, isLiveStream, enableSync]);
 
-  // Calculate current playback position based on t0 (skip for live streams)
+  // Calculate current playback position based on t0 (skip for live streams and independent playback)
   useEffect(() => {
-    if (isLiveStream) return; // No syncing needed for live streams
+    if (isLiveStream || !enableSync) return; // No syncing needed for live streams or independent playback
 
     const video = videoRef.current;
     if (!defaultVideo || defaultVideo.startTime === undefined || !video || hasInitialized || defaultVideo._id !== videoId) {
@@ -108,11 +112,11 @@ export default function SyncedVideoPlayer({
     } else {
       video.addEventListener("loadedmetadata", syncToStart, { once: true });
     }
-  }, [defaultVideo, videoId, hasInitialized, isLiveStream]);
+  }, [defaultVideo, videoId, hasInitialized, isLiveStream, enableSync]);
 
   useEffect(() => {
     setHasInitialized(false);
-  }, [playbackUrl, videoId]);
+  }, [playbackUrl, videoId, enableSync, isLiveStream]);
 
   // Set initial volume and muted state
   useEffect(() => {
@@ -135,9 +139,9 @@ export default function SyncedVideoPlayer({
     return () => video.removeEventListener('volumechange', handleVolumeChange);
   }, [onMutedChange]);
 
-  // Prevent user from pausing or seeking
+  // Prevent user from pausing or seeking (only for synced playback)
   useEffect(() => {
-    if (!videoRef.current) return;
+    if (!videoRef.current || !enableSync) return;
 
     const video = videoRef.current;
 
@@ -162,7 +166,7 @@ export default function SyncedVideoPlayer({
     return () => {
       video.removeEventListener('seeking', handleSeeking);
     };
-  }, [defaultVideo]);
+  }, [defaultVideo, enableSync]);
 
   // Track fullscreen state for icon updates
   useEffect(() => {
@@ -181,8 +185,8 @@ export default function SyncedVideoPlayer({
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible" && video.paused) {
-        // Re-sync position when coming back from background
-        if (defaultVideo && defaultVideo.startTime !== undefined) {
+        // Re-sync position when coming back from background (only for synced playback)
+        if (enableSync && defaultVideo && defaultVideo.startTime !== undefined) {
           const startTime = defaultVideo.startTime;
           const duration = defaultVideo.duration || 0;
           const now = Date.now();
@@ -203,7 +207,7 @@ export default function SyncedVideoPlayer({
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [defaultVideo]);
+  }, [defaultVideo, enableSync]);
 
   // Set up Media Session API for background audio control
   useEffect(() => {

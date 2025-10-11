@@ -24,58 +24,73 @@ export default function MuxGoLivePage() {
   } | null>(null);
   const [hasAudio, setHasAudio] = useState(false);
   const [streamStatus, setStreamStatus] = useState<"waiting" | "connected" | "error">("waiting");
+  const [editingTitle, setEditingTitle] = useState("");
+  const [isTitleEditing, setIsTitleEditing] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
 
   const activeStream = useQuery(api.livestream.getActiveStream);
   const startStream = useMutation(api.livestream.startStream);
   const endStream = useMutation(api.livestream.endStream);
+  const updateStreamTitle = useMutation(api.livestream.updateStreamTitle);
   const savedCredentials = useQuery(
     api.streamCredentials.getOrCreateCredentials,
     user?.id ? { userId: user.id } : "skip"
   );
   const saveCredentials = useMutation(api.streamCredentials.saveCredentials);
 
-  // Setup HLS player for preview
+  // Setup HLS player for preview and live stream
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !previewStream?.playbackUrl) return;
+    const playbackUrl = activeStream?.playbackUrl || previewStream?.playbackUrl;
+    if (!video || !playbackUrl) return;
 
-    console.log("Setting up preview player with URL:", previewStream.playbackUrl);
-    let hls: Hls | null = null;
+    console.log("Setting up player with URL:", playbackUrl);
+
+    // Clean up existing HLS instance before creating new one
+    if (hlsRef.current) {
+      console.log("Destroying existing HLS player");
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
 
     const setupPlayer = async () => {
+      // Start muted to comply with autoplay policies
+      video.muted = true;
+
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
         // Native HLS support (Safari)
         console.log("Using native HLS support");
-        video.src = previewStream.playbackUrl;
-        video.play().catch(err => console.error("Play error:", err));
+        video.src = playbackUrl;
+        setStreamStatus("connected");
+        video.play().catch(err => console.log("Autoplay blocked:", err.message));
       } else {
         // Use HLS.js for other browsers
         console.log("Using HLS.js");
         const Hls = (await import("hls.js")).default;
         if (Hls.isSupported()) {
-          hls = new Hls({
+          hlsRef.current = new Hls({
             enableWorker: true,
             lowLatencyMode: true,
-            debug: true,
+            debug: false, // Reduced logging
           });
 
-          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          hlsRef.current.on(Hls.Events.MANIFEST_PARSED, () => {
             console.log("HLS manifest parsed, starting playback");
             setStreamStatus("connected");
-            video.play().catch(err => console.error("Play error:", err));
+            video.play().catch(err => console.log("Autoplay blocked:", err.message));
           });
 
-          hls.on(Hls.Events.ERROR, (_event: unknown, data: { fatal?: boolean; type?: string }) => {
-            console.error("HLS error:", data);
+          hlsRef.current.on(Hls.Events.ERROR, (_event: unknown, data: { fatal?: boolean; type?: string }) => {
             if (data.fatal) {
+              console.error("HLS fatal error:", data);
               if (data.type === "networkError") {
                 console.log("Network error, will retry...");
                 setStreamStatus("waiting");
                 // Retry loading after a delay
                 setTimeout(() => {
-                  if (hls) {
-                    hls.loadSource(previewStream.playbackUrl);
+                  if (hlsRef.current) {
+                    hlsRef.current.loadSource(playbackUrl);
                   }
                 }, 3000);
               } else {
@@ -84,8 +99,8 @@ export default function MuxGoLivePage() {
             }
           });
 
-          hls.loadSource(previewStream.playbackUrl);
-          hls.attachMedia(video);
+          hlsRef.current.loadSource(playbackUrl);
+          hlsRef.current.attachMedia(video);
         } else {
           console.error("HLS not supported in this browser");
         }
@@ -95,12 +110,13 @@ export default function MuxGoLivePage() {
     setupPlayer();
 
     return () => {
-      if (hls) {
-        console.log("Destroying HLS player");
-        hls.destroy();
+      if (hlsRef.current) {
+        console.log("Cleaning up HLS player");
+        hlsRef.current.destroy();
+        hlsRef.current = null;
       }
     };
-  }, [previewStream]);
+  }, [activeStream?.playbackUrl, previewStream?.playbackUrl]);
 
   // Detect audio in preview video
   useEffect(() => {
@@ -203,7 +219,7 @@ export default function MuxGoLivePage() {
         rtmpIngestUrl: previewStream.rtmpIngestUrl,
       });
       setStreamStep("live");
-      setPreviewStream(null);
+      // Keep previewStream so video continues playing
     } catch (error) {
       console.error("Failed to go live", error);
       alert(error instanceof Error ? error.message : "Failed to go live");
@@ -222,6 +238,8 @@ export default function MuxGoLivePage() {
     if (!activeStream) return;
     setIsLoading(true);
     try {
+      console.log("Ending stream with ID:", activeStream.streamId);
+
       // Fetch the asset info from Mux
       const response = await fetch("/api/stream/end", {
         method: "POST",
@@ -229,17 +247,35 @@ export default function MuxGoLivePage() {
         body: JSON.stringify({ streamId: activeStream.streamId }),
       });
 
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to end stream");
+      }
+
       const assetData = await response.json();
+      console.log("Asset data from Mux:", assetData);
 
       // End stream and save recording
-      await endStream({
-        streamId: activeStream._id,
-        assetId: assetData.assetId,
-        playbackId: assetData.playbackId,
-        duration: assetData.duration,
-      });
+      if (assetData.assetId && assetData.playbackId) {
+        console.log("Saving recording to library...");
+        await endStream({
+          streamId: activeStream._id,
+          assetId: assetData.assetId,
+          playbackId: assetData.playbackId,
+          duration: assetData.duration,
+        });
+        console.log("Recording saved successfully!");
+        alert("Stream ended! Your recording is being saved to MY LIBRARY.");
+      } else {
+        console.warn("Asset not ready yet. Recording will be available shortly.");
+        await endStream({
+          streamId: activeStream._id,
+        });
+        alert("Stream ended! Recording is still processing and will appear in MY LIBRARY shortly.");
+      }
     } catch (error) {
       console.error("Failed to end stream:", error);
+      alert(error instanceof Error ? error.message : "Failed to end stream");
     }
     setIsLoading(false);
   };
@@ -321,7 +357,7 @@ export default function MuxGoLivePage() {
                 <video
                   ref={videoRef}
                   autoPlay
-                  muted={false}
+                  muted
                   playsInline
                   controls
                   className="w-full h-full"
@@ -395,25 +431,99 @@ export default function MuxGoLivePage() {
 
           {activeStream && (
             <div className="space-y-6">
-              <div className="p-6 bg-lime-400/10 border border-lime-400/30 rounded-xl">
-                <h3 className="font-bold mb-4 text-lime-400 text-lg">Stream Details</h3>
-                <div className="space-y-4 text-sm">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold mb-2">You&apos;re Live!</h2>
+                <p className="text-zinc-400 text-sm">Broadcasting to the main feed</p>
+              </div>
+
+              {/* Live Video Preview */}
+              <div className="relative aspect-video bg-zinc-950 rounded-xl overflow-hidden border border-lime-400/30">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  controls
+                  className="w-full h-full"
+                />
+                <div className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full flex items-center gap-2 text-sm font-semibold">
+                  <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                  LIVE
+                </div>
+              </div>
+
+              {/* Editable Title */}
+              <div>
+                <label className="text-zinc-400 text-sm mb-2 block font-medium">Stream Title</label>
+                {!isTitleEditing ? (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-xl text-white">
+                      {activeStream.title}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setEditingTitle(activeStream.title);
+                        setIsTitleEditing(true);
+                      }}
+                      className="px-4 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl font-medium transition-colors text-white"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={async (e) => {
+                      e.preventDefault();
+                      await updateStreamTitle({
+                        streamId: activeStream._id,
+                        title: editingTitle,
+                      });
+                      setIsTitleEditing(false);
+                    }}
+                    className="flex flex-col gap-2"
+                  >
+                    <input
+                      type="text"
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      className="w-full px-4 py-3 bg-zinc-900 border border-zinc-700 rounded-xl text-white focus:outline-none focus:border-lime-400 transition-colors"
+                      placeholder="Enter stream title..."
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        className="flex-1 px-4 py-2 bg-lime-400 text-black font-semibold rounded-xl hover:bg-lime-300 transition-colors"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsTitleEditing(false)}
+                        className="flex-1 px-4 py-2 bg-zinc-800 text-white font-medium rounded-xl hover:bg-zinc-700 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+
+              {/* Stream Details */}
+              <div className="p-4 bg-zinc-800/50 border border-zinc-700 rounded-xl">
+                <h3 className="font-bold mb-3 text-sm text-zinc-400">ENCODER SETTINGS</h3>
+                <div className="space-y-3 text-xs">
                   <div>
-                    <p className="text-zinc-400 mb-1 font-medium">RTMP URL:</p>
-                    <code className="block px-3 py-2 bg-zinc-900 rounded border border-zinc-700 text-lime-400 break-all font-mono text-xs">
-                      {ingestUrl}
+                    <p className="text-zinc-500 mb-1">RTMP URL:</p>
+                    <code className="block px-3 py-2 bg-zinc-900 rounded border border-zinc-700 text-lime-400 break-all font-mono">
+                      {activeStream.rtmpIngestUrl || ingestUrl}
                     </code>
                   </div>
                   <div>
-                    <p className="text-zinc-400 mb-1 font-medium">Stream Key:</p>
-                    <code className="block px-3 py-2 bg-zinc-900 rounded border border-zinc-700 text-lime-400 break-all font-mono text-xs">
+                    <p className="text-zinc-500 mb-1">Stream Key:</p>
+                    <code className="block px-3 py-2 bg-zinc-900 rounded border border-zinc-700 text-lime-400 break-all font-mono">
                       {activeStream.streamKey || "—"}
                     </code>
-                  </div>
-                  <div className="pt-4 border-t border-zinc-700">
-                    <p className="text-zinc-400 text-xs">
-                      Use OBS, Streamlabs, or any RTMP encoder to broadcast. Your stream will appear on the main feed and be automatically recorded.
-                    </p>
                   </div>
                 </div>
               </div>
