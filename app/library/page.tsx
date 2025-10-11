@@ -140,7 +140,7 @@ export default function LibraryPage() {
     setSyncing(true);
 
     try {
-      const response = await fetch("/api/stream/sync-recordings", {
+      const response = await fetch("/api/stream/import-mux-assets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user.id }),
@@ -150,22 +150,22 @@ export default function LibraryPage() {
 
       if (result.success) {
         const { summary, skipped, errors } = result;
-        let message = `Sync complete!\n\n` +
-          `Videos synced: ${summary.videosSynced}\n` +
-          `Streams skipped: ${summary.streamsSkipped}\n` +
+        let message = `Import complete!\n\n` +
+          `Total Mux assets scanned: ${summary.totalAssets}\n` +
+          `Assets imported: ${summary.assetsImported}\n` +
+          `Assets skipped: ${summary.assetsSkipped}\n` +
           `Errors: ${summary.errors}\n\n`;
 
-        // Show skip reasons
+        // Show skip reasons (first 5)
         if (skipped && skipped.length > 0) {
           message += `\nSkip reasons:\n`;
-          skipped.forEach((skip: any, i: number) => {
-            if (i < 5) { // Only show first 5
-              message += `- ${skip.reason}\n`;
-            }
+          const reasonCounts: Record<string, number> = {};
+          skipped.forEach((skip: any) => {
+            reasonCounts[skip.reason] = (reasonCounts[skip.reason] || 0) + 1;
           });
-          if (skipped.length > 5) {
-            message += `... and ${skipped.length - 5} more\n`;
-          }
+          Object.entries(reasonCounts).forEach(([reason, count]) => {
+            message += `- ${reason}: ${count}\n`;
+          });
         }
 
         // Show errors
@@ -173,19 +173,22 @@ export default function LibraryPage() {
           message += `\nErrors:\n`;
           errors.forEach((err: any, i: number) => {
             if (i < 3) { // Only show first 3
-              message += `- Stream ${err.streamId || err.assetId}: ${err.error}\n`;
+              message += `- Asset ${err.assetId}: ${err.error}\n`;
             }
           });
+          if (errors.length > 3) {
+            message += `... and ${errors.length - 3} more errors\n`;
+          }
         }
 
-        message += `\n` + (summary.videosSynced > 0 ? "Check MY LIBRARY for your recordings!" : "No new recordings found.");
+        message += `\n` + (summary.assetsImported > 0 ? "Refresh to see your imported recordings!" : "No new recordings found.");
         alert(message);
       } else {
-        throw new Error(result.error || "Sync failed");
+        throw new Error(result.error || "Import failed");
       }
     } catch (error) {
-      console.error("Sync error:", error);
-      alert("Failed to sync recordings. Please try again.");
+      console.error("Import error:", error);
+      alert("Failed to import recordings. Please try again.");
     } finally {
       setSyncing(false);
     }
@@ -232,10 +235,10 @@ export default function LibraryPage() {
               onClick={syncRecordings}
               disabled={syncing}
               className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-full font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-              title="Import missing recordings from Mux"
+              title="Import all Mux recordings into library"
             >
               <RefreshCw className={`w-5 h-5 ${syncing ? "animate-spin" : ""}`} />
-              {syncing ? "Syncing..." : "Sync Recordings"}
+              {syncing ? "Importing..." : "Import from Mux"}
             </button>
             {videos?.some((v) => v.status === "processing" || v.status === "uploading") && (
               <button
