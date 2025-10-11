@@ -14,6 +14,7 @@ export default function LibraryPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const [checking, setChecking] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("classic");
 
   const videos = useQuery(
@@ -134,6 +135,39 @@ export default function LibraryPage() {
     }
   };
 
+  const syncRecordings = async () => {
+    if (!user?.id) return;
+    setSyncing(true);
+
+    try {
+      const response = await fetch("/api/stream/sync-recordings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        const { summary } = result;
+        alert(
+          `Sync complete!\n\n` +
+          `Videos synced: ${summary.videosSynced}\n` +
+          `Streams skipped: ${summary.streamsSkipped}\n` +
+          `Errors: ${summary.errors}\n\n` +
+          (summary.videosSynced > 0 ? "Check MY LIBRARY for your recordings!" : "No new recordings found.")
+        );
+      } else {
+        throw new Error(result.error || "Sync failed");
+      }
+    } catch (error) {
+      console.error("Sync error:", error);
+      alert("Failed to sync recordings. Please try again.");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   // Auto-check processing videos on mount and every 10 seconds
   useEffect(() => {
     checkProcessingVideos();
@@ -171,6 +205,15 @@ export default function LibraryPage() {
           </div>
 
           <div className="flex gap-3">
+            <button
+              onClick={syncRecordings}
+              disabled={syncing}
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-full font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+              title="Import missing recordings from Mux"
+            >
+              <RefreshCw className={`w-5 h-5 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Syncing..." : "Sync Recordings"}
+            </button>
             {videos?.some((v) => v.status === "processing" || v.status === "uploading") && (
               <button
                 onClick={checkProcessingVideos}
