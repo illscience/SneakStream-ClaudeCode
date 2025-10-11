@@ -52,6 +52,10 @@ export default function SyncedVideoPlayer({
     video.autoplay = true;
     video.playsInline = true;
 
+    // Enable background audio playback on iOS
+    video.setAttribute('webkit-playsinline', 'true');
+    video.setAttribute('x-webkit-airplay', 'allow');
+
     const handlePlayAttempt = () => {
       const playPromise = video.play();
       if (playPromise) {
@@ -191,6 +195,32 @@ export default function SyncedVideoPlayer({
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [defaultVideo]);
 
+  // Set up Media Session API for background audio control
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: videoTitle,
+      artist: "DJ SNEAK",
+      album: "Live Stream",
+    });
+
+    // Disable default play/pause actions since we handle them ourselves
+    navigator.mediaSession.setActionHandler("play", () => {
+      videoRef.current?.play();
+    });
+
+    navigator.mediaSession.setActionHandler("pause", () => {
+      videoRef.current?.pause();
+    });
+
+    return () => {
+      navigator.mediaSession.metadata = null;
+      navigator.mediaSession.setActionHandler("play", null);
+      navigator.mediaSession.setActionHandler("pause", null);
+    };
+  }, [videoTitle]);
+
   const toggleFullscreen = () => {
     const video = videoRef.current;
     if (!video) return;
@@ -209,6 +239,8 @@ export default function SyncedVideoPlayer({
         className="h-full w-full rounded-2xl bg-black object-cover"
         muted={isMuted}
         playsInline
+        webkit-playsinline="true"
+        x-webkit-airplay="allow"
       />
       <button
         type="button"
