@@ -125,3 +125,27 @@ export const getFollowingCount = query({
     return follows.length;
   },
 });
+
+// Update user's selected avatar
+export const updateSelectedAvatar = mutation({
+  args: {
+    clerkId: v.string(),
+    avatarUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await ctx.db.patch(user._id, {
+      selectedAvatar: args.avatarUrl,
+    });
+
+    return user._id;
+  },
+});

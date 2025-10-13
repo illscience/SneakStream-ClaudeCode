@@ -1,8 +1,11 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import Link from "next/link"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { useUser } from "@clerk/nextjs"
+import { useQuery, useMutation } from "convex/react"
+import { api } from "@/convex/_generated/api"
+import { MessageSquare, Send } from "lucide-react"
 
 interface Avatar {
   id: string
@@ -31,6 +34,7 @@ interface ConversationCard {
 }
 
 export default function NightclubPage() {
+  const { user } = useUser()
   const [avatars, setAvatars] = useState<Avatar[]>([])
   const [waitingAvatars, setWaitingAvatars] = useState<WaitingAvatar[]>([])
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null)
@@ -38,8 +42,21 @@ export default function NightclubPage() {
   const [dialogAvatar, setDialogAvatar] = useState<{ id: string; image: string } | null>(null)
   const [isGenerating, setIsGenerating] = useState(true)
   const [conversationCards, setConversationCards] = useState<ConversationCard[]>([])
+  const [newMessage, setNewMessage] = useState("")
   const animationRef = useRef<number>()
   const conversationPairsRef = useRef<Set<string>>(new Set())
+
+  // Chat functionality
+  const messages = useQuery(api.chat.getMessages)
+  const sendMessage = useMutation(api.chat.sendMessage)
+  const updateUserAvatar = useMutation(api.users.updateSelectedAvatar)
+  const convexUser = useQuery(
+    api.users.getUserByClerkId,
+    user?.id ? { clerkId: user.id } : "skip"
+  )
+
+  const displayName = convexUser?.alias || user?.username || user?.firstName || "Anonymous"
+  const userSelectedAvatar = convexUser?.selectedAvatar || null
 
   const CANVAS_SIZE = 700
   const AVATAR_SIZE = 60
@@ -254,12 +271,24 @@ export default function NightclubPage() {
     }
   }, [])
 
-  const handleAvatarClick = (avatarId: string) => {
+  const handleAvatarClick = async (avatarId: string) => {
     const avatar = avatars.find((a) => a.id === avatarId)
     if (avatar) {
       setDialogAvatar({ id: avatar.id, image: avatar.image })
       setDialogOpen(true)
       setSelectedAvatar(avatar.image)
+
+      // Update user's avatar in Convex if signed in
+      if (user?.id && avatar.image) {
+        try {
+          await updateUserAvatar({
+            clerkId: user.id,
+            avatarUrl: avatar.image,
+          })
+        } catch (error) {
+          console.error("Failed to update avatar:", error)
+        }
+      }
 
       setAvatars((prev) => prev.map((a) => (a.id === avatarId ? { ...a, paused: true } : a)))
     }
@@ -273,32 +302,63 @@ export default function NightclubPage() {
     setDialogAvatar(null)
   }
 
+  const formatTimestamp = (timestamp: number) => {
+    const date = new Date(timestamp)
+    const now = new Date()
+    const diff = now.getTime() - date.getTime()
+
+    if (diff < 60000) {
+      return "just now"
+    } else if (diff < 3600000) {
+      const mins = Math.floor(diff / 60000)
+      return `${mins}m ago`
+    } else if (diff < 86400000) {
+      const hours = Math.floor(diff / 3600000)
+      return `${hours}h ago`
+    } else {
+      return date.toLocaleDateString()
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newMessage.trim() || !user) return
+
+    try {
+      await sendMessage({
+        user: user.id,
+        userId: user.id,
+        userName: displayName,
+        avatarUrl: userSelectedAvatar || undefined,
+        body: newMessage.trim(),
+      })
+      setNewMessage("")
+    } catch (error) {
+      console.error("Failed to send message:", error)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-black text-white p-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-4xl font-bold text-[#c4ff0e]">Nightclub Avatar Simulation</h1>
-            <Link
-              href="/chat"
-              className="flex items-center gap-2 px-4 py-2 bg-[#c4ff0e] text-black rounded-lg hover:bg-[#b3e60d] transition-colors font-medium"
-            >
-              <span className="text-lg">💬</span>
-              Chat View
-            </Link>
           </div>
           <p className="text-gray-400 mb-2">
-            Click avatars in the row below to release them into the nightclub. Click bouncing avatars to select them!
+            Click avatars in the row below to release them into the nightclub. Click bouncing avatars to select your chat avatar!
           </p>
           {isGenerating && <div className="text-[#c4ff0e] mb-2">Generating unique 80s surf avatars...</div>}
-          {selectedAvatar && (
+          {userSelectedAvatar && (
             <div className="flex items-center gap-2">
-              <span className="text-[#ff00ff]">Your selected avatar:</span>
+              <span className="text-[#ff00ff]">Your chat avatar:</span>
               <img
-                src={selectedAvatar || "/placeholder.svg"}
+                src={userSelectedAvatar}
                 alt="Selected"
                 className="w-10 h-10 rounded-full border-2 border-[#ff00ff]"
+                style={{ boxShadow: "0 0 10px rgba(255, 0, 255, 0.4)" }}
               />
+              <span className="text-sm text-gray-400">(Click any dancing avatar to change)</span>
             </div>
           )}
         </div>
@@ -429,48 +489,66 @@ export default function NightclubPage() {
           <div className="flex-1 min-w-[300px]">
             <div className="sticky top-8">
               <div className="flex items-center gap-2 mb-4">
-                <span className="text-2xl">💬</span>
-                <h2 className="text-2xl font-bold text-[#ff00ff]">Conversation Feed</h2>
+                <MessageSquare className="w-6 h-6 text-[#c4ff0e]" />
+                <h2 className="text-2xl font-bold text-[#c4ff0e]">Live Chat</h2>
               </div>
-              <div className="space-y-4 max-h-[700px] overflow-y-auto pr-2">
-                {conversationCards.length === 0 && (
-                  <div className="text-gray-500 text-center py-8">
-                    Release avatars to see conversations appear when they get close!
-                  </div>
-                )}
-                {conversationCards.map((card) => (
-                  <div
-                    key={card.id}
-                    className="bg-gradient-to-br from-gray-900 to-black border-2 border-[#ff00ff] rounded-lg p-4 shadow-lg"
-                    style={{ boxShadow: "0 0 15px rgba(255, 0, 255, 0.3)" }}
-                  >
-                    <div className="flex items-center gap-3 mb-3">
-                      <div
-                        className="w-16 h-16 rounded-full border-2 border-[#c4ff0e] overflow-hidden flex-shrink-0"
-                        style={{ boxShadow: "0 0 8px rgba(196, 255, 14, 0.4)" }}
-                      >
-                        <img
-                          src={card.avatar1.image || "/placeholder.svg"}
-                          alt="Avatar 1"
-                          className="w-full h-full object-cover"
-                        />
+
+              {/* User Info */}
+              <div className="mb-4 flex items-center gap-2">
+                <span className="text-xs text-gray-400">Chatting as:</span>
+                <div className="flex items-center gap-2">
+                  {userSelectedAvatar && (
+                    <img
+                      src={userSelectedAvatar}
+                      alt="Your avatar"
+                      className="w-6 h-6 rounded-full border border-[#ff00ff]"
+                    />
+                  )}
+                  <span className="text-sm font-medium text-[#c4ff0e]">{displayName}</span>
+                </div>
+              </div>
+
+              {/* Message Input */}
+              <form onSubmit={handleSubmit} className="flex gap-2 mb-4">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type a message..."
+                  className="flex-1 bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#c4ff0e] border border-zinc-800"
+                />
+                <button
+                  type="submit"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#c4ff0e] text-black transition-colors hover:bg-[#b3e60d]"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
+              </form>
+
+              {/* Messages Container */}
+              <div className="space-y-3 max-h-[560px] overflow-y-auto pr-2 bg-zinc-900/50 rounded-xl p-4 border border-zinc-800">
+                {messages?.slice().reverse().map((message) => (
+                  <div key={message._id} className="flex gap-3">
+                    {message.avatarUrl && (
+                      <img
+                        src={message.avatarUrl}
+                        alt={message.userName || "User"}
+                        className="w-10 h-10 rounded-full border-2 border-[#ff00ff] flex-shrink-0"
+                        style={{ boxShadow: "0 0 8px rgba(255, 0, 255, 0.4)" }}
+                      />
+                    )}
+                    <div className="flex flex-col gap-1 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xs font-semibold text-[#c4ff0e]">
+                          {message.userName || message.user || "Anonymous"}
+                        </span>
+                        <span className="text-xs text-zinc-600">·</span>
+                        <span className="text-xs text-zinc-500">
+                          {formatTimestamp(message._creationTime)}
+                        </span>
                       </div>
-                      <div className="text-[#c4ff0e] text-2xl">↔</div>
-                      <div
-                        className="w-16 h-16 rounded-full border-2 border-[#c4ff0e] overflow-hidden flex-shrink-0"
-                        style={{ boxShadow: "0 0 8px rgba(196, 255, 14, 0.4)" }}
-                      >
-                        <img
-                          src={card.avatar2.image || "/placeholder.svg"}
-                          alt="Avatar 2"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
+                      <p className="text-sm text-white break-words">{message.body}</p>
                     </div>
-                    <div className="bg-black/50 rounded p-3 border border-[#c4ff0e]/30">
-                      <p className="text-white text-sm leading-relaxed">{card.conversation}</p>
-                    </div>
-                    <div className="text-xs text-gray-500 mt-2">{new Date(card.timestamp).toLocaleTimeString()}</div>
                   </div>
                 ))}
               </div>
@@ -483,7 +561,7 @@ export default function NightclubPage() {
         <DialogContent className="max-w-md bg-black border-2 border-[#c4ff0e]">
           {dialogAvatar && (
             <div className="flex flex-col items-center gap-4">
-              <h2 className="text-2xl font-bold text-[#c4ff0e]">Avatar Preview</h2>
+              <h2 className="text-2xl font-bold text-[#c4ff0e]">Chat Avatar Selected!</h2>
               <div
                 className="relative w-full aspect-square rounded-lg overflow-hidden border-4 border-[#ff00ff]"
                 style={{ boxShadow: "0 0 20px rgba(255, 0, 255, 0.5)" }}
@@ -494,9 +572,14 @@ export default function NightclubPage() {
                   className="w-full h-full object-cover"
                 />
               </div>
-              <p className="text-gray-400 text-sm text-center">
-                This avatar is paused while you view it. Close to resume movement.
-              </p>
+              <div className="text-center space-y-2">
+                <p className="text-[#ff00ff] text-sm font-semibold">
+                  This is now your chat avatar!
+                </p>
+                <p className="text-gray-400 text-sm">
+                  All your messages will display this avatar. The avatar is paused while you view it.
+                </p>
+              </div>
             </div>
           )}
         </DialogContent>
