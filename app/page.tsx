@@ -1,11 +1,10 @@
 'use client';
 
 import { Heart, Download, Share2, Volume2, VolumeX, Tv, LayoutGrid, UserPlus, UserCheck } from "lucide-react";
-import ChatWindow from "./components/ChatWindow";
-import VideoFeed from "./components/VideoFeed";
 import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
 import VideoTimer from "./components/VideoTimer";
 import MainNav from "@/components/navigation/MainNav";
+import NightclubSimulation from "./components/NightclubSimulation";
 import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
@@ -232,20 +231,8 @@ export default function Home() {
         {/* Desktop Video Layout */}
         {isDesktop && (
           <div className="px-8 py-8">
-            <div
-              className={
-                layoutMode === "theater"
-                  ? "grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-6"
-                  : "flex justify-center"
-              }
-            >
-              <div
-                className={
-                  layoutMode === "theater"
-                    ? "space-y-4"
-                    : "max-w-6xl w-full space-y-4"
-                }
-              >
+            <div className="flex justify-center">
+              <div className="max-w-6xl w-full space-y-4">
                 <div className="relative w-full aspect-video bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl">
                   {renderVideoContent()}
                 </div>
@@ -311,43 +298,13 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-
-              {layoutMode === "theater" && (
-                <div>
-                  <ChatWindow />
-                </div>
-              )}
             </div>
           </div>
         )}
 
-        {/* Content Sections */}
+        {/* Nightclub Simulation */}
         <div className="px-4 lg:px-8 pb-48 pt-8">
-          {layoutMode === "classic" ? (
-            // Classic mode - Chat on the left
-            <div className="max-w-6xl mx-auto">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-1">
-                  <div className="w-full max-w-md">
-                    <ChatWindow />
-                  </div>
-                </div>
-                <div className="lg:col-span-2">
-                  <VideoFeed limit={5} />
-                </div>
-              </div>
-            </div>
-          ) : (
-            // Theater mode - Only show on mobile
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              <div>
-                <VideoFeed limit={5} />
-              </div>
-              <div className="lg:hidden">
-                <ChatWindow />
-              </div>
-            </div>
-          )}
+          <NightclubSimulation />
         </div>
       </main>
 
