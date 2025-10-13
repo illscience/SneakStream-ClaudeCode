@@ -16,7 +16,9 @@ interface Avatar {
   image: string
   speedMultiplier: number
   paused?: boolean
-  subject: string // Added subject to track avatar type for AI conversations
+  subject: string
+  lastDirectionChange?: number
+  targetDirection?: { vx: number; vy: number }
 }
 
 interface WaitingAvatar {
@@ -45,6 +47,8 @@ export default function NightclubPage() {
   const [newMessage, setNewMessage] = useState("")
   const animationRef = useRef<number>()
   const conversationPairsRef = useRef<Set<string>>(new Set())
+  const avatarsRef = useRef<Avatar[]>([])
+  const frameCountRef = useRef(0)
 
   // Chat functionality
   const messages = useQuery(api.chat.getMessages)
@@ -57,6 +61,11 @@ export default function NightclubPage() {
 
   const displayName = convexUser?.alias || user?.username || user?.firstName || "Anonymous"
   const userSelectedAvatar = convexUser?.selectedAvatar || null
+
+  // Sync avatarsRef with avatars state
+  useEffect(() => {
+    avatarsRef.current = avatars
+  }, [avatars])
 
   const CANVAS_SIZE = 700
   const AVATAR_SIZE = 60
@@ -125,16 +134,23 @@ export default function NightclubPage() {
 
   const releaseAvatar = async (waitingAvatar: WaitingAvatar) => {
     const speedMultiplier = 0.6 + Math.random() * 1.2
+    const initialAngle = Math.random() * Math.PI * 2
+    const initialSpeed = BASE_SPEED * speedMultiplier
 
     const newAvatar: Avatar = {
       id: `avatar-${Date.now()}`,
       x: Math.random() * (CANVAS_SIZE - AVATAR_SIZE - 100) + 50,
       y: 20,
-      vx: (Math.random() - 0.5) * BASE_SPEED * 2 * speedMultiplier,
-      vy: BASE_SPEED * speedMultiplier,
+      vx: Math.cos(initialAngle) * initialSpeed,
+      vy: Math.sin(initialAngle) * initialSpeed,
       image: waitingAvatar.image,
       speedMultiplier,
-      subject: waitingAvatar.subject, // Store subject for AI conversation generation
+      subject: waitingAvatar.subject,
+      lastDirectionChange: Date.now(),
+      targetDirection: {
+        vx: Math.cos(initialAngle) * initialSpeed,
+        vy: Math.sin(initialAngle) * initialSpeed,
+      },
     }
 
     setAvatars((prev) => [...prev, newAvatar])
@@ -186,27 +202,77 @@ export default function NightclubPage() {
   }
 
   useEffect(() => {
+    let isRunning = true
+
     const animate = () => {
-      setAvatars((prevAvatars) => {
-        const newAvatars = prevAvatars.map((avatar) => {
+      if (!isRunning) return
+
+      try {
+        const now = Date.now()
+        frameCountRef.current++
+
+        // Work directly on ref for animation calculations
+        const currentAvatars = avatarsRef.current
+        if (!currentAvatars || currentAvatars.length === 0) {
+          if (isRunning) {
+            animationRef.current = requestAnimationFrame(animate)
+          }
+          return
+        }
+
+        const newAvatars = currentAvatars.map((avatar) => {
           if (avatar.paused) {
             return avatar
           }
 
-          let { x, y, vx, vy, speedMultiplier } = avatar
+          let { x, y, vx, vy, speedMultiplier, lastDirectionChange, targetDirection } = avatar
 
+          // Random direction changes every 2-5 seconds for natural movement
+          const changeInterval = 2000 + Math.random() * 3000
+          if (!lastDirectionChange || now - lastDirectionChange > changeInterval) {
+            const angle = Math.random() * Math.PI * 2
+            const speed = BASE_SPEED * speedMultiplier * (0.5 + Math.random() * 0.5)
+            targetDirection = {
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+            }
+            lastDirectionChange = now
+          }
+
+          // Smoothly interpolate toward target direction
+          if (targetDirection) {
+            const lerpFactor = 0.02 // Smooth transition
+            vx += (targetDirection.vx - vx) * lerpFactor
+            vy += (targetDirection.vy - vy) * lerpFactor
+          }
+
+          // Update position
           x += vx
           y += vy
 
+          // Bounce off walls with smooth direction change
           if (x <= 0 || x >= CANVAS_SIZE - AVATAR_SIZE) {
-            vx = -vx * 0.98
+            vx = -vx * 0.8
             x = Math.max(0, Math.min(CANVAS_SIZE - AVATAR_SIZE, x))
+            // Generate new target direction after wall bounce
+            const angle = Math.atan2(vy, vx) + (Math.random() - 0.5) * Math.PI * 0.5
+            targetDirection = {
+              vx: Math.cos(angle) * BASE_SPEED * speedMultiplier,
+              vy: Math.sin(angle) * BASE_SPEED * speedMultiplier,
+            }
           }
           if (y <= 0 || y >= CANVAS_SIZE - AVATAR_SIZE) {
-            vy = -vy * 0.98
+            vy = -vy * 0.8
             y = Math.max(0, Math.min(CANVAS_SIZE - AVATAR_SIZE, y))
+            // Generate new target direction after wall bounce
+            const angle = Math.atan2(vy, vx) + (Math.random() - 0.5) * Math.PI * 0.5
+            targetDirection = {
+              vx: Math.cos(angle) * BASE_SPEED * speedMultiplier,
+              vy: Math.sin(angle) * BASE_SPEED * speedMultiplier,
+            }
           }
 
+          // DJ booth collision - smoothly push away
           const djCenterX = CANVAS_SIZE / 2
           const djCenterY = CANVAS_SIZE / 2
           const avatarCenterX = x + AVATAR_SIZE / 2
@@ -220,13 +286,27 @@ export default function NightclubPage() {
             const overlap = DJ_BOOTH_SIZE / 2 + AVATAR_SIZE / 2 - distance
             x += Math.cos(angle) * overlap
             y += Math.sin(angle) * overlap
-            vx = Math.cos(angle) * BASE_SPEED * speedMultiplier
-            vy = Math.sin(angle) * BASE_SPEED * speedMultiplier
+
+            // Push away from DJ booth with random angle variation
+            const pushAngle = angle + (Math.random() - 0.5) * 0.3
+            targetDirection = {
+              vx: Math.cos(pushAngle) * BASE_SPEED * speedMultiplier * 1.2,
+              vy: Math.sin(pushAngle) * BASE_SPEED * speedMultiplier * 1.2,
+            }
           }
 
-          return { ...avatar, x, y, vx, vy }
+          return {
+            ...avatar,
+            x,
+            y,
+            vx,
+            vy,
+            lastDirectionChange,
+            targetDirection
+          }
         })
 
+        // Avatar-to-avatar collision detection
         for (let i = 0; i < newAvatars.length; i++) {
           for (let j = i + 1; j < newAvatars.length; j++) {
             const a1 = newAvatars[i]
@@ -242,29 +322,61 @@ export default function NightclubPage() {
             if (distance < AVATAR_SIZE) {
               const angle = Math.atan2(dy, dx)
               const overlap = AVATAR_SIZE - distance
+
+              // Smoothly push avatars apart
               newAvatars[i].x += (Math.cos(angle) * overlap) / 2
               newAvatars[i].y += (Math.sin(angle) * overlap) / 2
               newAvatars[j].x -= (Math.cos(angle) * overlap) / 2
               newAvatars[j].y -= (Math.sin(angle) * overlap) / 2
 
+              // Gentle velocity exchange with random variation for natural movement
+              const randomFactor = 0.7 + Math.random() * 0.3
               const tempVx = newAvatars[i].vx
               const tempVy = newAvatars[i].vy
-              newAvatars[i].vx = newAvatars[j].vx * 0.98
-              newAvatars[i].vy = newAvatars[j].vy * 0.98
-              newAvatars[j].vx = tempVx * 0.98
-              newAvatars[j].vy = tempVy * 0.98
+              newAvatars[i].vx = newAvatars[j].vx * randomFactor
+              newAvatars[i].vy = newAvatars[j].vy * randomFactor
+              newAvatars[j].vx = tempVx * randomFactor
+              newAvatars[j].vy = tempVy * randomFactor
+
+              // Update target directions to reflect new velocity after collision
+              const angle1 = Math.atan2(newAvatars[i].vy, newAvatars[i].vx)
+              const speed1 = Math.sqrt(newAvatars[i].vx ** 2 + newAvatars[i].vy ** 2)
+              newAvatars[i].targetDirection = {
+                vx: Math.cos(angle1) * speed1,
+                vy: Math.sin(angle1) * speed1,
+              }
+
+              const angle2 = Math.atan2(newAvatars[j].vy, newAvatars[j].vx)
+              const speed2 = Math.sqrt(newAvatars[j].vx ** 2 + newAvatars[j].vy ** 2)
+              newAvatars[j].targetDirection = {
+                vx: Math.cos(angle2) * speed2,
+                vy: Math.sin(angle2) * speed2,
+              }
             }
           }
         }
 
-        return newAvatars
-      })
+        // Update ref immediately
+        avatarsRef.current = newAvatars
 
-      animationRef.current = requestAnimationFrame(animate)
+        // Only update React state every 2 frames to reduce re-renders
+        if (frameCountRef.current % 2 === 0) {
+          setAvatars([...newAvatars])
+        }
+      } catch (error) {
+        console.error("Animation error:", error)
+      }
+
+      // Always continue animation loop
+      if (isRunning) {
+        animationRef.current = requestAnimationFrame(animate)
+      }
     }
 
     animationRef.current = requestAnimationFrame(animate)
+
     return () => {
+      isRunning = false
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current)
       }
