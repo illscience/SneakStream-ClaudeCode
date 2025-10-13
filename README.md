@@ -50,6 +50,12 @@ MUX_TOKEN_ID=
 MUX_TOKEN_SECRET=
 NEXT_PUBLIC_STREAM_PROVIDER=
 CLAUDE_API_KEY=
+FAL_API_KEY=
+FAL_AVATAR_MODEL_ID= # optional override, defaults to fal-ai/flux-pro/v1.1
+OPENROUTER_API_KEY=
+OPENROUTER_KIMI_MODEL= # optional override, defaults to moonshot/kimi-k2
+OPENROUTER_HTTP_REFERER= # optional, identifies your app in OpenRouter logs
+OPENROUTER_APP_TITLE= # optional, shown in OpenRouter dashboard
 ```
 
 Set `NEXT_PUBLIC_STREAM_PROVIDER=mux` to enable the Mux-specific frontend experience; leave it empty or set to `livepeer` to keep the original Livepeer flow. To run the live Mux verification suite, export `MUX_LIVE_TEST=1` (with valid `MUX_TOKEN_ID` and `MUX_TOKEN_SECRET`) before executing `npm run test`. Otherwise the live tests are skipped automatically.

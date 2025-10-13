@@ -15,6 +15,7 @@ export default defineSchema({
     alias: v.string(),
     email: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
+    selectedAvatar: v.optional(v.string()),
   }).index("by_clerk_id", ["clerkId"]),
 
   follows: defineTable({
@@ -104,4 +105,29 @@ export default defineSchema({
     rtmpIngestUrl: v.string(), // RTMP ingest URL
     createdAt: v.number(),
   }).index("by_user", ["userId"]),
+
+  nightclubAvatars: defineTable({
+    clerkId: v.string(), // Owner Clerk ID (may differ from active viewer)
+    aliasSnapshot: v.string(),
+    imageUrl: v.optional(v.string()),
+    prompt: v.optional(v.string()),
+    seed: v.number(), // deterministic movement seed
+    spawnedAt: v.number(),
+    isActive: v.boolean(),
+    lastConversationAt: v.optional(v.number()),
+  })
+    .index("by_active", ["isActive"])
+    .index("by_clerk", ["clerkId"]),
+
+  nightclubEncounters: defineTable({
+    avatarA: v.id("nightclubAvatars"),
+    avatarB: v.id("nightclubAvatars"),
+    pairKey: v.string(),
+    startedAt: v.number(),
+    transcript: v.optional(v.string()),
+    summary: v.optional(v.string()),
+    status: v.string(), // pending, completed, failed
+  })
+    .index("by_recent", ["startedAt"])
+    .index("by_pair", ["pairKey"]),
 });

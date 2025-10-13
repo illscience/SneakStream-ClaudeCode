@@ -43,3 +43,4 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 public/*.mp4
+.env.local

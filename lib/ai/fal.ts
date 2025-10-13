@@ -1,0 +1,65 @@
+import { fal } from "@fal-ai/serverless-client";
+
+const MODEL_ID = process.env.FAL_AVATAR_MODEL_ID ?? "fal-ai/flux-pro/v1.1";
+let configured = false;
+
+const ensureConfigured = () => {
+  if (!configured) {
+    const key = process.env.FAL_API_KEY ?? process.env.FAL_KEY;
+    if (!key) {
+      throw new Error("FAL_API_KEY is not set");
+    }
+
+    fal.config({ credentials: key });
+    configured = true;
+  }
+};
+
+export interface GenerateAvatarImageOptions {
+  prompt: string;
+  aspectRatio?: "1:1" | "3:4" | "4:3" | "16:9";
+  seed?: number;
+}
+
+export interface GenerateAvatarImageResult {
+  imageUrl: string;
+  raw: unknown;
+}
+
+export const generateAvatarImage = async ({
+  prompt,
+  aspectRatio = "1:1",
+  seed,
+}: GenerateAvatarImageOptions): Promise<GenerateAvatarImageResult> => {
+  ensureConfigured();
+
+  const result = await fal.subscribe(MODEL_ID, {
+    input: {
+      prompt,
+      image_size: aspectRatio === "1:1" ? "square" : aspectRatio,
+      seed,
+      num_inference_steps: 28,
+      guidance_scale: 3,
+    },
+  });
+
+  const image =
+    // @ts-expect-error - API response shapes are not strongly typed
+    result?.images?.[0]?.url ??
+    // @ts-expect-error - Some deployments nest output under `output`
+    result?.output?.[0]?.image?.url ??
+    // @ts-expect-error - Legacy format under `image_url`
+    result?.image_url ??
+    // @ts-expect-error - Nested data wrapper
+    result?.data?.images?.[0]?.url ??
+    // @ts-expect-error - Alternate nesting for batched responses
+    result?.data?.output?.[0]?.image?.url ??
+    // @ts-expect-error - Some models return a flat `url`
+    result?.url;
+
+  if (!image) {
+    throw new Error("Failed to resolve image URL from FAL response");
+  }
+
+  return { imageUrl: image as string, raw: result };
+};
