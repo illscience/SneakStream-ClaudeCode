@@ -1,11 +1,11 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { useUser } from "@clerk/nextjs"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { MessageSquare, Send } from "lucide-react"
+import { MessageSquare, Send, Trash2 } from "lucide-react"
 
 interface Avatar {
   id: string
@@ -45,6 +45,8 @@ export default function NightclubPage() {
   const [isGenerating, setIsGenerating] = useState(true)
   const [conversationCards, setConversationCards] = useState<ConversationCard[]>([])
   const [newMessage, setNewMessage] = useState("")
+  const [optimisticMessages, setOptimisticMessages] = useState<any[]>([])
+  const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(new Set())
   const animationRef = useRef<number>()
   const conversationPairsRef = useRef<Set<string>>(new Set())
   const avatarsRef = useRef<Avatar[]>([])
@@ -53,6 +55,7 @@ export default function NightclubPage() {
   // Chat functionality
   const messages = useQuery(api.chat.getMessages)
   const sendMessage = useMutation(api.chat.sendMessage)
+  const deleteMessage = useMutation(api.chat.deleteMessage)
   const updateUserAvatar = useMutation(api.users.updateSelectedAvatar)
   const convexUser = useQuery(
     api.users.getUserByClerkId,
@@ -61,6 +64,7 @@ export default function NightclubPage() {
 
   const displayName = convexUser?.alias || user?.username || user?.firstName || "Anonymous"
   const userSelectedAvatar = convexUser?.selectedAvatar || null
+  const isAdmin = user?.primaryEmailAddress?.emailAddress === "illscience@gmail.com"
 
   // Sync avatarsRef with avatars state
   useEffect(() => {
@@ -436,17 +440,38 @@ export default function NightclubPage() {
     e.preventDefault()
     if (!newMessage.trim() || !user) return
 
+    const messageText = newMessage.trim()
+    const optimisticId = `optimistic-${Date.now()}`
+
+    // Add optimistic message immediately
+    const optimisticMsg = {
+      _id: optimisticId,
+      _creationTime: Date.now(),
+      user: user.id,
+      userId: user.id,
+      userName: displayName,
+      avatarUrl: userSelectedAvatar || undefined,
+      body: messageText,
+    }
+
+    setOptimisticMessages((prev) => [...prev, optimisticMsg])
+    setNewMessage("") // Clear immediately for snappy UX
+
+    // Send in background
     try {
       await sendMessage({
         user: user.id,
         userId: user.id,
         userName: displayName,
         avatarUrl: userSelectedAvatar || undefined,
-        body: newMessage.trim(),
+        body: messageText,
       })
-      setNewMessage("")
+      // Remove optimistic message once server confirms
+      setOptimisticMessages((prev) => prev.filter((m) => m._id !== optimisticId))
     } catch (error) {
       console.error("Failed to send message:", error)
+      // Remove failed optimistic message
+      setOptimisticMessages((prev) => prev.filter((m) => m._id !== optimisticId))
     }
   }
 
@@ -639,8 +664,12 @@ export default function NightclubPage() {
 
               {/* Messages Container */}
               <div className="space-y-3 max-h-[560px] overflow-y-auto pr-2 bg-zinc-900/50 rounded-xl p-4 border border-zinc-800">
-                {messages?.slice().reverse().map((message) => (
-                  <div key={message._id} className="flex gap-3">
+                {[...(messages || []), ...optimisticMessages]
+                  .filter((message) => !deletedMessageIds.has(message._id))
+                  .slice()
+                  .reverse()
+                  .map((message) => (
+                  <div key={message._id} className="flex gap-3 group">
                     {message.avatarUrl && (
                       <img
                         src={message.avatarUrl}
@@ -658,6 +687,29 @@ export default function NightclubPage() {
                         <span className="text-xs text-zinc-500">
                           {formatTimestamp(message._creationTime)}
                         </span>
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              // Mark as deleted instantly
+                              setDeletedMessageIds((prev) => new Set(prev).add(message._id))
+
+                              // Delete in background
+                              deleteMessage({ messageId: message._id }).catch((error) => {
+                                console.error("Failed to delete message:", error)
+                                // Restore if delete fails
+                                setDeletedMessageIds((prev) => {
+                                  const newSet = new Set(prev)
+                                  newSet.delete(message._id)
+                                  return newSet
+                                })
+                              })
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-red-500 ml-auto"
+                            title="Delete message"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
                       </div>
                       <p className="text-sm text-white break-words">{message.body}</p>
                     </div>
@@ -673,7 +725,7 @@ export default function NightclubPage() {
         <DialogContent className="max-w-md bg-black border-2 border-[#c4ff0e]">
           {dialogAvatar && (
             <div className="flex flex-col items-center gap-4">
-              <h2 className="text-2xl font-bold text-[#c4ff0e]">Chat Avatar Selected!</h2>
+              <DialogTitle className="text-2xl font-bold text-[#c4ff0e]">Chat Avatar Selected!</DialogTitle>
               <div
                 className="relative w-full aspect-square rounded-lg overflow-hidden border-4 border-[#ff00ff]"
                 style={{ boxShadow: "0 0 20px rgba(255, 0, 255, 0.5)" }}

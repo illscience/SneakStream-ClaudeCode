@@ -27,3 +27,15 @@ export const getMessages = query({
     return messages.reverse();
   },
 });
+
+export const deleteMessage = mutation({
+  args: {
+    messageId: v.id("messages"),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (message) {
+      await ctx.db.delete(args.messageId);
+    }
+  },
+});
