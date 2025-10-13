@@ -66,16 +66,37 @@ export default function NightclubSimulation() {
   const userSelectedAvatar = convexUser?.selectedAvatar || null
   const isAdmin = user?.primaryEmailAddress?.emailAddress === "illscience@gmail.com"
 
+  // Responsive canvas sizing
+  const [isMobile, setIsMobile] = useState(false)
+  const [canvasSize, setCanvasSize] = useState(700)
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768
+      setIsMobile(mobile)
+      // Make canvas responsive - smaller on mobile
+      if (mobile) {
+        setCanvasSize(Math.min(window.innerWidth - 32, 400))
+      } else {
+        setCanvasSize(700)
+      }
+    }
+
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   // Sync avatarsRef with avatars state
   useEffect(() => {
     avatarsRef.current = avatars
   }, [avatars])
 
-  const CANVAS_SIZE = 700
-  const AVATAR_SIZE = 60
-  const DJ_BOOTH_SIZE = 100
-  const BASE_SPEED = 1.5
-  const PROXIMITY_THRESHOLD = 100
+  const CANVAS_SIZE = canvasSize
+  const AVATAR_SIZE = isMobile ? 40 : 60
+  const DJ_BOOTH_SIZE = isMobile ? 60 : 100
+  const BASE_SPEED = isMobile ? 1 : 1.5
+  const PROXIMITY_THRESHOLD = isMobile ? 70 : 100
 
   const subjects = [
     "1980s california surfer man with sun-bleached blonde hair, retro aviator sunglasses, neon pink wetsuit, beach vibes, vintage film photography, golden hour lighting",
@@ -348,7 +369,9 @@ export default function NightclubSimulation() {
 
         avatarsRef.current = newAvatars
 
-        if (frameCountRef.current % 2 === 0) {
+        // Update less frequently on mobile to reduce choppiness
+        const updateInterval = isMobile ? 4 : 2
+        if (frameCountRef.current % updateInterval === 0) {
           setAvatars([...newAvatars])
         }
       } catch (error) {
@@ -368,7 +391,7 @@ export default function NightclubSimulation() {
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [])
+  }, [isMobile])
 
   const handleAvatarClick = async (avatarId: string) => {
     const avatar = avatars.find((a) => a.id === avatarId)
@@ -485,9 +508,10 @@ export default function NightclubSimulation() {
       </div>
 
       {/* Nightclub Canvas + Chat */}
-      <div className="grid grid-cols-1 lg:grid-cols-[700px_1fr] gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-6">
         {/* Canvas */}
-        <div className="relative" style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}>
+        <div className="relative flex justify-center lg:justify-start">
+          <div style={{ width: CANVAS_SIZE, height: CANVAS_SIZE }}>
           <div
             className="relative border-4 border-[#c4ff0e] rounded-lg overflow-hidden"
             style={{
