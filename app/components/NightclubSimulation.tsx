@@ -586,6 +586,7 @@ export default function NightclubSimulation() {
               </div>
             ))}
           </div>
+          </div>
         </div>
 
         {/* Chat */}
