@@ -47,10 +47,15 @@ export default function NightclubSimulation() {
   const [newMessage, setNewMessage] = useState("")
   const [optimisticMessages, setOptimisticMessages] = useState<any[]>([])
   const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(new Set())
+  const [polaroid, setPolaroid] = useState<string | null>(null)
+  const [generatingPolaroid, setGeneratingPolaroid] = useState(false)
   const animationRef = useRef<number>()
   const conversationPairsRef = useRef<Set<string>>(new Set())
   const avatarsRef = useRef<Avatar[]>([])
   const frameCountRef = useRef(0)
+  const lastPolaroidTimeRef = useRef<number>(0)
+  const polaroidPauseTimeRef = useRef<number>(0)
+  const polaroidShownTimeRef = useRef<number>(0)
 
   // Chat functionality
   const messages = useQuery(api.chat.getMessages)
@@ -187,42 +192,61 @@ export default function NightclubSimulation() {
     setWaitingAvatars((prev) => [...prev, newWaitingAvatar])
   }
 
-  const createConversationCard = async (avatar1: Avatar, avatar2: Avatar) => {
-    const pairKey = [avatar1.id, avatar2.id].sort().join("-")
+  const generatePolaroid = async (avatar1: Avatar, avatar2: Avatar) => {
+    const now = Date.now()
 
+    // Check if 30 seconds have passed since last polaroid (accounting for pause time)
+    const timeSinceLastPolaroid = now - lastPolaroidTimeRef.current - polaroidPauseTimeRef.current
+    if (timeSinceLastPolaroid < 30000) {
+      return
+    }
+
+    // Check if already generating or displaying
+    if (generatingPolaroid || polaroid) {
+      return
+    }
+
+    // Prevent duplicate polaroids for same pair
+    const pairKey = [avatar1.id, avatar2.id].sort().join("-")
     if (conversationPairsRef.current.has(pairKey)) {
       return
     }
 
     conversationPairsRef.current.add(pairKey)
-
     setTimeout(() => {
       conversationPairsRef.current.delete(pairKey)
     }, 10000)
 
+    setGeneratingPolaroid(true)
+
     try {
-      const response = await fetch("/api/generate-conversation", {
+      const response = await fetch("/api/generate-polaroid", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          avatar1Subject: avatar1.subject,
-          avatar2Subject: avatar2.subject,
+          avatar1Url: avatar1.image,
+          avatar2Url: avatar2.image,
         }),
       })
       const data = await response.json()
 
-      const newCard: ConversationCard = {
-        id: `conv-${Date.now()}`,
-        avatar1: { id: avatar1.id, image: avatar1.image },
-        avatar2: { id: avatar2.id, image: avatar2.image },
-        conversation: data.conversation || "Dude, the vibes here are totally rad!",
-        timestamp: Date.now(),
+      if (data.imageUrl) {
+        setPolaroid(data.imageUrl)
+        lastPolaroidTimeRef.current = now
+        polaroidShownTimeRef.current = now
       }
-
-      setConversationCards((prev) => [newCard, ...prev].slice(0, 10))
     } catch (error) {
-      console.error("[v0] Error creating conversation card:", error)
+      console.error("[Polaroid] Error generating polaroid:", error)
+    } finally {
+      setGeneratingPolaroid(false)
     }
+  }
+
+  const handlePolaroidDismiss = () => {
+    const now = Date.now()
+    const pauseDuration = now - polaroidShownTimeRef.current
+    polaroidPauseTimeRef.current += pauseDuration
+    setPolaroid(null)
   }
 
   useEffect(() => {
@@ -230,6 +254,14 @@ export default function NightclubSimulation() {
 
     const animate = () => {
       if (!isRunning) return
+
+      // Pause animation when polaroid is displayed
+      if (polaroid) {
+        if (isRunning) {
+          animationRef.current = requestAnimationFrame(animate)
+        }
+        return
+      }
 
       try {
         const now = Date.now()
@@ -330,7 +362,7 @@ export default function NightclubSimulation() {
             const distance = Math.sqrt(dx * dx + dy * dy)
 
             if (distance < PROXIMITY_THRESHOLD && distance > AVATAR_SIZE) {
-              createConversationCard(a1, a2)
+              generatePolaroid(a1, a2)
             }
 
             if (distance < AVATAR_SIZE) {
@@ -391,7 +423,7 @@ export default function NightclubSimulation() {
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [isMobile])
+  }, [isMobile, polaroid])
 
   const handleAvatarClick = async (avatarId: string) => {
     const avatar = avatars.find((a) => a.id === avatarId)
@@ -585,6 +617,30 @@ export default function NightclubSimulation() {
                 </div>
               </div>
             ))}
+
+            {/* Polaroid Display */}
+            {polaroid && (
+              <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50 animate-in fade-in duration-300">
+                <div className="relative max-w-[80%] max-h-[80%]">
+                  <img
+                    src={polaroid}
+                    alt="Polaroid"
+                    className="w-full h-full object-contain rounded-lg border-4 border-white shadow-2xl"
+                    style={{
+                      boxShadow: "0 0 40px rgba(255, 255, 255, 0.3)",
+                      maxWidth: isMobile ? "300px" : "500px",
+                    }}
+                  />
+                  <button
+                    onClick={handlePolaroidDismiss}
+                    className="absolute -top-4 -right-4 bg-[#ff00ff] hover:bg-[#ff00ff]/80 text-white rounded-full w-10 h-10 flex items-center justify-center font-bold text-xl transition-colors shadow-lg"
+                    style={{ boxShadow: "0 0 20px rgba(255, 0, 255, 0.5)" }}
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           </div>
         </div>
