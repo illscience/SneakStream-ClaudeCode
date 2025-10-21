@@ -8,13 +8,21 @@ import { NightclubScene } from "./NightclubScene";
 import NightclubConversationFeed from "./NightclubConversationFeed";
 import { Loader2, Sparkles, UsersRound, MessageCircleHeart } from "lucide-react";
 
-const spawnAvatar = async (prompt?: string) => {
+const spawnAvatar = async (prompt?: string, queuedAvatar?: { imageUrl: string; prompt: string; seed: number; _id: string }) => {
   const response = await fetch("/api/nightclub/avatars", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ 
+      prompt,
+      queuedAvatar: queuedAvatar ? {
+        imageUrl: queuedAvatar.imageUrl,
+        prompt: queuedAvatar.prompt,
+        seed: queuedAvatar.seed,
+        queueId: queuedAvatar._id,
+      } : undefined,
+    }),
   });
 
   if (!response.ok) {
@@ -45,11 +53,42 @@ export const NightclubPanel = () => {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [pendingEncounterPairs, setPendingEncounterPairs] = useState<Set<string>>(new Set());
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   const hydratedAvatars = useMemo(
     () => avatars?.filter((avatar) => avatar.imageUrl) ?? [],
     [avatars]
   );
+
+  // Initialize nightclub with pre-generated avatars from queue
+  useEffect(() => {
+    if (hasInitialized) return;
+
+    const initializeFromQueue = async () => {
+      try {
+        console.log("[NightclubPanel] Initializing from queue...");
+        const response = await fetch("/api/nightclub/queue?count=12");
+        const data = await response.json();
+        
+        if (data.avatars && data.avatars.length > 0) {
+          console.log(`[NightclubPanel] Got ${data.avatars.length} avatars from queue, activating...`);
+          
+          // Activate each queued avatar as a nightclub avatar
+          for (const queuedAvatar of data.avatars) {
+            await spawnAvatar(undefined, queuedAvatar);
+          }
+        } else {
+          console.log("[NightclubPanel] Queue empty, will generate on demand");
+        }
+      } catch (error) {
+        console.error("[NightclubPanel] Failed to initialize from queue:", error);
+      } finally {
+        setHasInitialized(true);
+      }
+    };
+
+    initializeFromQueue();
+  }, [hasInitialized]);
 
   const handleRelease = useCallback(() => {
     setError(null);

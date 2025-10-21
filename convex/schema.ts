@@ -130,4 +130,15 @@ export default defineSchema({
   })
     .index("by_recent", ["startedAt"])
     .index("by_pair", ["pairKey"]),
+
+  // Pre-generated avatar queue for instant loading
+  avatarQueue: defineTable({
+    imageUrl: v.string(),
+    prompt: v.string(),
+    seed: v.number(),
+    createdAt: v.number(),
+    isReserved: v.boolean(), // true when dequeued but not yet activated
+  })
+    .index("by_available", ["isReserved", "createdAt"])
+    .index("by_createdAt", ["createdAt"]),
 });

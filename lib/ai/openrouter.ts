@@ -57,11 +57,17 @@ export const generateNightclubAvatarPrompts = async (): Promise<GenerateAvatarPr
 
   const systemPrompt = `You are a creative director for a trendy underground nightclub. Generate exactly 10 diverse, visually striking prompts for AI image generation of interesting, sexy, fashionable people who might be at the club.
 
-Mix different styles: futuristic cyberpunk, retro 80s/90s, haute couture, street fashion, etc.
-Include diverse appearances, genders, styles, and vibes.
-Each prompt should be 1-2 sentences, vivid and visual.
-Focus on fashion, style, lighting, and attitude.
-Return ONLY a JSON array of 10 strings, nothing else.`;
+CRITICAL: Maximize variety across ALL dimensions:
+- Styles: cyberpunk, retro 80s/90s, Y2K, haute couture, street fashion, punk, glam, minimal chic, maximalist
+- Backgrounds: solid colors (red, blue, green, orange, pink, black, white), gradients, neon lights, dark moody, bright vibrant, studio, outdoor
+- Lighting: neon, natural, studio, dramatic shadows, colorful gels, backlighting, side lighting, golden hour, cool blue, warm amber
+- Color palettes: hot pink/orange, cool blue/cyan, warm golden, electric green, deep red, pastel, monochrome, multicolor
+- Ethnicities and features: ensure global diversity
+- Genders and expressions: mix masculine, feminine, androgynous energy
+- Fashion eras: 70s disco, 80s new wave, 90s rave, 2000s club kid, modern streetwear, futuristic
+
+Each prompt should be detailed (3-4 sentences) and specify background color, lighting type, and mood.
+Return as JSON object with key "prompts" containing array of 10 strings.`;
 
   const userPrompt = `Generate 10 nightclub patron prompts for image generation.`;
 

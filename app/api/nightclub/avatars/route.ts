@@ -66,6 +66,48 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const requestedPrompt: string | undefined = body.prompt;
     const customSeed: number | undefined = body.seed;
+    const queuedAvatar: { imageUrl: string; prompt: string; seed: number; queueId: string } | undefined = body.queuedAvatar;
+
+    // If we have a pre-generated avatar from queue, use it directly
+    if (queuedAvatar) {
+      console.log(`[NIGHTCLUB_AVATAR] Using pre-generated avatar from queue: ${queuedAvatar.queueId}`);
+      
+      const userProfile = userId ? await convex.query(api.users.getUserByClerkId, { clerkId: userId }) : null;
+      const alias = userProfile?.alias ?? "Anonymous";
+
+      const avatarId = await convex.mutation(api.nightclub.spawnAvatar, {
+        clerkId: effectiveUserId,
+        aliasSnapshot: alias,
+        seed: queuedAvatar.seed,
+        prompt: queuedAvatar.prompt,
+      });
+
+      await convex.mutation(api.nightclub.setAvatarImage, {
+        avatarId,
+        imageUrl: queuedAvatar.imageUrl,
+      });
+
+      // Remove from queue
+      await convex.mutation(api.avatarQueue.removeFromQueue, {
+        queueId: queuedAvatar.queueId as any,
+      });
+
+      console.log(`[NIGHTCLUB_AVATAR] Activated queued avatar instantly with ID: ${avatarId}`);
+      
+      return NextResponse.json(
+        {
+          avatarId,
+          alias,
+          seed: queuedAvatar.seed,
+          imageUrl: queuedAvatar.imageUrl,
+          prompt: queuedAvatar.prompt,
+          fromQueue: true,
+        },
+        { status: 201 }
+      );
+    }
+
+    // Standard generation path
     const seed = Number.isFinite(customSeed) ? customSeed : Math.floor(Math.random() * 1_000_000);
 
     console.log(`[NIGHTCLUB_AVATAR] Seed: ${seed}, Custom prompt: ${requestedPrompt ? 'yes' : 'no'}`);
@@ -108,6 +150,7 @@ export async function POST(request: NextRequest) {
           seed,
           imageUrl,
           prompt,
+          fromQueue: false,
         },
         { status: 201 }
       );
@@ -120,6 +163,7 @@ export async function POST(request: NextRequest) {
           seed,
           imageError: imageError instanceof Error ? imageError.message : "Unknown image error",
           prompt,
+          fromQueue: false,
         },
         { status: 202 }
       );
