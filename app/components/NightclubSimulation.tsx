@@ -103,44 +103,27 @@ export default function NightclubSimulation() {
   const BASE_SPEED = isMobile ? 1 : 1.5
   const PROXIMITY_THRESHOLD = isMobile ? 70 : 100
 
-  const subjects = [
-    "1980s california surfer man with sun-bleached blonde hair, retro aviator sunglasses, neon pink wetsuit, beach vibes, vintage film photography, golden hour lighting",
-    "1980s california surfer woman with long flowing brown hair, retro cat-eye sunglasses, colorful floral bikini, beach aesthetic, vintage film style, warm tones",
-    "golden retriever wearing neon green sunglasses facing camera front view, 1980s california beach aesthetic, retro style, warm lighting",
-    "cool orange tabby cat wearing purple sunglasses facing camera front view, 1980s california beach vibes, retro photography style",
-    "tropical parrot wearing pink sunglasses facing camera front view, 1980s california surf aesthetic, bright colors, retro style",
-    "dolphin wearing blue sunglasses facing camera front view, 1980s california beach theme, vintage photography",
-    "1980s california surfer man with dark curly hair, retro round sunglasses, yellow and blue wetsuit, beach vibes, vintage film",
-    "1980s california surfer woman with short blonde hair, retro square sunglasses, neon orange bikini, beach aesthetic, vintage style",
-    "sea otter wearing red sunglasses facing camera front view, 1980s california beach aesthetic, retro photography",
-    "penguin wearing yellow sunglasses facing camera front view, 1980s california surf theme, bright retro colors",
-    "1980s california surfer man with long hair, retro mirrored sunglasses, green wetsuit, beach vibes, vintage film photography",
-    "1980s california surfer woman with braided hair, retro heart-shaped sunglasses, purple bikini, beach aesthetic, vintage style",
-    "husky dog wearing cyan sunglasses facing camera front view, 1980s california beach aesthetic, retro style",
-    "siamese cat wearing orange sunglasses facing camera front view, 1980s california beach vibes, retro photography",
-    "macaw parrot wearing blue sunglasses facing camera front view, 1980s california surf aesthetic, bright retro colors",
-  ]
-
-  const generateSingleAvatar = async (subject: string, id: string): Promise<WaitingAvatar> => {
+  const generateSingleAvatar = async (id: string): Promise<WaitingAvatar> => {
     try {
+      // No prompt - let server use OpenRouter-generated prompts for variety
       const response = await fetch("/api/nightclub/avatars", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: subject }),
+        body: JSON.stringify({}),
       })
       const data = await response.json()
 
       return {
         id,
-        image: data.imageUrl || `/placeholder.svg?height=60&width=60&query=${subject}`,
-        subject,
+        image: data.imageUrl || `/placeholder.svg?height=60&width=60`,
+        subject: data.prompt || "Anonymous",
       }
     } catch (error) {
       console.error("[v0] Error generating avatar:", error)
       return {
         id,
-        image: `/placeholder.svg?height=60&width=60&query=${subject}`,
-        subject,
+        image: `/placeholder.svg?height=60&width=60`,
+        subject: "Error",
       }
     }
   }
@@ -150,8 +133,7 @@ export default function NightclubSimulation() {
       setIsGenerating(true)
 
       const waitingPromises = Array.from({ length: 12 }, async (_, i) => {
-        const subject = subjects[i % subjects.length]
-        return generateSingleAvatar(subject, `waiting-${i}`)
+        return generateSingleAvatar(`waiting-${i}`)
       })
 
       const generatedWaiting = await Promise.all(waitingPromises)
@@ -187,8 +169,8 @@ export default function NightclubSimulation() {
 
     setWaitingAvatars((prev) => prev.filter((a) => a.id !== waitingAvatar.id))
 
-    const randomSubject = subjects[Math.floor(Math.random() * subjects.length)]
-    const newWaitingAvatar = await generateSingleAvatar(randomSubject, `waiting-${Date.now()}`)
+    // Generate new waiting avatar using OpenRouter prompts
+    const newWaitingAvatar = await generateSingleAvatar(`waiting-${Date.now()}`)
     setWaitingAvatars((prev) => [...prev, newWaitingAvatar])
   }
 
