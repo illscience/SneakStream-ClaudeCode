@@ -1,7 +1,7 @@
 import type { Id } from "@/convex/_generated/dataModel";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = process.env.OPENROUTER_KIMI_MODEL ?? "moonshot/kimi-k2";
+const DEFAULT_MODEL = process.env.OPENROUTER_KIMI_MODEL ?? "openai/gpt-4o-mini";
 
 interface ParticipantProfile {
   avatarId: Id<"nightclubAvatars">;
