@@ -4,8 +4,46 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { generateAvatarImage } from "@/lib/ai/fal";
 import { selectNightclubAvatarPrompt } from "@/lib/nightclub/prompts";
+import { generateNightclubAvatarPrompts } from "@/lib/ai/openrouter";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+
+// In-memory prompt cache
+let promptCache: string[] = [];
+let promptIndex = 0;
+let isGeneratingPrompts = false;
+
+async function getNextPrompt(): Promise<string> {
+  // If cache is empty or exhausted, generate new prompts
+  if (promptCache.length === 0 || promptIndex >= promptCache.length) {
+    // If already generating, wait and retry
+    if (isGeneratingPrompts) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return getNextPrompt();
+    }
+
+    isGeneratingPrompts = true;
+    try {
+      console.log("[PROMPT_CACHE] Generating new batch of 10 prompts from OpenRouter...");
+      const { prompts } = await generateNightclubAvatarPrompts();
+      promptCache = prompts;
+      promptIndex = 0;
+      console.log("[PROMPT_CACHE] Generated prompts:", prompts);
+    } catch (error) {
+      console.error("[PROMPT_CACHE] Failed to generate prompts, using fallback", error);
+      // Fallback to default prompts
+      const { prompt } = selectNightclubAvatarPrompt({});
+      return prompt;
+    } finally {
+      isGeneratingPrompts = false;
+    }
+  }
+
+  const prompt = promptCache[promptIndex];
+  promptIndex++;
+  console.log(`[PROMPT_CACHE] Using prompt ${promptIndex}/${promptCache.length}: ${prompt?.substring(0, 60)}...`);
+  return prompt || selectNightclubAvatarPrompt({}).prompt;
+}
 
 export async function GET() {
   try {
@@ -37,8 +75,9 @@ export async function POST(request: NextRequest) {
 
     console.log(`[NIGHTCLUB_AVATAR] User alias: ${alias}`);
 
-    const { prompt: themedPrompt, vibe } = selectNightclubAvatarPrompt({ alias });
-    const prompt = requestedPrompt ?? themedPrompt;
+    // Use OpenRouter-generated prompts for variety, or custom prompt if provided
+    const generatedPrompt = requestedPrompt ? null : await getNextPrompt();
+    const prompt = requestedPrompt ?? generatedPrompt ?? selectNightclubAvatarPrompt({ alias }).prompt;
 
     console.log(`[NIGHTCLUB_AVATAR] Using prompt: ${prompt.substring(0, 100)}...`);
 
@@ -69,7 +108,6 @@ export async function POST(request: NextRequest) {
           seed,
           imageUrl,
           prompt,
-          vibe,
         },
         { status: 201 }
       );
@@ -82,7 +120,6 @@ export async function POST(request: NextRequest) {
           seed,
           imageError: imageError instanceof Error ? imageError.message : "Unknown image error",
           prompt,
-          vibe,
         },
         { status: 202 }
       );

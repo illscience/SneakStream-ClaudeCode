@@ -45,6 +45,74 @@ const parseJsonContent = (content: unknown): string => {
   return "";
 };
 
+export interface GenerateAvatarPromptsResult {
+  prompts: string[];
+}
+
+export const generateNightclubAvatarPrompts = async (): Promise<GenerateAvatarPromptsResult> => {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY is not set");
+  }
+
+  const systemPrompt = `You are a creative director for a trendy underground nightclub. Generate exactly 10 diverse, visually striking prompts for AI image generation of interesting, sexy, fashionable people who might be at the club.
+
+Mix different styles: futuristic cyberpunk, retro 80s/90s, haute couture, street fashion, etc.
+Include diverse appearances, genders, styles, and vibes.
+Each prompt should be 1-2 sentences, vivid and visual.
+Focus on fashion, style, lighting, and attitude.
+Return ONLY a JSON array of 10 strings, nothing else.`;
+
+  const userPrompt = `Generate 10 nightclub patron prompts for image generation.`;
+
+  const response = await fetch(OPENROUTER_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      "HTTP-Referer": process.env.OPENROUTER_HTTP_REFERER ?? "https://dj-sneak-stream.local",
+      "X-Title": process.env.OPENROUTER_APP_TITLE ?? "DJ Sneak Nightclub",
+    },
+    body: JSON.stringify({
+      model: DEFAULT_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: {
+        type: "json_object",
+      },
+      temperature: 1.0,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenRouter request failed: ${response.status} ${errorText}`);
+  }
+
+  const payload = await response.json();
+  const message = payload?.choices?.[0]?.message;
+  const content = parseJsonContent(message?.content);
+
+  try {
+    const parsed = JSON.parse(content ?? "{}");
+    
+    // Handle different response formats
+    const prompts = parsed.prompts || parsed.avatars || Object.values(parsed);
+    
+    if (!Array.isArray(prompts) || prompts.length === 0) {
+      throw new Error("No prompts array found in response");
+    }
+
+    return {
+      prompts: prompts.slice(0, 10).map(String),
+    };
+  } catch (error) {
+    throw new Error(`Failed to parse OpenRouter prompts: ${error instanceof Error ? error.message : String(error)}`);
+  }
+};
+
 export const generateNightclubConversation = async ({
   participants,
   recentMessages,
