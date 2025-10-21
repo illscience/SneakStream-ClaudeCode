@@ -430,20 +430,22 @@ export default function NightclubSimulation() {
     if (avatar) {
       setDialogAvatar({ id: avatar.id, image: avatar.image })
       setDialogOpen(true)
-      setSelectedAvatar(avatar.image)
-
-      if (user?.id && avatar.image) {
-        try {
-          await updateUserAvatar({
-            clerkId: user.id,
-            avatarUrl: avatar.image,
-          })
-        } catch (error) {
-          console.error("Failed to update avatar:", error)
-        }
-      }
-
       setAvatars((prev) => prev.map((a) => (a.id === avatarId ? { ...a, paused: true } : a)))
+    }
+  }
+
+  const handleSetChatAvatar = async () => {
+    if (user?.id && dialogAvatar?.image) {
+      try {
+        setSelectedAvatar(dialogAvatar.image)
+        await updateUserAvatar({
+          clerkId: user.id,
+          avatarUrl: dialogAvatar.image,
+        })
+        setDialogOpen(false)
+      } catch (error) {
+        console.error("Failed to update avatar:", error)
+      }
     }
   }
 
@@ -737,7 +739,7 @@ export default function NightclubSimulation() {
         <DialogContent className="max-w-md bg-black border-2 border-[#c4ff0e]">
           {dialogAvatar && (
             <div className="flex flex-col items-center gap-4">
-              <DialogTitle className="text-2xl font-bold text-[#c4ff0e]">Chat Avatar Selected!</DialogTitle>
+              <DialogTitle className="text-2xl font-bold text-[#c4ff0e]">Avatar Preview</DialogTitle>
               <div
                 className="relative w-full aspect-square rounded-lg overflow-hidden border-4 border-[#ff00ff]"
                 style={{ boxShadow: "0 0 20px rgba(255, 0, 255, 0.5)" }}
@@ -749,13 +751,21 @@ export default function NightclubSimulation() {
                 />
               </div>
               <div className="text-center space-y-2">
-                <p className="text-[#ff00ff] text-sm font-semibold">
-                  This is now your chat avatar!
-                </p>
                 <p className="text-gray-400 text-sm">
+                  Set this as your chat avatar?
+                </p>
+                <p className="text-gray-500 text-xs">
                   All your messages will display this avatar.
                 </p>
               </div>
+              {user?.id && (
+                <button
+                  onClick={handleSetChatAvatar}
+                  className="w-full bg-[#c4ff0e] text-black font-bold py-3 px-6 rounded-lg hover:bg-[#d4ff3e] transition-colors"
+                >
+                  Set as Chat Avatar
+                </button>
+              )}
             </div>
           )}
         </DialogContent>
