@@ -6,8 +6,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { NightclubScene } from "./NightclubScene";
 import NightclubConversationFeed from "./NightclubConversationFeed";
-import { Loader2, Sparkles, UsersRound, MessageCircleHeart, Wand2 } from "lucide-react";
-import { SignedIn, SignedOut } from "@clerk/nextjs";
+import { Loader2, Sparkles, UsersRound, MessageCircleHeart } from "lucide-react";
 
 const spawnAvatar = async (prompt?: string) => {
   const response = await fetch("/api/nightclub/avatars", {
@@ -46,8 +45,6 @@ export const NightclubPanel = () => {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [pendingEncounterPairs, setPendingEncounterPairs] = useState<Set<string>>(new Set());
-  const [customPrompt, setCustomPrompt] = useState("");
-  const [showCustomInput, setShowCustomInput] = useState(false);
 
   const hydratedAvatars = useMemo(
     () => avatars?.filter((avatar) => avatar.imageUrl) ?? [],
@@ -64,20 +61,6 @@ export const NightclubPanel = () => {
       }
     });
   }, []);
-
-  const handleCustomRelease = useCallback(() => {
-    if (!customPrompt.trim()) return;
-    setError(null);
-    startTransition(async () => {
-      try {
-        await spawnAvatar(customPrompt.trim());
-        setCustomPrompt("");
-        setShowCustomInput(false);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
-      }
-    });
-  }, [customPrompt]);
 
   const handleEncounter = useCallback(
     (avatarA: Id<"nightclubAvatars">, avatarB: Id<"nightclubAvatars">) => {
@@ -119,18 +102,6 @@ export const NightclubPanel = () => {
               {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               Release Avatar
             </button>
-            
-            <SignedIn>
-              <button
-                onClick={() => setShowCustomInput(!showCustomInput)}
-                className="inline-flex items-center gap-2 rounded-full bg-fuchsia-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-fuchsia-500 disabled:cursor-not-allowed disabled:opacity-75"
-                disabled={isPending}
-              >
-                <Wand2 className="h-4 w-4" />
-                Custom Avatar
-              </button>
-            </SignedIn>
-            
             <span className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-wide text-zinc-400">
               <UsersRound className="h-4 w-4 text-lime-300" />
               {hydratedAvatars.length} on floor
@@ -147,41 +118,6 @@ export const NightclubPanel = () => {
         {error && (
           <div className="mt-4 rounded-2xl border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm text-red-200">
             {error}
-          </div>
-        )}
-
-        {showCustomInput && (
-          <div className="mt-4 space-y-3">
-            <label className="block text-sm font-medium text-zinc-300">
-              Describe your avatar
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={customPrompt}
-                onChange={(e) => setCustomPrompt(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleCustomRelease();
-                  }
-                }}
-                placeholder="e.g., cyberpunk DJ with purple mohawk and LED jacket..."
-                className="flex-1 rounded-xl border border-fuchsia-500/30 bg-black/50 px-4 py-2 text-sm text-white placeholder:text-zinc-500 focus:border-fuchsia-400 focus:outline-none focus:ring-2 focus:ring-fuchsia-400/20"
-                disabled={isPending}
-              />
-              <button
-                onClick={handleCustomRelease}
-                disabled={isPending || !customPrompt.trim()}
-                className="inline-flex items-center gap-2 rounded-xl bg-fuchsia-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-fuchsia-500 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                Generate
-              </button>
-            </div>
-            <p className="text-xs text-zinc-500">
-              Describe any person, character, or creature in a nightclub setting. Be creative!
-            </p>
           </div>
         )}
 

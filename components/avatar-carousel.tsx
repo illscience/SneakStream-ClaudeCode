@@ -45,7 +45,7 @@ export function AvatarCarousel({ onAvatarSelect }: AvatarCarouselProps) {
     const randomPrompt = prompts[Math.floor(Math.random() * prompts.length)]
 
     try {
-      const response = await fetch("/api/generate-avatar", {
+      const response = await fetch("/api/nightclub/avatars", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: randomPrompt }),

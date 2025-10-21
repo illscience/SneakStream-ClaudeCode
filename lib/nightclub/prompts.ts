@@ -5,12 +5,6 @@ const sunglassesStyles = [
   "ultra-wide neon visor glasses",
   "sleek angular acetate sunglasses",
   "translucent pastel rimless shades",
-  "geometric hexagonal frames",
-  "gradient lens oversized shades",
-  "retro round steampunk goggles",
-  "crystalline faceted sunglasses",
-  "metallic rose gold aviators",
-  "prismatic shield visor",
 ];
 
 const animalDescriptors = [
@@ -20,12 +14,6 @@ const animalDescriptors = [
   "cybernetic",
   "celestial",
   "glam rock",
-  "ethereal",
-  "cosmic",
-  "luminescent",
-  "electric",
-  "holographic",
-  "radiant",
 ];
 
 const animals = [
@@ -36,17 +24,6 @@ const animals = [
   "arctic fox",
   "dolphin",
   "toucan",
-  "persian cat",
-  "fennec fox",
-  "peacock",
-  "maine coon cat",
-  "cockatoo",
-  "lynx",
-  "macaw",
-  "husky",
-  "serval cat",
-  "otter",
-  "kookaburra",
 ];
 
 const animalFits = [
@@ -56,10 +33,6 @@ const animalFits = [
   "iridescent satin jumpsuit",
   "synthetic fur coat with neon embroidery",
   "holographic tracksuit with shoulder pads",
-  "metallic mesh tank top",
-  "velvet studded vest",
-  "laser-cut geometric jacket",
-  "reflective windbreaker with glow tape",
 ];
 
 const beachDescriptors = [
@@ -69,12 +42,6 @@ const beachDescriptors = [
   "aerobics-champion",
   "surf-guitar obsessed",
   "retro-fitness icon",
-  "neon-obsessed",
-  "vintage glamour",
-  "electric sunset chasing",
-  "synth-wave dreaming",
-  "chrome-loving",
-  "palm tree cruising",
 ];
 
 const beachCharacters = [
@@ -85,14 +52,6 @@ const beachCharacters = [
   "breakdancer",
   "fashion photographer",
   "synth-pop vocalist",
-  "skateboarder",
-  "street artist",
-  "music producer",
-  "vintage shop owner",
-  "record collector",
-  "beach volleyball player",
-  "motorcycle enthusiast",
-  "graphic designer",
 ];
 
 const beachFits = [
@@ -103,11 +62,6 @@ const beachFits = [
   "color-blocked tracksuit with neon ankle warmers",
   "denim jacket covered in band patches and bold bikinis",
   "wet-look leather jacket with vibrant leotard",
-  "zebra-print bodysuit with leg warmers",
-  "satin bomber with graphic tee and ripped jeans",
-  "tie-dye tank and neon board shorts",
-  "metallic crop jacket and high-waisted bikini",
-  "oversized blazer with nothing underneath and bike shorts",
 ];
 
 const beachAccessories = [

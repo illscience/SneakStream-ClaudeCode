@@ -123,7 +123,7 @@ export default function NightclubSimulation() {
 
   const generateSingleAvatar = async (subject: string, id: string): Promise<WaitingAvatar> => {
     try {
-      const response = await fetch("/api/generate-avatar", {
+      const response = await fetch("/api/nightclub/avatars", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: subject }),

@@ -88,10 +88,20 @@ const AvatarBubble = ({
   onSelect?: (id: Id<"nightclubAvatars">) => void;
 }) => {
   const groupRef = useRef<THREE.Group>(null);
+  const targetPosRef = useRef<[number, number]>([0, 0]);
 
-  useFrame(() => {
+  useFrame((_, delta) => {
+    // Smoothly interpolate to target position for fluid movement
     const [x, y] = state.position;
-    groupRef.current?.position.set(x, y, 0);
+    targetPosRef.current = [x, y];
+    
+    if (groupRef.current) {
+      const current = groupRef.current.position;
+      const lerpFactor = Math.min(delta * 12, 1); // Smooth interpolation
+      current.x += (x - current.x) * lerpFactor;
+      current.y += (y - current.y) * lerpFactor;
+      current.z = 0;
+    }
   });
 
   const accentClass = useMemo(() => {
@@ -226,9 +236,13 @@ export const NightclubScene = ({
 }: NightclubSceneProps) => {
   const [simStates, setSimStates] = useState<AvatarSimState[]>([]);
   const statesRef = useRef<Map<string, AvatarSimState>>(new Map());
+  const syncTimeoutRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
     const activeIds = new Set<string>();
+
+    console.log(`[NightclubScene] Total avatars received: ${avatars.length}`);
+    console.log(`[NightclubScene] Avatars:`, avatars.map(a => ({ id: a._id, alias: a.aliasSnapshot, hasImage: !!a.imageUrl })));
 
     avatars
       .filter((avatar) => avatar.imageUrl)
@@ -243,13 +257,27 @@ export const NightclubScene = ({
         }
       });
 
+    console.log(`[NightclubScene] Active avatars after filter: ${activeIds.size}`);
+
     for (const key of Array.from(statesRef.current.keys())) {
       if (!activeIds.has(key)) {
         statesRef.current.delete(key);
       }
     }
 
-    setSimStates(Array.from(statesRef.current.values()));
+    // Debounce state updates to reduce re-renders and improve performance
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+    }
+    syncTimeoutRef.current = setTimeout(() => {
+      setSimStates(Array.from(statesRef.current.values()));
+    }, 100);
+
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
   }, [avatars]);
 
   const handleEncounter = useCallback<EncounterHandler>(

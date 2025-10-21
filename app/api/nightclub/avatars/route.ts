@@ -20,35 +20,48 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // Allow both authenticated and anonymous users for nightclub simulation
+    const effectiveUserId = userId ?? `anon_${Math.random().toString(36).substring(2, 15)}`;
+
+    console.log(`[NIGHTCLUB_AVATAR] Creating avatar for user: ${effectiveUserId} (authenticated: ${!!userId})`);
 
     const body = await request.json().catch(() => ({}));
     const requestedPrompt: string | undefined = body.prompt;
     const customSeed: number | undefined = body.seed;
     const seed = Number.isFinite(customSeed) ? customSeed : Math.floor(Math.random() * 1_000_000);
 
-    const userProfile = await convex.query(api.users.getUserByClerkId, { clerkId: userId });
+    console.log(`[NIGHTCLUB_AVATAR] Seed: ${seed}, Custom prompt: ${requestedPrompt ? 'yes' : 'no'}`);
+
+    const userProfile = userId ? await convex.query(api.users.getUserByClerkId, { clerkId: userId }) : null;
     const alias = userProfile?.alias ?? "Anonymous";
+
+    console.log(`[NIGHTCLUB_AVATAR] User alias: ${alias}`);
 
     const { prompt: themedPrompt, vibe } = selectNightclubAvatarPrompt({ alias });
     const prompt = requestedPrompt ?? themedPrompt;
 
+    console.log(`[NIGHTCLUB_AVATAR] Using prompt: ${prompt.substring(0, 100)}...`);
+
     const avatarId = await convex.mutation(api.nightclub.spawnAvatar, {
-      clerkId: userId,
+      clerkId: effectiveUserId,
       aliasSnapshot: alias,
       seed,
       prompt,
     });
 
+    console.log(`[NIGHTCLUB_AVATAR] Avatar spawned with ID: ${avatarId}`);
+
     try {
+      console.log(`[NIGHTCLUB_AVATAR] Starting image generation...`);
       const { imageUrl } = await generateAvatarImage({ prompt, seed });
+      
+      console.log(`[NIGHTCLUB_AVATAR] Setting avatar image: ${imageUrl}`);
       await convex.mutation(api.nightclub.setAvatarImage, {
         avatarId,
         imageUrl,
       });
 
+      console.log(`[NIGHTCLUB_AVATAR] Avatar fully created with image`);
       return NextResponse.json(
         {
           avatarId,
@@ -61,7 +74,7 @@ export async function POST(request: NextRequest) {
         { status: 201 }
       );
     } catch (imageError) {
-      console.error("[nightclub/avatars] Image generation error", imageError);
+      console.error("[NIGHTCLUB_AVATAR] Image generation error", imageError);
       return NextResponse.json(
         {
           avatarId,
@@ -75,7 +88,7 @@ export async function POST(request: NextRequest) {
       );
     }
   } catch (error) {
-    console.error("[nightclub/avatars] POST error", error);
+    console.error("[NIGHTCLUB_AVATAR] POST error", error);
     return NextResponse.json({ error: "Failed to create avatar" }, { status: 500 });
   }
 }

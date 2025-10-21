@@ -1,18 +1,15 @@
-import { fal } from "@fal-ai/serverless-client";
+import * as fal from "@fal-ai/serverless-client";
 
 const MODEL_ID = process.env.FAL_AVATAR_MODEL_ID ?? "fal-ai/flux-pro/v1.1";
-let configured = false;
 
 const ensureConfigured = () => {
-  if (!configured) {
-    const key = process.env.FAL_API_KEY ?? process.env.FAL_KEY;
-    if (!key) {
-      throw new Error("FAL_API_KEY is not set");
-    }
-
-    fal.config({ credentials: key });
-    configured = true;
+  const key = process.env.FAL_API_KEY ?? process.env.FAL_KEY;
+  if (!key) {
+    throw new Error("FAL_API_KEY is not set");
   }
+
+  // Configure on every call to ensure API key is set
+  fal.config({ credentials: key });
 };
 
 export interface GenerateAvatarImageOptions {
@@ -33,6 +30,8 @@ export const generateAvatarImage = async ({
 }: GenerateAvatarImageOptions): Promise<GenerateAvatarImageResult> => {
   ensureConfigured();
 
+  console.log(`[FAL] Starting image generation with seed: ${seed}, prompt: ${prompt.substring(0, 50)}...`);
+
   const result = await fal.subscribe(MODEL_ID, {
     input: {
       prompt,
@@ -42,6 +41,8 @@ export const generateAvatarImage = async ({
       guidance_scale: 3,
     },
   });
+
+  console.log(`[FAL] Raw response:`, JSON.stringify(result).substring(0, 200));
 
   const image =
     // @ts-expect-error - API response shapes are not strongly typed
@@ -58,8 +59,10 @@ export const generateAvatarImage = async ({
     result?.url;
 
   if (!image) {
+    console.error(`[FAL] Failed to resolve image URL from response`, result);
     throw new Error("Failed to resolve image URL from FAL response");
   }
 
+  console.log(`[FAL] Successfully generated image: ${image}`);
   return { imageUrl: image as string, raw: result };
 };
