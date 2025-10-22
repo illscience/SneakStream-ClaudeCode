@@ -39,6 +39,8 @@ export const generateAvatarImage = async ({
       seed,
       num_inference_steps: 28,
       guidance_scale: 3,
+      enable_safety_checker: true,
+      safety_tolerance: 5, // Most permissive setting (1-5 scale)
     },
   });
 
