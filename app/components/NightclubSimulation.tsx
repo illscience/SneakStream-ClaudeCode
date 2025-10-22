@@ -557,10 +557,17 @@ export default function NightclubSimulation() {
       return
     }
     
-    // Pick 2 random avatars from dance floor
-    const shuffled = [...avatars].sort(() => Math.random() - 0.5)
-    const avatar1 = shuffled[0]
-    const avatar2 = shuffled[1]
+    // Pick 2 distinct random avatars from dance floor
+    const index1 = Math.floor(Math.random() * avatars.length)
+    let index2 = Math.floor(Math.random() * avatars.length)
+    
+    // Ensure we pick two different avatars
+    while (index2 === index1 && avatars.length > 1) {
+      index2 = Math.floor(Math.random() * avatars.length)
+    }
+    
+    const avatar1 = avatars[index1]
+    const avatar2 = avatars[index2]
     
     console.log(`[POLAROID] Snapping photo of:`)
     console.log(`  Avatar 1: ${avatar1.subject}, Image: ${avatar1.image?.substring(0, 50)}`)

@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     console.log("[Polaroid] Generated prompt:", prompt)
     console.log("[Polaroid] Image size:", imageSize)
     
-    const result = await fal.subscribe("fal-ai/flux-pro/kontext/max/multi", {
+    const result = await fal.subscribe("fal-ai/flux-pro/kontext/multi", {
       input: {
         prompt,
         image_urls: [avatar1Url, avatar2Url],
