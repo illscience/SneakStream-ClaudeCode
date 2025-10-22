@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Standard generation path
-    const seed = Number.isFinite(customSeed) ? customSeed : Math.floor(Math.random() * 1_000_000);
+    const seed: number = Number.isFinite(customSeed) ? customSeed! : Math.floor(Math.random() * 1_000_000);
 
     console.log(`[NIGHTCLUB_AVATAR] Seed: ${seed}, Custom prompt: ${requestedPrompt ? 'yes' : 'no'}`);
 
