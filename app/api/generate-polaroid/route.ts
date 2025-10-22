@@ -2,11 +2,6 @@ import { type NextRequest, NextResponse } from "next/server"
 import * as fal from "@fal-ai/serverless-client"
 import { generatePolaroidSelfiePrompt } from "@/lib/nightclub/prompts"
 
-// Configure fal client
-fal.config({
-  credentials: process.env.FAL_API_KEY || process.env.FAL_KEY,
-})
-
 export async function POST(request: NextRequest) {
   try {
     const { avatar1Url, avatar2Url } = await request.json()
@@ -14,6 +9,11 @@ export async function POST(request: NextRequest) {
     if (!avatar1Url || !avatar2Url) {
       return NextResponse.json({ error: "Both avatar URLs are required" }, { status: 400 })
     }
+
+    // Configure fal client inside the handler to ensure env vars are available
+    fal.config({
+      credentials: process.env.FAL_API_KEY || process.env.FAL_KEY,
+    })
 
     // Generate dynamic selfie-style photo using fal Flux Kontext multi-image
     const prompt = generatePolaroidSelfiePrompt()

@@ -1,11 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import * as fal from "@fal-ai/serverless-client"
 
-// Configure fal client
-fal.config({
-  credentials: process.env.FAL_API_KEY || process.env.FAL_KEY,
-})
-
 export async function POST(request: NextRequest) {
   try {
     const { prompt } = await request.json()
@@ -13,6 +8,11 @@ export async function POST(request: NextRequest) {
     if (!prompt) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 })
     }
+
+    // Configure fal client inside the handler to ensure env vars are available
+    fal.config({
+      credentials: process.env.FAL_API_KEY || process.env.FAL_KEY,
+    })
 
     // Generate anime-style avatar using fal schnell model
     const result = await fal.subscribe("fal-ai/flux/schnell", {
