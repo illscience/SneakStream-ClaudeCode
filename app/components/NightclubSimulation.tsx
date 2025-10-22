@@ -25,6 +25,7 @@ interface WaitingAvatar {
   id: string
   image: string
   subject: string
+  queueId?: string // Convex _id for deletion after release
 }
 
 interface ConversationCard {
@@ -53,9 +54,7 @@ export default function NightclubSimulation() {
   const conversationPairsRef = useRef<Set<string>>(new Set())
   const avatarsRef = useRef<Avatar[]>([])
   const frameCountRef = useRef(0)
-  const lastPolaroidTimeRef = useRef<number>(0)
-  const polaroidPauseTimeRef = useRef<number>(0)
-  const polaroidShownTimeRef = useRef<number>(0)
+  const lastPolaroidTimeRef = useRef<number>(Date.now()) // Initialize to now to prevent immediate polaroids
 
   // Chat functionality
   const messages = useQuery(api.chat.getMessages)
@@ -145,6 +144,7 @@ export default function NightclubSimulation() {
             id: `queued-${i}`,
             image: qa.imageUrl,
             subject: qa.prompt.substring(0, 30),
+            queueId: qa._id, // Save Convex ID for deletion after release
           }))
           setWaitingAvatars(queuedAvatars)
           setIsGenerating(false)
@@ -193,6 +193,16 @@ export default function NightclubSimulation() {
 
     setWaitingAvatars((prev) => prev.filter((a) => a.id !== waitingAvatar.id))
 
+    // Delete from Convex queue if this avatar came from the queue
+    if (waitingAvatar.queueId) {
+      console.log(`[QUEUE] Deleting avatar ${waitingAvatar.queueId} from queue after release`)
+      fetch('/api/nightclub/queue', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ queueId: waitingAvatar.queueId }),
+      }).catch((err) => console.error('[QUEUE] Failed to delete from queue:', err))
+    }
+
     // Generate new waiting avatar using OpenRouter prompts
     const newWaitingAvatar = await generateSingleAvatar(`waiting-${Date.now()}`)
     setWaitingAvatars((prev) => [...prev, newWaitingAvatar])
@@ -201,8 +211,8 @@ export default function NightclubSimulation() {
   const generatePolaroid = async (avatar1: Avatar, avatar2: Avatar) => {
     const now = Date.now()
 
-    // Check if 30 seconds have passed since last polaroid (accounting for pause time)
-    const timeSinceLastPolaroid = now - lastPolaroidTimeRef.current - polaroidPauseTimeRef.current
+    // Check if 30 seconds have passed since last polaroid was dismissed
+    const timeSinceLastPolaroid = now - lastPolaroidTimeRef.current
     if (timeSinceLastPolaroid < 30000) {
       return
     }
@@ -223,6 +233,8 @@ export default function NightclubSimulation() {
       conversationPairsRef.current.delete(pairKey)
     }, 10000)
 
+    // Update timer IMMEDIATELY to prevent multiple generations
+    lastPolaroidTimeRef.current = now
     setGeneratingPolaroid(true)
 
     try {
@@ -238,8 +250,6 @@ export default function NightclubSimulation() {
 
       if (data.imageUrl) {
         setPolaroid(data.imageUrl)
-        lastPolaroidTimeRef.current = now
-        polaroidShownTimeRef.current = now
       }
     } catch (error) {
       console.error("[Polaroid] Error generating polaroid:", error)
@@ -249,9 +259,6 @@ export default function NightclubSimulation() {
   }
 
   const handlePolaroidDismiss = () => {
-    const now = Date.now()
-    const pauseDuration = now - polaroidShownTimeRef.current
-    polaroidPauseTimeRef.current += pauseDuration
     setPolaroid(null)
   }
 

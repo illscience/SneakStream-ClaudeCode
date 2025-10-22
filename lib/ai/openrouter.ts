@@ -112,7 +112,15 @@ Return as JSON object with key "prompts" containing array of 10 strings.`;
     }
 
     return {
-      prompts: prompts.slice(0, 10).map(String),
+      prompts: prompts.slice(0, 10).map(p => {
+        // Properly extract string from various formats
+        if (typeof p === 'string') return p;
+        if (typeof p === 'object' && p !== null) {
+          // Handle object with text/content/prompt property
+          return String(p.text || p.content || p.prompt || JSON.stringify(p));
+        }
+        return String(p);
+      }),
     };
   } catch (error) {
     throw new Error(`Failed to parse OpenRouter prompts: ${error instanceof Error ? error.message : String(error)}`);

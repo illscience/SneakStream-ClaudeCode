@@ -119,3 +119,19 @@ export const getBackfillCount = query({
   },
 });
 
+/**
+ * Force unreserve all reserved avatars (admin/debug function)
+ */
+export const unreserveAll = mutation({
+  handler: async (ctx) => {
+    const allAvatars = await ctx.db.query("avatarQueueV2").collect();
+    const reserved = allAvatars.filter((a) => a.isReserved === true);
+    
+    for (const avatar of reserved) {
+      await ctx.db.patch(avatar._id, { isReserved: false });
+    }
+    
+    return reserved.length;
+  },
+});
+
