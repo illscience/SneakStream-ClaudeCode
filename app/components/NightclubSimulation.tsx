@@ -203,6 +203,11 @@ export default function NightclubSimulation() {
       return
     }
 
+    console.log(`[POLAROID] Sending to API:`, {
+      avatar1Url: avatar1.image,
+      avatar2Url: avatar2.image,
+    })
+
     setGeneratingPolaroid(true)
 
     try {
@@ -214,7 +219,14 @@ export default function NightclubSimulation() {
           avatar2Url: avatar2.image,
         }),
       })
+      
+      if (!response.ok) {
+        console.error(`[POLAROID] API error: ${response.status} ${response.statusText}`)
+        return
+      }
+      
       const data = await response.json()
+      console.log('[POLAROID] Received response:', data)
 
       if (data.imageUrl) {
         setPolaroid(data.imageUrl)
@@ -490,21 +502,53 @@ export default function NightclubSimulation() {
   }
 
   const handleReleaseRandom = () => {
-    if (waitingAvatars.length === 0) return
+    if (waitingAvatars.length < 2) return
     
-    // Release random number of avatars (1-5, or all if less than 5)
+    // Release 2-5 random avatars (or all if less than 5)
     const maxToRelease = Math.min(5, waitingAvatars.length)
-    const numToRelease = Math.floor(Math.random() * maxToRelease) + 1
+    const numToRelease = Math.floor(Math.random() * (maxToRelease - 1)) + 2 // Min 2, max 5
     
     console.log(`[NIGHTCLUB] Releasing ${numToRelease} random avatars`)
     
-    for (let i = 0; i < numToRelease; i++) {
-      if (waitingAvatars.length > 0) {
-        const randomIndex = Math.floor(Math.random() * waitingAvatars.length)
-        const avatar = waitingAvatars[randomIndex]
-        releaseAvatar(avatar)
+    // Snapshot current waiting avatars and shuffle
+    const currentWaiting = [...waitingAvatars]
+    const shuffled = currentWaiting.sort(() => Math.random() - 0.5)
+    const toRelease = shuffled.slice(0, numToRelease)
+    
+    // Remove from waiting list FIRST to prevent duplicates
+    setWaitingAvatars(prev => prev.filter(a => !toRelease.includes(a)))
+    
+    // Then release all to dance floor
+    toRelease.forEach(avatar => {
+      const speedMultiplier = 0.6 + Math.random() * 1.2
+      const initialAngle = Math.random() * Math.PI * 2
+      const initialSpeed = BASE_SPEED * speedMultiplier
+
+      const newAvatar: Avatar = {
+        id: `avatar-${Date.now()}-${Math.random()}`,
+        x: Math.random() * (CANVAS_SIZE - AVATAR_SIZE - 100) + 50,
+        y: 20,
+        vx: Math.cos(initialAngle) * initialSpeed,
+        vy: Math.sin(initialAngle) * initialSpeed,
+        image: avatar.image,
+        speedMultiplier,
+        subject: avatar.subject,
+        lastDirectionChange: Date.now(),
+        targetDirection: {
+          vx: Math.cos(initialAngle) * initialSpeed,
+          vy: Math.sin(initialAngle) * initialSpeed,
+        },
       }
-    }
+
+      setAvatars((prev) => [...prev, newAvatar])
+    })
+    
+    // Generate replacement avatars
+    Promise.all(
+      toRelease.map((_, i) => generateSingleAvatar(`waiting-${Date.now()}-${i}`))
+    ).then(newAvatars => {
+      setWaitingAvatars(prev => [...prev, ...newAvatars])
+    })
   }
 
   const handleSnapPhoto = () => {
@@ -513,12 +557,15 @@ export default function NightclubSimulation() {
       return
     }
     
-    // Pick 2 random avatars
+    // Pick 2 random avatars from dance floor
     const shuffled = [...avatars].sort(() => Math.random() - 0.5)
     const avatar1 = shuffled[0]
     const avatar2 = shuffled[1]
     
-    console.log(`[POLAROID] Manual snap of ${avatar1.subject} and ${avatar2.subject}`)
+    console.log(`[POLAROID] Snapping photo of:`)
+    console.log(`  Avatar 1: ${avatar1.subject}, Image: ${avatar1.image?.substring(0, 50)}`)
+    console.log(`  Avatar 2: ${avatar2.subject}, Image: ${avatar2.image?.substring(0, 50)}`)
+    
     generatePolaroid(avatar1, avatar2)
   }
 
@@ -528,11 +575,11 @@ export default function NightclubSimulation() {
       <div className="flex gap-4 items-center">
         <button
           onClick={handleReleaseRandom}
-          disabled={waitingAvatars.length === 0}
+          disabled={waitingAvatars.length < 2}
           className="bg-[#ff00ff] hover:bg-[#ff00ff]/80 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-2 px-6 rounded-lg transition-colors"
           style={{ boxShadow: "0 0 10px rgba(255, 0, 255, 0.5)" }}
         >
-          Release Random Avatars ({waitingAvatars.length} waiting)
+          Release 2-5 Random ({waitingAvatars.length} waiting)
         </button>
         
         <button
@@ -540,7 +587,7 @@ export default function NightclubSimulation() {
           disabled={avatars.length < 2 || generatingPolaroid || polaroid !== null}
           className="bg-[#c4ff0e] hover:bg-[#d4ff3e] disabled:bg-gray-600 disabled:cursor-not-allowed text-black font-bold py-2 px-6 rounded-lg transition-colors"
         >
-          📸 Snap Photo ({avatars.length} on floor)
+          {generatingPolaroid ? '⏳ Generating...' : `📸 Snap Photo (${avatars.length} on floor)`}
         </button>
       </div>
 
