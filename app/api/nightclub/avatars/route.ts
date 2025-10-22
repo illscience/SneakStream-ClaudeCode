@@ -88,8 +88,8 @@ export async function POST(request: NextRequest) {
       });
 
       // Remove from queue
-      await convex.mutation(api.avatarQueue.removeFromQueue, {
-        queueId: queuedAvatar.queueId as any,
+      await convex.mutation(api.avatarQueue.deleteAvatar, {
+        id: queuedAvatar.queueId as any,
       });
 
       console.log(`[NIGHTCLUB_AVATAR] Activated queued avatar instantly with ID: ${avatarId}`);
