@@ -5,6 +5,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Html, Grid } from "@react-three/drei";
 import type { Id } from "@/convex/_generated/dataModel";
 import clsx from "clsx";
+import * as THREE from "three";
 
 export interface NightclubAvatarDoc {
   _id: Id<"nightclubAvatars">;

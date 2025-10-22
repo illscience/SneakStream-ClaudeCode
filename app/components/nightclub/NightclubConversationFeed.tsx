@@ -33,7 +33,7 @@ export const NightclubConversationFeed = ({ focusedEncounterId, className }: Nig
   });
 
   const avatarMap = useMemo(() => {
-    const map = new Map<Id<"nightclubAvatars">, (typeof avatars)[number]>();
+    const map = new Map<Id<"nightclubAvatars">, NonNullable<typeof avatars>[number]>();
     avatars?.forEach((avatar) => {
       map.set(avatar._id, avatar);
     });
