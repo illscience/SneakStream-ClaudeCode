@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { useUser } from "@clerk/nextjs"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { MessageSquare, Send, Trash2 } from "lucide-react"
+import { MessageSquare, Send, Trash2, X } from "lucide-react"
 
 interface Avatar {
   id: string
@@ -603,6 +603,31 @@ export default function NightclubSimulation() {
     generatePolaroid(avatar1, avatar2)
   }
 
+  const handleDeleteWaitingAvatar = async (avatar: WaitingAvatar, e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent releasing the avatar
+    
+    // Remove from UI immediately
+    setWaitingAvatars((prev) => prev.filter((a) => a.id !== avatar.id))
+    
+    // Delete from database
+    if (avatar._id) {
+      try {
+        await fetch('/api/nightclub/avatar', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ avatarId: avatar._id }),
+        })
+        console.log(`[AVATAR_DELETE] Deleted waiting avatar ${avatar._id} from pool`)
+      } catch (error) {
+        console.log(`[AVATAR_DELETE] Failed to delete avatar (already deleted):`, error)
+      }
+    }
+    
+    // Generate replacement avatar
+    const newWaitingAvatar = await generateSingleAvatar(`waiting-${Date.now()}`)
+    setWaitingAvatars((prev) => [...prev, newWaitingAvatar])
+  }
+
   return (
     <div className="space-y-6">
       {/* Control Buttons */}
@@ -636,7 +661,7 @@ export default function NightclubSimulation() {
           {waitingAvatars.map((avatar) => (
             <div
               key={avatar.id}
-              className="cursor-pointer transition-all hover:scale-110 flex-shrink-0"
+              className="relative cursor-pointer transition-all hover:scale-110 flex-shrink-0 group"
               onClick={() => releaseAvatar(avatar)}
             >
               <div
@@ -649,6 +674,13 @@ export default function NightclubSimulation() {
                   className="w-full h-full object-cover"
                 />
               </div>
+              <button
+                onClick={(e) => handleDeleteWaitingAvatar(avatar, e)}
+                className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                title="Delete avatar"
+              >
+                <X className="w-3 h-3 text-white" />
+              </button>
             </div>
           ))}
         </div>
