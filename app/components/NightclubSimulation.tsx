@@ -129,9 +129,33 @@ export default function NightclubSimulation() {
   }
 
   useEffect(() => {
-    const generateAvatars = async () => {
+    const loadAvatars = async () => {
       setIsGenerating(true)
 
+      try {
+        // First try to dequeue pre-generated avatars from queue
+        console.log('[QUEUE] Attempting to load 12 avatars from queue...')
+        const queueResponse = await fetch('/api/nightclub/queue?count=12')
+        const queueData = await queueResponse.json()
+
+        if (queueData.avatars && queueData.avatars.length > 0) {
+          // Use pre-generated avatars from queue
+          console.log(`[QUEUE] Loaded ${queueData.avatars.length} avatars from queue instantly!`)
+          const queuedAvatars = queueData.avatars.map((qa: any, i: number) => ({
+            id: `queued-${i}`,
+            image: qa.imageUrl,
+            subject: qa.prompt.substring(0, 30),
+          }))
+          setWaitingAvatars(queuedAvatars)
+          setIsGenerating(false)
+          return
+        }
+      } catch (error) {
+        console.warn('[QUEUE] Failed to load from queue, generating fresh:', error)
+      }
+
+      // Fallback: generate fresh avatars if queue is empty
+      console.log('[QUEUE] Queue empty, generating 12 avatars fresh...')
       const waitingPromises = Array.from({ length: 12 }, async (_, i) => {
         return generateSingleAvatar(`waiting-${i}`)
       })
@@ -141,7 +165,7 @@ export default function NightclubSimulation() {
       setIsGenerating(false)
     }
 
-    generateAvatars()
+    loadAvatars()
   }, [])
 
   const releaseAvatar = async (waitingAvatar: WaitingAvatar) => {

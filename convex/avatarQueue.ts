@@ -13,7 +13,7 @@ export const enqueueAvatar = mutation({
     seed: v.number(),
   },
   handler: async (ctx, args) => {
-    const avatarId = await ctx.db.insert("avatarQueue", {
+    const avatarId = await ctx.db.insert("avatarQueueV2", {
       imageUrl: args.imageUrl,
       prompt: args.prompt,
       seed: args.seed,
@@ -29,10 +29,8 @@ export const enqueueAvatar = mutation({
  */
 export const getAvailableCount = query({
   handler: async (ctx) => {
-    const available = await ctx.db
-      .query("avatarQueue")
-      .withIndex("by_available", (q) => q.eq("isReserved", false))
-      .collect();
+    const allAvatars = await ctx.db.query("avatarQueueV2").collect();
+    const available = allAvatars.filter((a) => !a.isReserved); // undefined = false
     return available.length;
   },
 });
@@ -42,7 +40,7 @@ export const getAvailableCount = query({
  */
 export const getTotalCount = query({
   handler: async (ctx) => {
-    const all = await ctx.db.query("avatarQueue").collect();
+    const all = await ctx.db.query("avatarQueueV2").collect();
     return all.length;
   },
 });
@@ -56,11 +54,12 @@ export const dequeueAvatars = mutation({
     count: v.number(),
   },
   handler: async (ctx, args) => {
-    const available = await ctx.db
-      .query("avatarQueue")
-      .withIndex("by_available", (q) => q.eq("isReserved", false))
-      .order("asc")
-      .take(args.count);
+    // Query all avatars and filter for non-reserved ones (treating undefined as false)
+    const allAvatars = await ctx.db.query("avatarQueueV2").collect();
+    const available = allAvatars
+      .filter((a) => !a.isReserved) // undefined is falsy, so !undefined = true
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .slice(0, args.count);
 
     const dequeued = [];
     for (const avatar of available) {
@@ -83,7 +82,7 @@ export const dequeueAvatars = mutation({
  */
 export const removeFromQueue = mutation({
   args: {
-    queueId: v.id("avatarQueue"),
+    queueId: v.id("avatarQueueV2"),
   },
   handler: async (ctx, args) => {
     await ctx.db.delete(args.queueId);
@@ -96,11 +95,10 @@ export const removeFromQueue = mutation({
 export const cleanupStaleReservations = mutation({
   handler: async (ctx) => {
     const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
-    const stale = await ctx.db
-      .query("avatarQueue")
-      .withIndex("by_available", (q) => q.eq("isReserved", true))
-      .filter((q) => q.lt(q.field("createdAt"), fiveMinutesAgo))
-      .collect();
+    const allAvatars = await ctx.db.query("avatarQueueV2").collect();
+    const stale = allAvatars.filter(
+      (a) => a.isReserved === true && a.createdAt < fiveMinutesAgo
+    );
 
     for (const avatar of stale) {
       await ctx.db.delete(avatar._id);
@@ -115,7 +113,7 @@ export const cleanupStaleReservations = mutation({
  */
 export const getBackfillCount = query({
   handler: async (ctx) => {
-    const total = await ctx.db.query("avatarQueue").collect();
+    const total = await ctx.db.query("avatarQueueV2").collect();
     const needed = Math.max(0, QUEUE_TARGET_SIZE - total.length);
     return needed;
   },
