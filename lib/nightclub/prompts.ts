@@ -166,3 +166,61 @@ export const selectNightclubAvatarPrompt = ({
     vibe: `${descriptor} ${character} in neon beachwear`,
   };
 };
+
+const selfieStyles = [
+  "candid group selfie on a neon-lit nightclub dance floor",
+  "intimate moment captured at the DJ booth",
+  "wild celebration selfie with friends",
+  "cool mirror selfie in the club bathroom",
+  "spontaneous dance floor photo",
+  "glamorous VIP section group shot",
+  "energetic crowd surfing moment",
+];
+
+const cameraAesthetics = [
+  "shot on iPhone with flash",
+  "DSLR party photography with professional lighting",
+  "disposable camera flash aesthetic",
+  "vintage digital camera with timestamp overlay",
+  "professional event photography",
+  "instant camera with soft flash",
+  "retro point-and-shoot camera vibe",
+];
+
+const lightingScenarios = [
+  "vibrant strobes and fog",
+  "neon backlighting with purple and pink hues",
+  "fog with crisscrossing laser beams",
+  "disco ball sparkles and reflections",
+  "UV blacklight glow",
+  "colorful laser lights and smoke",
+  "pulsating club lights with motion blur",
+];
+
+const selfieModds = [
+  "energetic party atmosphere",
+  "intimate moment",
+  "wild celebration vibe",
+  "cool and casual nightlife",
+  "glamorous nightclub aesthetic",
+  "authentic 1980s club vibes",
+  "electric dance floor energy",
+];
+
+export const generatePolaroidSelfiePrompt = (): string => {
+  const style = randomItem(selfieStyles);
+  const camera = randomItem(cameraAesthetics);
+  const lighting = randomItem(lightingScenarios);
+  const mood = randomItem(selfieModds);
+
+  const prompt = [
+    style,
+    "two friends dancing together",
+    camera,
+    lighting,
+    mood,
+    "authentic club photography, candid moment, vibrant colors",
+  ].join(", ");
+
+  return prompt;
+};

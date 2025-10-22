@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import * as fal from "@fal-ai/serverless-client"
+import { generatePolaroidSelfiePrompt } from "@/lib/nightclub/prompts"
 
 // Configure fal client
 fal.config({
@@ -14,15 +15,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Both avatar URLs are required" }, { status: 400 })
     }
 
-    // Generate polaroid-style photo using fal Flux Kontext multi-image
+    // Generate dynamic selfie-style photo using fal Flux Kontext multi-image
+    const prompt = generatePolaroidSelfiePrompt()
+    console.log("[Polaroid] Generated prompt:", prompt)
+    
     const result = await fal.subscribe("fal-ai/flux-pro/kontext/max/multi", {
       input: {
-        prompt: "polaroid photo of two friends at a 1980s neon nightclub, dancing together, vintage instant camera aesthetic, flash photography, dark background with colorful lights, authentic 80s party atmosphere, candid moment",
+        prompt,
         image_urls: [avatar1Url, avatar2Url],
         num_inference_steps: 28,
         guidance_scale: 3.5,
         num_images: 1,
         enable_safety_checker: true,
+        safety_tolerance: 5, // Most permissive setting (1-5 scale)
       },
     })
 
