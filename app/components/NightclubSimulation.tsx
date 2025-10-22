@@ -23,6 +23,7 @@ interface Avatar {
 
 interface WaitingAvatar {
   id: string
+  _id?: string // Convex document ID for deletion
   image: string
   subject: string
 }
@@ -135,10 +136,11 @@ export default function NightclubSimulation() {
         const queueData = await queueResponse.json()
 
         if (queueData.avatars && queueData.avatars.length > 0) {
-          // Use pre-generated avatars from queue (already deleted on dequeue)
+          // Use pre-generated avatars from shared pool (deleted when released to nightclub)
           console.log(`[QUEUE] Loaded ${queueData.avatars.length} avatars from queue instantly!`)
           const queuedAvatars = queueData.avatars.map((qa: any, i: number) => ({
             id: `queued-${i}`,
+            _id: qa._id, // Store Convex document ID for deletion on release
             image: qa.imageUrl,
             subject: qa.prompt.substring(0, 30),
           }))
@@ -189,7 +191,19 @@ export default function NightclubSimulation() {
 
     setWaitingAvatars((prev) => prev.filter((a) => a.id !== waitingAvatar.id))
 
-    // No deletion needed - avatars were already deleted on dequeue
+    // Delete from database now that it's being used
+    if (waitingAvatar._id) {
+      try {
+        await fetch('/api/nightclub/avatar', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ avatarId: waitingAvatar._id }),
+        })
+        console.log(`[AVATAR_DELETE] Deleted avatar ${waitingAvatar._id} from pool`)
+      } catch (error) {
+        console.log(`[AVATAR_DELETE] Failed to delete avatar (already deleted):`, error)
+      }
+    }
 
     // Generate new waiting avatar using OpenRouter prompts
     const newWaitingAvatar = await generateSingleAvatar(`waiting-${Date.now()}`)
@@ -501,7 +515,7 @@ export default function NightclubSimulation() {
     }
   }
 
-  const handleReleaseRandom = () => {
+  const handleReleaseRandom = async () => {
     if (waitingAvatars.length < 2) return
     
     // Release 2-5 random avatars (or all if less than 5)
@@ -541,6 +555,19 @@ export default function NightclubSimulation() {
       }
 
       setAvatars((prev) => [...prev, newAvatar])
+      
+      // Delete from database now that it's being used
+      if (avatar._id) {
+        fetch('/api/nightclub/avatar', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ avatarId: avatar._id }),
+        }).then(() => {
+          console.log(`[AVATAR_DELETE] Deleted avatar ${avatar._id} from pool`)
+        }).catch((error) => {
+          console.log(`[AVATAR_DELETE] Failed to delete avatar (already deleted):`, error)
+        })
+      }
     })
     
     // Generate replacement avatars

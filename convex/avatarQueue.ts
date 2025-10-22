@@ -76,3 +76,44 @@ export const getBackfillCount = query({
   },
 });
 
+/**
+ * Get N avatars without deleting (shared pool for multiple users)
+ */
+export const getAvatars = query({
+  args: {
+    count: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Get oldest N avatars
+    const allAvatars = await ctx.db.query("avatarPool").collect();
+    const avatars = allAvatars
+      .sort((a, b) => a.createdAt - b.createdAt)
+      .slice(0, args.count);
+
+    return avatars.map((avatar) => ({
+      _id: avatar._id,
+      imageUrl: avatar.imageUrl,
+      prompt: avatar.prompt,
+      seed: avatar.seed,
+    }));
+  },
+});
+
+/**
+ * Delete a single avatar by ID (called when user releases to nightclub)
+ * Silently handles if already deleted by another user
+ */
+export const deleteAvatar = mutation({
+  args: {
+    id: v.id("avatarPool"),
+  },
+  handler: async (ctx, args) => {
+    try {
+      await ctx.db.delete(args.id);
+    } catch (error) {
+      // Already deleted by another user, ignore
+      console.log(`[AVATAR_QUEUE] Avatar ${args.id} already deleted`);
+    }
+  },
+});
+

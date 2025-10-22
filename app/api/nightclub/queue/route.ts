@@ -7,20 +7,20 @@ import { generateNightclubAvatarPrompts } from "@/lib/ai/openrouter";
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 /**
- * GET - Dequeue avatars for instant page load
+ * GET - Get avatars from shared pool (no deletion, multiple users can use same avatars)
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const count = parseInt(searchParams.get("count") || "12", 10);
 
-    console.log(`[AVATAR_QUEUE] Dequeuing ${count} avatars...`);
+    console.log(`[AVATAR_QUEUE] Getting ${count} avatars from shared pool...`);
 
-    const dequeuedAvatars = await convex.mutation(api.avatarQueue.dequeueAvatars, {
+    const avatars = await convex.query(api.avatarQueue.getAvatars, {
       count,
     });
 
-    console.log(`[AVATAR_QUEUE] Dequeued ${dequeuedAvatars.length} avatars`);
+    console.log(`[AVATAR_QUEUE] Loaded ${avatars.length} avatars (shared pool)`);
 
     // Trigger backfill asynchronously (don't await)
     const backfillNeeded = await convex.query(api.avatarQueue.getBackfillCount, {});
@@ -34,11 +34,11 @@ export async function GET(request: NextRequest) {
       }).catch((err) => console.error("[AVATAR_QUEUE] Backfill trigger failed:", err));
     }
 
-    return NextResponse.json({ avatars: dequeuedAvatars });
+    return NextResponse.json({ avatars });
   } catch (error) {
     console.error("[AVATAR_QUEUE] GET error", error);
     return NextResponse.json(
-      { error: "Failed to dequeue avatars", avatars: [] },
+      { error: "Failed to get avatars", avatars: [] },
       { status: 500 }
     );
   }
