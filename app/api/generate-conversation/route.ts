@@ -19,7 +19,6 @@ Avatar 2: ${avatar2Subject}
 Generate a single line of dialogue that one of them might say to the other. Use 80s slang like "rad", "gnarly", "tubular", "stoked", "dude", etc. Make it feel natural and spontaneous, like overhearing a snippet of conversation at a party.
 
 Just return the dialogue line, nothing else.`,
-      maxTokens: 50,
     })
 
     return Response.json({ conversation: text.trim() })
