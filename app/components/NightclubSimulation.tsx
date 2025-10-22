@@ -50,10 +50,8 @@ export default function NightclubSimulation() {
   const [polaroid, setPolaroid] = useState<string | null>(null)
   const [generatingPolaroid, setGeneratingPolaroid] = useState(false)
   const animationRef = useRef<number>()
-  const conversationPairsRef = useRef<Set<string>>(new Set())
   const avatarsRef = useRef<Avatar[]>([])
   const frameCountRef = useRef(0)
-  const lastPolaroidTimeRef = useRef<number>(Date.now()) // Initialize to now to prevent immediate polaroids
 
   // Chat functionality
   const messages = useQuery(api.chat.getMessages)
@@ -199,32 +197,12 @@ export default function NightclubSimulation() {
   }
 
   const generatePolaroid = async (avatar1: Avatar, avatar2: Avatar) => {
-    const now = Date.now()
-
-    // Check if 30 seconds have passed since last polaroid was dismissed
-    const timeSinceLastPolaroid = now - lastPolaroidTimeRef.current
-    if (timeSinceLastPolaroid < 30000) {
-      return
-    }
-
     // Check if already generating or displaying
     if (generatingPolaroid || polaroid) {
+      console.log('[POLAROID] Already generating or displaying a polaroid')
       return
     }
 
-    // Prevent duplicate polaroids for same pair
-    const pairKey = [avatar1.id, avatar2.id].sort().join("-")
-    if (conversationPairsRef.current.has(pairKey)) {
-      return
-    }
-
-    conversationPairsRef.current.add(pairKey)
-    setTimeout(() => {
-      conversationPairsRef.current.delete(pairKey)
-    }, 10000)
-
-    // Update timer IMMEDIATELY to prevent multiple generations
-    lastPolaroidTimeRef.current = now
     setGeneratingPolaroid(true)
 
     try {
@@ -364,9 +342,7 @@ export default function NightclubSimulation() {
             const dy = a1.y + AVATAR_SIZE / 2 - (a2.y + AVATAR_SIZE / 2)
             const distance = Math.sqrt(dx * dx + dy * dy)
 
-            if (distance < PROXIMITY_THRESHOLD && distance > AVATAR_SIZE) {
-              generatePolaroid(a1, a2)
-            }
+            // Polaroid generation moved to manual button - no automatic generation
 
             if (distance < AVATAR_SIZE) {
               const angle = Math.atan2(dy, dx)
@@ -513,13 +489,66 @@ export default function NightclubSimulation() {
     }
   }
 
+  const handleReleaseRandom = () => {
+    if (waitingAvatars.length === 0) return
+    
+    // Release random number of avatars (1-5, or all if less than 5)
+    const maxToRelease = Math.min(5, waitingAvatars.length)
+    const numToRelease = Math.floor(Math.random() * maxToRelease) + 1
+    
+    console.log(`[NIGHTCLUB] Releasing ${numToRelease} random avatars`)
+    
+    for (let i = 0; i < numToRelease; i++) {
+      if (waitingAvatars.length > 0) {
+        const randomIndex = Math.floor(Math.random() * waitingAvatars.length)
+        const avatar = waitingAvatars[randomIndex]
+        releaseAvatar(avatar)
+      }
+    }
+  }
+
+  const handleSnapPhoto = () => {
+    if (avatars.length < 2) {
+      console.log('[POLAROID] Need at least 2 avatars on dance floor')
+      return
+    }
+    
+    // Pick 2 random avatars
+    const shuffled = [...avatars].sort(() => Math.random() - 0.5)
+    const avatar1 = shuffled[0]
+    const avatar2 = shuffled[1]
+    
+    console.log(`[POLAROID] Manual snap of ${avatar1.subject} and ${avatar2.subject}`)
+    generatePolaroid(avatar1, avatar2)
+  }
+
   return (
     <div className="space-y-6">
+      {/* Control Buttons */}
+      <div className="flex gap-4 items-center">
+        <button
+          onClick={handleReleaseRandom}
+          disabled={waitingAvatars.length === 0}
+          className="bg-[#ff00ff] hover:bg-[#ff00ff]/80 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-2 px-6 rounded-lg transition-colors"
+          style={{ boxShadow: "0 0 10px rgba(255, 0, 255, 0.5)" }}
+        >
+          Release Random Avatars ({waitingAvatars.length} waiting)
+        </button>
+        
+        <button
+          onClick={handleSnapPhoto}
+          disabled={avatars.length < 2 || generatingPolaroid || polaroid !== null}
+          className="bg-[#c4ff0e] hover:bg-[#d4ff3e] disabled:bg-gray-600 disabled:cursor-not-allowed text-black font-bold py-2 px-6 rounded-lg transition-colors"
+        >
+          📸 Snap Photo ({avatars.length} on floor)
+        </button>
+      </div>
+
       {/* Release Avatars Row */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2">
         <div className="flex items-center gap-1 text-[#c4ff0e] font-bold whitespace-nowrap mr-2">
           <span className="text-lg">💬</span>
-          RELEASE AVATARS
+          WAITING AREA
         </div>
         {isGenerating && <div className="text-[#c4ff0e] text-sm">Generating avatars...</div>}
         <div className="flex gap-3">
