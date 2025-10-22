@@ -131,12 +131,11 @@ export default defineSchema({
     .index("by_recent", ["startedAt"])
     .index("by_pair", ["pairKey"]),
 
-  // Pre-generated avatar queue for instant loading  
-  avatarQueueV2: defineTable({
+  // Pre-generated avatar pool for instant loading (no reservations, immediate deletion)
+  avatarPool: defineTable({
     imageUrl: v.string(),
     prompt: v.string(),
     seed: v.number(),
     createdAt: v.number(),
-    isReserved: v.boolean(), // true when dequeued but not yet activated
   }),
 });

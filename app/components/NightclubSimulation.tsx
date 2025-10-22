@@ -25,7 +25,6 @@ interface WaitingAvatar {
   id: string
   image: string
   subject: string
-  queueId?: string // Convex _id for deletion after release
 }
 
 interface ConversationCard {
@@ -138,13 +137,12 @@ export default function NightclubSimulation() {
         const queueData = await queueResponse.json()
 
         if (queueData.avatars && queueData.avatars.length > 0) {
-          // Use pre-generated avatars from queue
+          // Use pre-generated avatars from queue (already deleted on dequeue)
           console.log(`[QUEUE] Loaded ${queueData.avatars.length} avatars from queue instantly!`)
           const queuedAvatars = queueData.avatars.map((qa: any, i: number) => ({
             id: `queued-${i}`,
             image: qa.imageUrl,
             subject: qa.prompt.substring(0, 30),
-            queueId: qa._id, // Save Convex ID for deletion after release
           }))
           setWaitingAvatars(queuedAvatars)
           setIsGenerating(false)
@@ -193,15 +191,7 @@ export default function NightclubSimulation() {
 
     setWaitingAvatars((prev) => prev.filter((a) => a.id !== waitingAvatar.id))
 
-    // Delete from Convex queue if this avatar came from the queue
-    if (waitingAvatar.queueId) {
-      console.log(`[QUEUE] Deleting avatar ${waitingAvatar.queueId} from queue after release`)
-      fetch('/api/nightclub/queue', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ queueId: waitingAvatar.queueId }),
-      }).catch((err) => console.error('[QUEUE] Failed to delete from queue:', err))
-    }
+    // No deletion needed - avatars were already deleted on dequeue
 
     // Generate new waiting avatar using OpenRouter prompts
     const newWaitingAvatar = await generateSingleAvatar(`waiting-${Date.now()}`)
