@@ -1,0 +1,40 @@
+# Cursor AI Rules for DJ Sneak Stream Project
+
+## Git Commit Policy
+
+**CRITICAL: NEVER commit changes to git unless the user EXPLICITLY asks you to commit or check in.**
+
+- Do NOT automatically stage files
+- Do NOT automatically commit changes
+- Do NOT run `git add` unless explicitly requested
+- Do NOT run `git commit` unless explicitly requested
+- Wait for user confirmation before any git write operations
+
+When the user says "check in", "commit this", "save to git", or similar explicit requests, THEN you may proceed with git operations.
+
+## Repository Guidelines
+
+This Next.js 15 App Router codebase keeps feature routes in `app/`, where layouts, loading states, and related tests live beside each route (for example, `app/watch/__tests__/player.test.tsx`). Shared UI belongs in `components/` with kebab-case filenames, while reusable hooks, Convex clients, and utilities live in `lib/`. Realtime actions and schema definitions stay in `convex/`, and static assets reside in `public/`. Keep operational scripts idempotent under `scripts/`.
+
+## Build, Test, and Development Commands
+
+Run `npm install` after cloning to sync dependencies. Use `npm run dev` for the Next.js server and pair it with `npx convex dev` whenever backend functions are needed. Produce a production bundle with `npm run build`, preview it via `npm start`, and lint with `npm run lint`. After editing Convex schemas, regenerate types using `npx convex codegen`.
+
+## Coding Style & Naming Conventions
+
+All source files are TypeScript. Default to React Server Components in `app/`; add the `"use client"` directive only when component state or browser APIs are required. Style UI with Tailwind utilities inside JSX and avoid new global CSS. Order imports by external packages, internal aliases, then relative paths. Use camelCase for variables and functions, PascalCase for components, and kebab-case for component files.
+
+## Testing Guidelines
+
+UI coverage relies on React Testing Library with Jest-style assertions. Co-locate specs with their route inside `__tests__/` folders and mirror the component name (`player.test.tsx`). Keep Convex interactions mocked for determinism. When altering Convex schemas or player flows, document manual verification steps for playback, chat, and uploads alongside your changes and rerun `npx convex codegen`.
+
+## Commit & Pull Request Guidelines
+
+Write small, imperative commits such as `Add muted autoplay control` and reference all impacted areas in the body when necessary. Pull requests need a concise summary, linked Convex board issues, and screenshots or clips for UI updates. Confirm `npm run lint` succeeds, note remaining risks or testing gaps, and include the manual verification checklist before requesting review.
+
+**IMPORTANT: Only commit when explicitly requested by the user.**
+
+## Security & Configuration Tips
+
+Create `.env.local` from the template in the README, supplying Clerk, Convex, Livepeer, and Claude keys. Never commit secrets; rely on Vercel environment variables in deployment. Redact viewer tokens and user identifiers when sharing logs or metrics.
+
