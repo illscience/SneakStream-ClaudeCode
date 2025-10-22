@@ -30,12 +30,17 @@ export const generateAvatarImage = async ({
 }: GenerateAvatarImageOptions): Promise<GenerateAvatarImageResult> => {
   ensureConfigured();
 
-  console.log(`[FAL] Starting image generation with seed: ${seed}, prompt: ${prompt.substring(0, 50)}...`);
+  // Image size configuration - adjust via FAL_AVATAR_IMAGE_SIZE env var
+  // "square_hd" = 512x512 (~$0.013/image), "square" = 1024x1024 (~$0.052/image)
+  const defaultImageSize = process.env.FAL_AVATAR_IMAGE_SIZE ?? "square_hd";
+  const imageSize = aspectRatio === "1:1" ? defaultImageSize : aspectRatio;
+
+  console.log(`[FAL] Starting image generation with seed: ${seed}, size: ${imageSize}, prompt: ${prompt.substring(0, 50)}...`);
 
   const result = await fal.subscribe(MODEL_ID, {
     input: {
       prompt,
-      image_size: aspectRatio === "1:1" ? "square" : aspectRatio,
+      image_size: imageSize,
       seed,
       num_inference_steps: 28,
       guidance_scale: 3,
@@ -45,6 +50,12 @@ export const generateAvatarImage = async ({
   });
 
   console.log(`[FAL] Raw response:`, JSON.stringify(result).substring(0, 200));
+  
+  // Log cost information if available (check x-fal-billable-units for actual cost)
+  // FLUX Pro pricing: ~$0.05/megapixel | square_hd (512x512) ≈ $0.013/image
+  if (result) {
+    console.log(`[FAL] Cost estimate for ${imageSize}: ~$0.013-0.052 depending on size`);
+  }
 
   const image =
     // @ts-expect-error - API response shapes are not strongly typed

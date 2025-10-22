@@ -17,12 +17,19 @@ export async function POST(request: NextRequest) {
 
     // Generate dynamic selfie-style photo using fal Flux Kontext multi-image
     const prompt = generatePolaroidSelfiePrompt()
+    
+    // Image size configuration - adjust via FAL_POLAROID_IMAGE_SIZE env var
+    // "square_hd" = 512x512 (~$0.013/image), "square" = 1024x1024 (~$0.052/image)
+    const imageSize = process.env.FAL_POLAROID_IMAGE_SIZE ?? "square_hd"
+    
     console.log("[Polaroid] Generated prompt:", prompt)
+    console.log("[Polaroid] Image size:", imageSize)
     
     const result = await fal.subscribe("fal-ai/flux-pro/kontext/max/multi", {
       input: {
         prompt,
         image_urls: [avatar1Url, avatar2Url],
+        image_size: imageSize,
         num_inference_steps: 28,
         guidance_scale: 3.5,
         num_images: 1,
@@ -37,6 +44,10 @@ export async function POST(request: NextRequest) {
     if (!imageUrl) {
       throw new Error("No image generated")
     }
+
+    // Log cost information (check x-fal-billable-units header for actual cost)
+    // FLUX Pro pricing: ~$0.05/megapixel | square_hd (512x512) ≈ $0.013/image
+    console.log(`[Polaroid] Cost estimate for ${imageSize}: ~$0.013-0.052 depending on size`)
 
     return NextResponse.json({ imageUrl })
   } catch (error) {
