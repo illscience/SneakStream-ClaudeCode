@@ -55,21 +55,24 @@ export const generateNightclubAvatarPrompts = async (): Promise<GenerateAvatarPr
     throw new Error("OPENROUTER_API_KEY is not set");
   }
 
-  const systemPrompt = `You are a creative director for a trendy underground nightclub. Generate exactly 10 diverse, visually striking prompts for AI image generation of interesting, sexy, fashionable people who might be at the club.
+  const systemPrompt = `You are a creative director for a trendy underground nightclub. Generate exactly 10 sexy visually striking prompts for AI image generation of interesting, sexy, fashionable people who might be at the club.
 
 CRITICAL: Maximize variety across ALL dimensions:
 - Styles: cyberpunk, retro 80s/90s, Y2K, haute couture, street fashion, punk, glam, minimal chic, maximalist
 - Backgrounds: solid colors (red, blue, green, orange, pink, black, white), gradients, neon lights, dark moody, bright vibrant, studio, outdoor
 - Lighting: neon, natural, studio, dramatic shadows, colorful gels, backlighting, side lighting, golden hour, cool blue, warm amber
 - Color palettes: hot pink/orange, cool blue/cyan, warm golden, electric green, deep red, pastel, monochrome, multicolor
-- Ethnicities and features: ensure global diversity
-- Genders and expressions: mix masculine, feminine, androgynous energy
+- Genders and expressions: femaly only
 - Fashion eras: 70s disco, 80s new wave, 90s rave, 2000s club kid, modern streetwear, futuristic
 
 Each prompt should be detailed (3-4 sentences) and specify background color, lighting type, and mood.
 Return as JSON object with key "prompts" containing array of 10 strings.`;
 
   const userPrompt = `Generate 10 nightclub patron prompts for image generation.`;
+
+  console.log(`[OPENROUTER] Generating avatar prompts with model: ${DEFAULT_MODEL}`);
+  console.log(`[OPENROUTER] System prompt: ${systemPrompt.substring(0, 150)}...`);
+  console.log(`[OPENROUTER] User prompt: ${userPrompt}`);
 
   const response = await fetch(OPENROUTER_URL, {
     method: "POST",
@@ -151,6 +154,10 @@ Keep it playful, reference music or dance floor energy, and mention sensory deta
 Do not include extra keys or narrative outside JSON.`;
 
   const userPrompt = `Participants:\n${participantSummary}\n\nRecent feed snippets:\n${history}\n\nClub vibe:${clubVibe ? ` ${clubVibe}` : " Synthwave haze"}\n\nWrite the encounter.`;
+
+  console.log(`[OPENROUTER] Generating conversation with model: ${DEFAULT_MODEL}`);
+  console.log(`[OPENROUTER] System prompt: ${systemPrompt.substring(0, 150)}...`);
+  console.log(`[OPENROUTER] User prompt: ${userPrompt.substring(0, 150)}...`);
 
   const response = await fetch(OPENROUTER_URL, {
     method: "POST",
