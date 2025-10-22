@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Extract the image URL from the result
+    // @ts-expect-error - FAL API response shapes are not strongly typed
     const imageUrl = result.images?.[0]?.url
 
     if (!imageUrl) {
