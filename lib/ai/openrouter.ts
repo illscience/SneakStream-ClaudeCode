@@ -62,7 +62,7 @@ CRITICAL: Maximize variety across ALL dimensions:
 - Backgrounds: solid colors (red, blue, green, orange, pink, black, white), gradients, neon lights, dark moody, bright vibrant, studio, outdoor
 - Lighting: neon, natural, studio, dramatic shadows, colorful gels, backlighting, side lighting, golden hour, cool blue, warm amber
 - Color palettes: hot pink/orange, cool blue/cyan, warm golden, electric green, deep red, pastel, monochrome, multicolor
-- Genders and expressions: femaly only
+- Genders and expressions: heavily favor female, with occasional male
 - Fashion eras: 70s disco, 80s new wave, 90s rave, 2000s club kid, modern streetwear, futuristic
 
 Each prompt should be detailed (3-4 sentences) and specify background color, lighting type, and mood.
