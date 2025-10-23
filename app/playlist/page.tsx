@@ -15,6 +15,7 @@ export default function PlaylistPage() {
   const router = useRouter();
   const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("theater");
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [notification, setNotification] = useState<string | null>(null);
 
   // Check if user is admin
   const isAdmin = useQuery(
@@ -48,10 +49,24 @@ export default function PlaylistPage() {
     }
   }, []);
 
-  const handlePlayNow = async (videoId: Id<"videos">) => {
+  const showNotification = (message: string) => {
+    setNotification(message);
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handlePlayNow = async (videoId: Id<"videos">, videoTitle: string) => {
     if (!user?.id) return;
+    
+    // Confirmation dialog to prevent accidental interruption
+    const confirmed = confirm(
+      `Switch to "${videoTitle}" now?\n\nThis will immediately interrupt the current video for all viewers.`
+    );
+    
+    if (!confirmed) return;
+
     try {
       await playNow({ videoId, clerkId: user.id });
+      showNotification(`Now playing: ${videoTitle}`);
     } catch (error) {
       console.error("Play now error:", error);
       alert("Failed to play video. Please try again.");
@@ -70,9 +85,10 @@ export default function PlaylistPage() {
     }
   };
 
-  const handleMoveToTop = async (playlistId: Id<"playlist">) => {
+  const handleMoveToTop = async (playlistId: Id<"playlist">, videoTitle: string) => {
     try {
       await reorderPlaylist({ playlistId, newPosition: 0 });
+      showNotification(`Moved "${videoTitle}" to top of queue`);
     } catch (error) {
       console.error("Reorder error:", error);
       alert("Failed to reorder. Please try again.");
@@ -98,6 +114,7 @@ export default function PlaylistPage() {
         playlistId: draggedItem as Id<"playlist">,
         newPosition: targetPosition,
       });
+      showNotification(`Queue reordered`);
     } catch (error) {
       console.error("Reorder error:", error);
       alert("Failed to reorder. Please try again.");
@@ -127,6 +144,16 @@ export default function PlaylistPage() {
   return (
     <div className="min-h-screen bg-black text-white">
       <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
+
+      {/* Toast Notification */}
+      {notification && (
+        <div className="fixed top-24 right-4 z-50 animate-in slide-in-from-top-5 fade-in duration-300">
+          <div className="bg-lime-400 text-black px-6 py-3 rounded-full shadow-lg font-medium flex items-center gap-2">
+            <div className="w-2 h-2 bg-black rounded-full animate-pulse"></div>
+            {notification}
+          </div>
+        </div>
+      )}
 
       <main className="pt-32 px-4 lg:px-8 max-w-6xl mx-auto pb-24">
         <div className="mb-8">
@@ -219,9 +246,9 @@ export default function PlaylistPage() {
                     {/* Play Now */}
                     {entry.video && (
                       <button
-                        onClick={() => handlePlayNow(entry.videoId)}
+                        onClick={() => handlePlayNow(entry.videoId, entry.video?.title || "this video")}
                         className="w-9 h-9 bg-lime-400 hover:bg-lime-500 rounded-full flex items-center justify-center text-black"
-                        title="Play Now"
+                        title="Play Now - Interrupts current video for all viewers"
                       >
                         <Play className="w-4 h-4 ml-0.5" />
                       </button>
@@ -230,7 +257,7 @@ export default function PlaylistPage() {
                     {/* Move to Top */}
                     {index > 0 && (
                       <button
-                        onClick={() => handleMoveToTop(entry._id)}
+                        onClick={() => handleMoveToTop(entry._id, entry.video?.title || "this video")}
                         className="w-9 h-9 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center"
                         title="Move to Top"
                       >

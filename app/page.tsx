@@ -315,30 +315,30 @@ export default function Home() {
 
         {/* Now Playing / Up Next Section */}
         {!activeStream && (defaultVideo || (playlist && playlist.length > 0)) && (
-          <div className="px-4 lg:px-8 py-8">
+          <div className="px-4 lg:px-8 py-4">
             <div className="flex justify-center">
               <div className="max-w-6xl w-full">
-                <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
+                <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
                   {/* Current Playing */}
                   {defaultVideo && (
-                    <div className="mb-6">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Radio className="w-4 h-4 text-lime-400" />
-                        <h3 className="text-sm font-semibold uppercase tracking-wide text-lime-400">Now Playing</h3>
+                    <div className="mb-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Radio className="w-3.5 h-3.5 text-lime-400" />
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-lime-400">Now Playing</h3>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
                           <Link href={`/watch/${defaultVideo._id}`} className="hover:text-lime-400 transition-colors">
-                            <h4 className="font-bold text-lg">{defaultVideo.title}</h4>
+                            <h4 className="font-bold truncate">{defaultVideo.title}</h4>
                           </Link>
                           {defaultVideo.description && (
-                            <p className="text-sm text-zinc-400 mt-1 line-clamp-1">{defaultVideo.description}</p>
+                            <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1">{defaultVideo.description}</p>
                           )}
                         </div>
                         {defaultVideo.duration && (
-                          <div className="flex items-center gap-1 text-zinc-400">
-                            <Clock className="w-4 h-4" />
-                            <span className="text-sm">
+                          <div className="flex items-center gap-1 text-zinc-400 flex-shrink-0">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span className="text-xs">
                               {Math.floor(defaultVideo.duration / 60)}:{String(Math.floor(defaultVideo.duration % 60)).padStart(2, "0")}
                             </span>
                           </div>
@@ -350,23 +350,23 @@ export default function Home() {
                   {/* Up Next Queue */}
                   {playlist && playlist.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-400 mb-3">Up Next</h3>
-                      <div className="space-y-2">
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-2">Up Next</h3>
+                      <div className="space-y-1.5">
                         {playlist.slice(0, 5).map((entry, index) => (
-                          <div key={entry._id} className="flex items-center gap-4 p-3 bg-zinc-800/50 rounded-lg hover:bg-zinc-800 transition-colors">
-                            <div className="flex items-center justify-center w-8 h-8 bg-zinc-700 rounded-full text-sm font-bold text-zinc-400">
+                          <div key={entry._id} className="flex items-center gap-3 p-2.5 bg-zinc-800/50 rounded-lg hover:bg-zinc-800 transition-colors">
+                            <div className="flex items-center justify-center w-7 h-7 bg-zinc-700 rounded-full text-sm font-bold text-zinc-400 flex-shrink-0">
                               {index + 1}
                             </div>
                             <div className="flex-1 min-w-0">
                               <Link href={`/watch/${entry.videoId}`} className="hover:text-lime-400 transition-colors">
-                                <h4 className="font-medium truncate">{entry.video?.title || "Untitled"}</h4>
+                                <h4 className="font-medium truncate text-sm">{entry.video?.title || "Untitled"}</h4>
                               </Link>
                               {entry.video?.description && (
                                 <p className="text-xs text-zinc-500 truncate">{entry.video.description}</p>
                               )}
                             </div>
                             {entry.video?.duration && (
-                              <div className="flex items-center gap-1 text-zinc-500">
+                              <div className="flex items-center gap-1 text-zinc-500 flex-shrink-0">
                                 <Clock className="w-3 h-3" />
                                 <span className="text-xs">
                                   {Math.floor(entry.video.duration / 60)}:{String(Math.floor(entry.video.duration % 60)).padStart(2, "0")}
@@ -377,7 +377,7 @@ export default function Home() {
                         ))}
                       </div>
                       {playlist.length > 5 && (
-                        <p className="text-xs text-zinc-500 mt-3 text-center">
+                        <p className="text-xs text-zinc-500 mt-2 text-center">
                           +{playlist.length - 5} more in queue
                         </p>
                       )}
@@ -390,7 +390,7 @@ export default function Home() {
         )}
 
         {/* Nightclub and Chat Section */}
-        <div className="px-4 lg:px-8 pb-48 pt-8">
+        <div className="px-4 lg:px-8 pb-48 pt-4">
           {showNightclubOnHome ? (
             // Full layout when nightclub is visible
             <NightclubSimulation>

@@ -18,6 +18,7 @@ export default function LibraryPage() {
   const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("classic");
   const [editingVideoId, setEditingVideoId] = useState<Id<"videos"> | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
+  const [notification, setNotification] = useState<string | null>(null);
 
   const videos = useQuery(
     api.videos.getUserVideos,
@@ -32,20 +33,35 @@ export default function LibraryPage() {
   // Get current default video to show "ON AIR NOW" indicator
   const defaultVideo = useQuery(api.videos.getDefaultVideo);
 
-  const handlePlayNow = async (videoId: Id<"videos">) => {
+  const showNotification = (message: string) => {
+    setNotification(message);
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handlePlayNow = async (videoId: Id<"videos">, videoTitle: string) => {
     if (!user?.id) return;
+    
+    // Confirmation dialog to prevent accidental interruption
+    const confirmed = confirm(
+      `Play "${videoTitle}" now?\n\nThis will immediately switch all viewers to this video.`
+    );
+    
+    if (!confirmed) return;
+
     try {
       await playNow({ videoId, clerkId: user.id });
+      showNotification(`Now playing: ${videoTitle}`);
     } catch (error) {
       console.error("Play now error:", error);
       alert("Failed to play video. Please try again.");
     }
   };
 
-  const handlePlayNext = async (videoId: Id<"videos">) => {
+  const handlePlayNext = async (videoId: Id<"videos">, videoTitle: string) => {
     if (!user?.id) return;
     try {
       await playNext({ videoId, clerkId: user.id });
+      showNotification(`"${videoTitle}" added to queue`);
     } catch (error) {
       console.error("Play next error:", error);
       alert("Failed to queue video. Please try again.");
@@ -263,6 +279,17 @@ export default function LibraryPage() {
   return (
     <div className="min-h-screen bg-black text-white">
       <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
+
+      {/* Toast Notification */}
+      {notification && (
+        <div className="fixed top-24 right-4 z-50 animate-in slide-in-from-top-5 fade-in duration-300">
+          <div className="bg-lime-400 text-black px-6 py-3 rounded-full shadow-lg font-medium flex items-center gap-2">
+            <div className="w-2 h-2 bg-black rounded-full animate-pulse"></div>
+            {notification}
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto p-8 pt-24">
         <div className="flex flex-col gap-4 mb-8">
           <div className="flex items-center justify-between">
@@ -474,7 +501,7 @@ export default function LibraryPage() {
                     <button
                       onClick={(e) => {
                         e.preventDefault();
-                        handlePlayNow(video._id);
+                        handlePlayNow(video._id, video.title);
                       }}
                       className="w-10 h-10 bg-lime-400/90 hover:bg-lime-500 rounded-full flex items-center justify-center shadow-lg backdrop-blur-sm text-black"
                       title="Play Now - Switch all viewers to this video immediately"
@@ -488,7 +515,7 @@ export default function LibraryPage() {
                     <button
                       onClick={(e) => {
                         e.preventDefault();
-                        handlePlayNext(video._id);
+                        handlePlayNext(video._id, video.title);
                       }}
                       className="w-10 h-10 bg-blue-600/90 hover:bg-blue-700 rounded-full flex items-center justify-center shadow-lg backdrop-blur-sm text-white"
                       title="Play Next - Queue this video to play after current"
