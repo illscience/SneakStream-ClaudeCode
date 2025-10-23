@@ -17,11 +17,19 @@ interface MainNavProps {
   onLayoutChange: (mode: LayoutMode) => void;
 }
 
-const navLinks = [
+interface NavLink {
+  href: string;
+  label: string;
+  authOnly?: boolean;
+  adminOnly?: boolean;
+}
+
+const navLinks: NavLink[] = [
   { href: "/", label: "Home" },
   { href: "/go-live", label: "Go Live" },
   { href: "/library", label: "My Library", authOnly: true },
   { href: "/profile", label: "Profile", authOnly: true },
+  { href: "/admin", label: "Admin", adminOnly: true },
 ];
 
 export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
@@ -31,6 +39,12 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
   const pathname = usePathname();
   const { user } = useUser();
   const activeStream = useQuery(api.livestream.getActiveStream);
+
+  // Check if current user is admin
+  const isAdmin = useQuery(
+    api.adminSettings.checkIsAdmin,
+    user?.id ? { clerkId: user.id } : "skip"
+  );
 
   // Check if current user is the one streaming
   const isUserLive = activeStream && user?.id === activeStream.userId;
@@ -168,11 +182,25 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
         </div>
 
         <nav className="hidden items-center gap-8 text-sm font-medium uppercase text-gray-400 lg:flex">
-          {navLinks.map(({ href, label, authOnly }) => {
+          {navLinks.map(({ href, label, authOnly, adminOnly }) => {
             const active = isActive(href);
             const linkClasses = `relative transition-colors hover:text-white pb-1 ${
               active ? "text-white after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-white" : ""
             }`;
+
+            if (adminOnly) {
+              // Only show for admin users
+              if (!isAdmin) return null;
+              return (
+                <SignedIn key={href}>
+                  <Link className={linkClasses} href={href}>
+                    <span className="flex items-center gap-2">
+                      {label}
+                    </span>
+                  </Link>
+                </SignedIn>
+              );
+            }
 
             if (authOnly) {
               return (
@@ -249,11 +277,25 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
         >
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2 text-sm font-medium uppercase text-gray-200">
-              {navLinks.map(({ href, label, authOnly }) => {
+              {navLinks.map(({ href, label, authOnly, adminOnly }) => {
                 const active = isActive(href);
                 const mobileLinkClasses = `rounded-full px-4 py-3 text-center transition-colors ${
                   active ? "bg-white text-black font-semibold" : "bg-white/5 hover:bg-white/10"
                 }`;
+
+                if (adminOnly) {
+                  // Only show for admin users
+                  if (!isAdmin) return null;
+                  return (
+                    <SignedIn key={href}>
+                      <Link href={href} onClick={handleLinkClick} className={mobileLinkClasses}>
+                        <span className="flex items-center justify-center gap-2">
+                          {label}
+                        </span>
+                      </Link>
+                    </SignedIn>
+                  );
+                }
 
                 return authOnly ? (
                   <SignedIn key={href}>
