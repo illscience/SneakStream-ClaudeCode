@@ -55,7 +55,7 @@ export const generateNightclubAvatarPrompts = async (): Promise<GenerateAvatarPr
     throw new Error("OPENROUTER_API_KEY is not set");
   }
 
-  const systemPrompt = `You are a creative director for a trendy underground nightclub. Generate exactly 10 sexy visually striking prompts for AI image generation of interesting, sexy, fashionable people who might be at the club.
+  const systemPrompt = `You are a creative director for a trendy underground nightclub. Generate exactly 10 visually striking prompts for AI image generation of interesting, sexy, fashionable people who might be at the club.
 
 CRITICAL: Maximize variety across ALL dimensions:
 - Styles: cyberpunk, retro 80s/90s, Y2K, haute couture, street fashion, punk, glam, minimal chic, maximalist

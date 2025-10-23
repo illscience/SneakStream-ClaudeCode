@@ -13,6 +13,7 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as adminSettings from "../adminSettings.js";
 import type * as avatarQueue from "../avatarQueue.js";
 import type * as chat from "../chat.js";
 import type * as events from "../events.js";
@@ -33,6 +34,7 @@ import type * as videos from "../videos.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  adminSettings: typeof adminSettings;
   avatarQueue: typeof avatarQueue;
   chat: typeof chat;
   events: typeof events;

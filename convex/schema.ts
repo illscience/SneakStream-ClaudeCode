@@ -138,4 +138,12 @@ export default defineSchema({
     seed: v.number(),
     createdAt: v.number(),
   }),
+
+  // Admin settings for controlling site features
+  adminSettings: defineTable({
+    key: v.string(), // unique setting key (e.g., "showNightclubOnHome")
+    value: v.boolean(), // boolean value for the setting
+    updatedAt: v.number(),
+    updatedBy: v.string(), // clerkId of admin who updated
+  }).index("by_key", ["key"]),
 });

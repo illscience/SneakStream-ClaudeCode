@@ -5,6 +5,7 @@ import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
 import VideoTimer from "./components/VideoTimer";
 import MainNav from "@/components/navigation/MainNav";
 import NightclubSimulation from "./components/NightclubSimulation";
+import LiveChat from "./components/LiveChat";
 import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
@@ -51,6 +52,12 @@ export default function Home() {
 
   // Get default video to play when no live stream is active
   const defaultVideo = useQuery(api.videos.getDefaultVideo);
+
+  // Get admin setting for showing nightclub on homepage
+  const showNightclubOnHome = useQuery(
+    api.adminSettings.getSetting,
+    { key: "showNightclubOnHome" }
+  );
 
   // Get the streamer's userId (from active stream or default video)
   const streamerId = activeStream?.userId || defaultVideo?.userId;
@@ -302,9 +309,21 @@ export default function Home() {
           </div>
         )}
 
-        {/* Nightclub Simulation */}
+        {/* Nightclub and Chat Section */}
         <div className="px-4 lg:px-8 pb-48 pt-8">
-          <NightclubSimulation />
+          {showNightclubOnHome ? (
+            // Full layout when nightclub is visible
+            <NightclubSimulation>
+              <LiveChat />
+            </NightclubSimulation>
+          ) : (
+            // Align chat with video content when nightclub is hidden
+            <div className="flex justify-center">
+              <div className="max-w-6xl w-full">
+                <LiveChat />
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
