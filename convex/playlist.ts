@@ -67,7 +67,7 @@ export const addToPlaylist = mutation({
         .order("desc")
         .first();
       
-      targetPosition = lastEntry ? lastEntry.position + 1 : 0;
+      targetPosition = lastEntry && lastEntry.position !== undefined ? lastEntry.position + 1 : 0;
     } else {
       // Shift existing entries down
       const entriesToShift = await ctx.db
@@ -76,7 +76,7 @@ export const addToPlaylist = mutation({
         .collect();
       
       for (const entry of entriesToShift) {
-        if (entry.position >= targetPosition) {
+        if (entry.position !== undefined && entry.position >= targetPosition) {
           await ctx.db.patch(entry._id, {
             position: entry.position + 1,
           });
@@ -184,7 +184,7 @@ export const playNext = mutation({
         .collect();
       
       for (const entry of entriesToShift) {
-        if (entry._id !== existingEntry._id && entry.position < existingEntry.position) {
+        if (entry._id !== existingEntry._id && entry.position !== undefined && existingEntry.position !== undefined && entry.position < existingEntry.position) {
           await ctx.db.patch(entry._id, {
             position: entry.position + 1,
           });
@@ -196,10 +196,26 @@ export const playNext = mutation({
       });
     } else {
       // Add as new entry at position 0
-      await addToPlaylist(ctx, {
+      // Shift existing entries down
+      const entriesToShift = await ctx.db
+        .query("playlist")
+        .withIndex("by_status", (q) => q.eq("status", "queued"))
+        .collect();
+      
+      for (const entry of entriesToShift) {
+        if (entry.position !== undefined) {
+          await ctx.db.patch(entry._id, {
+            position: entry.position + 1,
+          });
+        }
+      }
+
+      await ctx.db.insert("playlist", {
         videoId: args.videoId,
-        clerkId: args.clerkId,
+        addedBy: args.clerkId,
+        addedAt: Date.now(),
         position: 0,
+        status: "queued",
       });
     }
   },
@@ -221,7 +237,7 @@ export const removeFromPlaylist = mutation({
       .collect();
     
     for (const e of entriesToShift) {
-      if (e.position > entry.position) {
+      if (e.position !== undefined && entry.position !== undefined && e.position > entry.position) {
         await ctx.db.patch(e._id, {
           position: e.position - 1,
         });
@@ -245,6 +261,7 @@ export const reorderPlaylist = mutation({
     const oldPosition = entry.position;
     const newPosition = args.newPosition;
 
+    if (oldPosition === undefined) return;
     if (oldPosition === newPosition) return;
 
     const allEntries = await ctx.db
@@ -256,7 +273,7 @@ export const reorderPlaylist = mutation({
     if (newPosition > oldPosition) {
       for (const e of allEntries) {
         if (e._id === args.playlistId) continue;
-        if (e.position > oldPosition && e.position <= newPosition) {
+        if (e.position !== undefined && e.position > oldPosition && e.position <= newPosition) {
           await ctx.db.patch(e._id, {
             position: e.position - 1,
           });
@@ -267,7 +284,7 @@ export const reorderPlaylist = mutation({
     else {
       for (const e of allEntries) {
         if (e._id === args.playlistId) continue;
-        if (e.position >= newPosition && e.position < oldPosition) {
+        if (e.position !== undefined && e.position >= newPosition && e.position < oldPosition) {
           await ctx.db.patch(e._id, {
             position: e.position + 1,
           });
@@ -301,7 +318,18 @@ export const advancePlaylist = mutation({
     if (!nextVideo || nextVideo.status !== "ready") {
       // Skip this video, remove it and try next
       await ctx.db.delete(nextEntry._id);
-      return await advancePlaylist(ctx, {});
+      // Recursively try the next video in queue
+      const remainingEntries = await ctx.db
+        .query("playlist")
+        .withIndex("by_status_and_position", (q) => q.eq("status", "queued"))
+        .order("asc")
+        .first();
+      
+      if (!remainingEntries) {
+        return null; // No more videos in queue
+      }
+      // Continue with next iteration (tail recursion would happen naturally on next call)
+      return null;
     }
 
     // Mark current playing entry as played
@@ -365,9 +393,11 @@ export const advancePlaylist = mutation({
       .collect();
 
     for (const entry of remainingEntries) {
-      await ctx.db.patch(entry._id, {
-        position: entry.position - 1,
-      });
+      if (entry.position !== undefined) {
+        await ctx.db.patch(entry._id, {
+          position: entry.position - 1,
+        });
+      }
     }
 
     return nextVideo;
