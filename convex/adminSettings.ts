@@ -1,10 +1,10 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, QueryCtx } from "./_generated/server";
 
 const ADMIN_EMAIL = "illscience@gmail.com";
 
 // Helper to check if user is admin
-async function isAdmin(ctx: any, clerkId: string): Promise<boolean> {
+async function isAdmin(ctx: QueryCtx, clerkId: string): Promise<boolean> {
   const user = await ctx.db
     .query("users")
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
