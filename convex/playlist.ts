@@ -283,6 +283,7 @@ export const reorderPlaylist = mutation({
 
 // Advance to the next video in playlist (called when current video ends)
 export const advancePlaylist = mutation({
+  args: {},
   handler: async (ctx) => {
     // Get the next queued video
     const nextEntry = await ctx.db
