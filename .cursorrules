@@ -18,7 +18,9 @@ This Next.js 15 App Router codebase keeps feature routes in `app/`, where layout
 
 ## Build, Test, and Development Commands
 
-Run `npm install` after cloning to sync dependencies. Use `npm run dev` for the Next.js server and pair it with `npx convex dev` whenever backend functions are needed. Produce a production bundle with `npm run build`, preview it via `npm start`, and lint with `npm run lint`. After editing Convex schemas, regenerate types using `npx convex codegen`.
+Run `npm install` after cloning to sync dependencies. Use `npm run dev` for the Next.js server. Produce a production bundle with `npm run build`, preview it via `npm start`, and lint with `npm run lint`. After editing Convex schemas, regenerate types using `npx convex codegen`.
+
+**IMPORTANT: This project uses Convex Cloud (hosted backend). Do NOT run `npx convex dev` - the Convex backend is managed in the cloud and will auto-deploy schema changes. Only use `npx convex codegen` to regenerate TypeScript types locally.**
 
 ## Coding Style & Naming Conventions
 
@@ -37,4 +39,3 @@ Write small, imperative commits such as `Add muted autoplay control` and referen
 ## Security & Configuration Tips
 
 Create `.env.local` from the template in the README, supplying Clerk, Convex, Livepeer, and Claude keys. Never commit secrets; rely on Vercel environment variables in deployment. Redact viewer tokens and user identifiers when sharing logs or metrics.
-

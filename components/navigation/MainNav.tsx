@@ -26,16 +26,17 @@ interface NavLink {
 
 const navLinks: NavLink[] = [
   { href: "/", label: "Home" },
-  { href: "/go-live", label: "Go Live" },
   { href: "/library", label: "My Library", authOnly: true },
   { href: "/profile", label: "Profile", authOnly: true },
+  { href: "/go-live", label: "Go Live", adminOnly: true },
+  { href: "/playlist", label: "Playlist", adminOnly: true },
   { href: "/admin", label: "Admin", adminOnly: true },
 ];
 
 export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoTextColor, setLogoTextColor] = useState<string | null>(null);
-  const [letterColors, setLetterColors] = useState<(string | null)[]>(Array(8).fill(null));
+  const [letterColors, setLetterColors] = useState<(string | null)[]>(Array(13).fill(null));
   const pathname = usePathname();
   const { user } = useUser();
   const activeStream = useQuery(api.livestream.getActiveStream);
@@ -71,7 +72,7 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
       "text-lime-600",
     ];
 
-    const logoText = "DJ SNEAK";
+    const logoText = "Dream In Audio";
     const letterCount = logoText.length;
 
     let letterIndex = 0;
@@ -159,7 +160,7 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
               onClick={handleLogoTextClick}
               className="text-xl font-bold tracking-tight cursor-pointer"
             >
-              {"DJ SNEAK".split("").map((letter, index) => (
+              {"Dream In Audio".split("").map((letter, index) => (
                 <span
                   key={index}
                   className={`transition-all duration-300 ${

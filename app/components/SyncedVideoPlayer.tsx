@@ -2,7 +2,7 @@
 
 import Hls from "hls.js";
 import { Maximize2 } from "lucide-react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useEffect, useRef, useState } from "react";
 import { Id } from "../../convex/_generated/dataModel";
@@ -38,6 +38,15 @@ export default function SyncedVideoPlayer({
     (isLiveStream || !enableSync) ? "skip" : undefined
   );
 
+  // Get next video in playlist (for auto-advance)
+  const nextInPlaylist = useQuery(
+    api.playlist.getNextInPlaylist,
+    (isLiveStream || !enableSync) ? "skip" : undefined
+  );
+
+  // Mutation to advance playlist
+  const advancePlaylist = useMutation(api.playlist.advancePlaylist);
+
   // Attach playback URL via hls.js when needed
   useEffect(() => {
     const video = videoRef.current;
@@ -58,7 +67,8 @@ export default function SyncedVideoPlayer({
       video.src = playbackUrl;
     }
 
-    video.loop = !isLiveStream; // Don't loop live streams
+    // Only loop if not a live stream AND no next video in playlist
+    video.loop = !isLiveStream;
     video.autoplay = true;
     video.playsInline = true;
     video.muted = isMuted; // Set initial muted state
@@ -77,15 +87,37 @@ export default function SyncedVideoPlayer({
       }
     };
 
+    // Handle video end - advance playlist if next video exists
+    const handleVideoEnd = async () => {
+      if (isLiveStream || !enableSync) return;
+      
+      // Check if there's a next video in playlist
+      if (nextInPlaylist) {
+        console.log("Video ended, advancing to next in playlist...");
+        video.loop = false; // Disable loop to allow transition
+        try {
+          await advancePlaylist();
+        } catch (error) {
+          console.error("Failed to advance playlist:", error);
+          // Re-enable loop as fallback
+          video.loop = true;
+        }
+      }
+      // If no next video, loop continues naturally (video.loop = true)
+    };
+
+    video.addEventListener("ended", handleVideoEnd);
+
     handlePlayAttempt();
 
     return () => {
+      video.removeEventListener("ended", handleVideoEnd);
       if (hls) {
         hls.destroy();
       }
       video.pause();
     };
-  }, [playbackUrl, isLiveStream, enableSync]);
+  }, [playbackUrl, isLiveStream, enableSync, nextInPlaylist, advancePlaylist]);
 
   // Calculate current playback position based on t0 (skip for live streams and independent playback)
   useEffect(() => {
@@ -215,7 +247,7 @@ export default function SyncedVideoPlayer({
 
     navigator.mediaSession.metadata = new MediaMetadata({
       title: videoTitle,
-      artist: "DJ SNEAK",
+      artist: "Dream In Audio",
       album: "Live Stream",
     });
 

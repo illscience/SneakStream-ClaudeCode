@@ -1,6 +1,6 @@
 'use client';
 
-import { Heart, Download, Share2, Volume2, VolumeX, Tv, LayoutGrid, UserPlus, UserCheck } from "lucide-react";
+import { Heart, Download, Share2, Volume2, VolumeX, Tv, LayoutGrid, UserPlus, UserCheck, Clock, Radio } from "lucide-react";
 import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
 import VideoTimer from "./components/VideoTimer";
 import MainNav from "@/components/navigation/MainNav";
@@ -10,6 +10,7 @@ import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 export default function Home() {
   const { user } = useUser();
@@ -52,6 +53,9 @@ export default function Home() {
 
   // Get default video to play when no live stream is active
   const defaultVideo = useQuery(api.videos.getDefaultVideo);
+
+  // Get playlist (next videos queued to play)
+  const playlist = useQuery(api.playlist.getPlaylist);
 
   // Get admin setting for showing nightclub on homepage
   const showNightclubOnHome = useQuery(
@@ -117,7 +121,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [activeStream?.playbackId, activeStream?._id, updateViewerCount]);
 
-  const heroTitle = activeStream?.title ?? defaultVideo?.title ?? "DJ SNEAK";
+  const heroTitle = activeStream?.title ?? defaultVideo?.title ?? "Dream In Audio";
 
   const renderVideoContent = () => {
     if (activeStream && activeStream.playbackUrl) {
@@ -303,6 +307,82 @@ export default function Home() {
                       </span>
                     )}
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Now Playing / Up Next Section */}
+        {!activeStream && (defaultVideo || (playlist && playlist.length > 0)) && (
+          <div className="px-4 lg:px-8 py-8">
+            <div className="flex justify-center">
+              <div className="max-w-6xl w-full">
+                <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6">
+                  {/* Current Playing */}
+                  {defaultVideo && (
+                    <div className="mb-6">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Radio className="w-4 h-4 text-lime-400" />
+                        <h3 className="text-sm font-semibold uppercase tracking-wide text-lime-400">Now Playing</h3>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1">
+                          <Link href={`/watch/${defaultVideo._id}`} className="hover:text-lime-400 transition-colors">
+                            <h4 className="font-bold text-lg">{defaultVideo.title}</h4>
+                          </Link>
+                          {defaultVideo.description && (
+                            <p className="text-sm text-zinc-400 mt-1 line-clamp-1">{defaultVideo.description}</p>
+                          )}
+                        </div>
+                        {defaultVideo.duration && (
+                          <div className="flex items-center gap-1 text-zinc-400">
+                            <Clock className="w-4 h-4" />
+                            <span className="text-sm">
+                              {Math.floor(defaultVideo.duration / 60)}:{String(Math.floor(defaultVideo.duration % 60)).padStart(2, "0")}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Up Next Queue */}
+                  {playlist && playlist.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-400 mb-3">Up Next</h3>
+                      <div className="space-y-2">
+                        {playlist.slice(0, 5).map((entry, index) => (
+                          <div key={entry._id} className="flex items-center gap-4 p-3 bg-zinc-800/50 rounded-lg hover:bg-zinc-800 transition-colors">
+                            <div className="flex items-center justify-center w-8 h-8 bg-zinc-700 rounded-full text-sm font-bold text-zinc-400">
+                              {index + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <Link href={`/watch/${entry.videoId}`} className="hover:text-lime-400 transition-colors">
+                                <h4 className="font-medium truncate">{entry.video?.title || "Untitled"}</h4>
+                              </Link>
+                              {entry.video?.description && (
+                                <p className="text-xs text-zinc-500 truncate">{entry.video.description}</p>
+                              )}
+                            </div>
+                            {entry.video?.duration && (
+                              <div className="flex items-center gap-1 text-zinc-500">
+                                <Clock className="w-3 h-3" />
+                                <span className="text-xs">
+                                  {Math.floor(entry.video.duration / 60)}:{String(Math.floor(entry.video.duration % 60)).padStart(2, "0")}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {playlist.length > 5 && (
+                        <p className="text-xs text-zinc-500 mt-3 text-center">
+                          +{playlist.length - 5} more in queue
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
