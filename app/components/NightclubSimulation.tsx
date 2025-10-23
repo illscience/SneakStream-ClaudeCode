@@ -187,6 +187,11 @@ export default function NightclubSimulation() {
   }, [])
 
   const releaseAvatar = async (waitingAvatar: WaitingAvatar) => {
+    // Don't release avatars that are still generating
+    if (waitingAvatar.isGenerating || !waitingAvatar.image) {
+      return
+    }
+
     const speedMultiplier = 0.6 + Math.random() * 1.2
     const initialAngle = Math.random() * Math.PI * 2
     const initialSpeed = BASE_SPEED * speedMultiplier
@@ -551,17 +556,18 @@ export default function NightclubSimulation() {
   }
 
   const handleReleaseRandom = async () => {
-    if (waitingAvatars.length < 2) return
+    // Filter out avatars that are still generating
+    const readyAvatars = waitingAvatars.filter(a => !a.isGenerating && a.image)
+    if (readyAvatars.length < 2) return
     
     // Release 2-5 random avatars (or all if less than 5)
-    const maxToRelease = Math.min(5, waitingAvatars.length)
+    const maxToRelease = Math.min(5, readyAvatars.length)
     const numToRelease = Math.floor(Math.random() * (maxToRelease - 1)) + 2 // Min 2, max 5
     
     console.log(`[NIGHTCLUB] Releasing ${numToRelease} random avatars`)
     
-    // Snapshot current waiting avatars and shuffle
-    const currentWaiting = [...waitingAvatars]
-    const shuffled = currentWaiting.sort(() => Math.random() - 0.5)
+    // Snapshot ready avatars and shuffle
+    const shuffled = readyAvatars.sort(() => Math.random() - 0.5)
     const toRelease = shuffled.slice(0, numToRelease)
     
     // Remove from waiting list FIRST to prevent duplicates
@@ -569,6 +575,9 @@ export default function NightclubSimulation() {
     
     // Then release all to dance floor
     toRelease.forEach(avatar => {
+      // Skip if somehow the image is null (shouldn't happen due to filter above)
+      if (!avatar.image) return
+
       const speedMultiplier = 0.6 + Math.random() * 1.2
       const initialAngle = Math.random() * Math.PI * 2
       const initialSpeed = BASE_SPEED * speedMultiplier
@@ -693,17 +702,19 @@ export default function NightclubSimulation() {
     )
   }
 
+  const readyAvatarCount = waitingAvatars.filter(a => !a.isGenerating && a.image).length
+
   return (
     <div className="space-y-6">
       {/* Control Buttons */}
       <div className="flex gap-4 items-center">
         <button
           onClick={handleReleaseRandom}
-          disabled={waitingAvatars.length < 2}
+          disabled={readyAvatarCount < 2}
           className="bg-[#ff00ff] hover:bg-[#ff00ff]/80 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-2 px-6 rounded-lg transition-colors"
           style={{ boxShadow: "0 0 10px rgba(255, 0, 255, 0.5)" }}
         >
-          Release 2-5 Random ({waitingAvatars.length} waiting)
+          Release 2-5 Random ({readyAvatarCount} ready)
         </button>
         
         <button
