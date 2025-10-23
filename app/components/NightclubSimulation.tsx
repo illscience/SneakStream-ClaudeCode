@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { useUser } from "@clerk/nextjs"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { MessageSquare, Send, Trash2, X } from "lucide-react"
+import { Loader2, MessageSquare, Send, Trash2, X } from "lucide-react"
 
 interface Avatar {
   id: string
@@ -24,8 +24,9 @@ interface Avatar {
 interface WaitingAvatar {
   id: string
   _id?: string // Convex document ID for deletion
-  image: string
+  image: string | null
   subject: string
+  isGenerating?: boolean
 }
 
 interface ConversationCard {
@@ -143,6 +144,7 @@ export default function NightclubSimulation() {
             _id: qa._id, // Store Convex document ID for deletion on release
             image: qa.imageUrl,
             subject: qa.prompt.substring(0, 30),
+            isGenerating: false,
           }))
           setWaitingAvatars(queuedAvatars)
           setIsGenerating(false)
@@ -153,14 +155,32 @@ export default function NightclubSimulation() {
       }
 
       // Fallback: generate fresh avatars if queue is empty
-      console.log('[QUEUE] Queue empty, generating 12 avatars fresh...')
-      const waitingPromises = Array.from({ length: 12 }, async (_, i) => {
-        return generateSingleAvatar(`waiting-${i}`)
-      })
+      console.log('[QUEUE] Queue empty, generating 12 avatars fresh with progressive loading...')
+      
+      // Initialize 12 placeholder avatars with spinners
+      const placeholders: WaitingAvatar[] = Array.from({ length: 12 }, (_, i) => ({
+        id: `waiting-${Date.now()}-${i}`,
+        image: null,
+        subject: '',
+        isGenerating: true,
+      }))
+      
+      setWaitingAvatars(placeholders)
+      setIsGenerating(false) // We're showing spinners, so not "initializing" anymore
 
-      const generatedWaiting = await Promise.all(waitingPromises)
-      setWaitingAvatars(generatedWaiting)
-      setIsGenerating(false)
+      // Kick off all 12 generations in parallel
+      placeholders.forEach(async (placeholder, index) => {
+        const generatedAvatar = await generateSingleAvatar(placeholder.id)
+        
+        // Update this specific avatar in state when it completes
+        setWaitingAvatars(prev => 
+          prev.map(avatar => 
+            avatar.id === placeholder.id 
+              ? { ...generatedAvatar, isGenerating: false }
+              : avatar
+          )
+        )
+      })
     }
 
     loadAvatars()
@@ -205,9 +225,24 @@ export default function NightclubSimulation() {
       }
     }
 
+    // Add placeholder with spinner first
+    const placeholderId = `waiting-${Date.now()}`
+    setWaitingAvatars((prev) => [...prev, {
+      id: placeholderId,
+      image: null,
+      subject: '',
+      isGenerating: true,
+    }])
+
     // Generate new waiting avatar using OpenRouter prompts
-    const newWaitingAvatar = await generateSingleAvatar(`waiting-${Date.now()}`)
-    setWaitingAvatars((prev) => [...prev, newWaitingAvatar])
+    const newWaitingAvatar = await generateSingleAvatar(placeholderId)
+    setWaitingAvatars((prev) => 
+      prev.map(avatar => 
+        avatar.id === placeholderId 
+          ? { ...newWaitingAvatar, isGenerating: false }
+          : avatar
+      )
+    )
   }
 
   const generatePolaroid = async (avatar1: Avatar, avatar2: Avatar) => {
@@ -570,11 +605,26 @@ export default function NightclubSimulation() {
       }
     })
     
-    // Generate replacement avatars
-    Promise.all(
-      toRelease.map((_, i) => generateSingleAvatar(`waiting-${Date.now()}-${i}`))
-    ).then(newAvatars => {
-      setWaitingAvatars(prev => [...prev, ...newAvatars])
+    // Add placeholders with spinners first
+    const placeholders: WaitingAvatar[] = toRelease.map((_, i) => ({
+      id: `waiting-${Date.now()}-${i}`,
+      image: null,
+      subject: '',
+      isGenerating: true,
+    }))
+    
+    setWaitingAvatars(prev => [...prev, ...placeholders])
+    
+    // Generate replacement avatars in parallel
+    placeholders.forEach(async (placeholder) => {
+      const newAvatar = await generateSingleAvatar(placeholder.id)
+      setWaitingAvatars(prev => 
+        prev.map(avatar => 
+          avatar.id === placeholder.id 
+            ? { ...newAvatar, isGenerating: false }
+            : avatar
+        )
+      )
     })
   }
 
@@ -623,9 +673,24 @@ export default function NightclubSimulation() {
       }
     }
     
+    // Add placeholder with spinner first
+    const placeholderId = `waiting-${Date.now()}`
+    setWaitingAvatars((prev) => [...prev, {
+      id: placeholderId,
+      image: null,
+      subject: '',
+      isGenerating: true,
+    }])
+
     // Generate replacement avatar
-    const newWaitingAvatar = await generateSingleAvatar(`waiting-${Date.now()}`)
-    setWaitingAvatars((prev) => [...prev, newWaitingAvatar])
+    const newWaitingAvatar = await generateSingleAvatar(placeholderId)
+    setWaitingAvatars((prev) => 
+      prev.map(a => 
+        a.id === placeholderId 
+          ? { ...newWaitingAvatar, isGenerating: false }
+          : a
+      )
+    )
   }
 
   return (
@@ -661,26 +726,38 @@ export default function NightclubSimulation() {
           {waitingAvatars.map((avatar) => (
             <div
               key={avatar.id}
-              className="relative cursor-pointer transition-all hover:scale-110 flex-shrink-0 group"
-              onClick={() => releaseAvatar(avatar)}
+              className={`relative transition-all flex-shrink-0 group ${
+                avatar.isGenerating 
+                  ? 'cursor-not-allowed' 
+                  : 'cursor-pointer hover:scale-110'
+              }`}
+              onClick={() => !avatar.isGenerating && releaseAvatar(avatar)}
             >
               <div
-                className="w-16 h-16 rounded-full border-2 border-[#ff00ff] overflow-hidden"
+                className="w-16 h-16 rounded-full border-2 border-[#ff00ff] overflow-hidden flex items-center justify-center"
                 style={{ boxShadow: "0 0 10px rgba(255, 0, 255, 0.4)" }}
               >
-                <img
-                  src={avatar.image || "/placeholder.svg"}
-                  alt={avatar.id}
-                  className="w-full h-full object-cover"
-                />
+                {avatar.isGenerating || !avatar.image ? (
+                  <div className="w-full h-full bg-gradient-to-br from-[#c4ff0e]/20 to-[#ff00ff]/20 flex items-center justify-center">
+                    <Loader2 className="w-8 h-8 text-[#c4ff0e] animate-spin" />
+                  </div>
+                ) : (
+                  <img
+                    src={avatar.image}
+                    alt={avatar.id}
+                    className="w-full h-full object-cover"
+                  />
+                )}
               </div>
-              <button
-                onClick={(e) => handleDeleteWaitingAvatar(avatar, e)}
-                className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                title="Delete avatar"
-              >
-                <X className="w-3 h-3 text-white" />
-              </button>
+              {!avatar.isGenerating && (
+                <button
+                  onClick={(e) => handleDeleteWaitingAvatar(avatar, e)}
+                  className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                  title="Delete avatar"
+                >
+                  <X className="w-3 h-3 text-white" />
+                </button>
+              )}
             </div>
           ))}
         </div>
