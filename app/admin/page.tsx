@@ -10,7 +10,6 @@ import MainNav from "@/components/navigation/MainNav";
 export default function AdminPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
-  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("theater");
 
   // Check if user is admin
   const isAdmin = useQuery(
@@ -36,14 +35,6 @@ export default function AdminPage() {
     }
   }, [isLoaded, user, isAdmin, router]);
 
-  // Load layout mode from localStorage after hydration
-  useEffect(() => {
-    const saved = localStorage.getItem("layoutMode");
-    if (saved === "classic" || saved === "theater") {
-      setLayoutMode(saved);
-    }
-  }, []);
-
   const handleToggle = async () => {
     if (!user?.id) return;
     
@@ -62,7 +53,7 @@ export default function AdminPage() {
   if (!isLoaded || isAdmin === undefined || showNightclubOnHome === undefined) {
     return (
       <div className="min-h-screen bg-black text-white">
-        <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
+        <MainNav />
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="text-xl text-zinc-400">Loading...</div>
@@ -79,7 +70,7 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
+      <MainNav />
 
       <main className="pt-32 px-4 lg:px-8 max-w-4xl mx-auto">
         <div className="mb-8">

@@ -3,19 +3,11 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, LayoutGrid, Layout } from "lucide-react";
-import { Toggle } from "@/components/ui/toggle";
+import { Menu, X } from "lucide-react";
 import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import LogoShimmer from "./LogoShimmer";
-
-type LayoutMode = "classic" | "theater";
-
-interface MainNavProps {
-  layoutMode: LayoutMode;
-  onLayoutChange: (mode: LayoutMode) => void;
-}
 
 interface NavLink {
   href: string;
@@ -33,7 +25,7 @@ const navLinks: NavLink[] = [
   { href: "/admin", label: "Admin", adminOnly: true },
 ];
 
-export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
+export default function MainNav() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoTextColor, setLogoTextColor] = useState<string | null>(null);
   const [letterColors, setLetterColors] = useState<(string | null)[]>(Array(13).fill(null));
@@ -232,25 +224,6 @@ export default function MainNav({ layoutMode, onLayoutChange }: MainNavProps) {
         </nav>
 
         <div className="hidden items-center gap-4 lg:flex">
-          <Toggle
-            pressed={layoutMode === "theater"}
-            onPressedChange={(pressed) => onLayoutChange(pressed ? "theater" : "classic")}
-            aria-label="Toggle layout"
-            className="flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-200 transition-colors data-[state=on]:border-lime-400 data-[state=on]:bg-lime-400 data-[state=on]:text-black"
-          >
-            {layoutMode === "theater" ? (
-              <>
-                <Layout className="h-4 w-4" />
-                Theater
-              </>
-            ) : (
-              <>
-                <LayoutGrid className="h-4 w-4" />
-                Classic
-              </>
-            )}
-          </Toggle>
-
           <SignedOut>
             <SignInButton mode="modal">
               <button className="rounded-full border border-white/20 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/10">

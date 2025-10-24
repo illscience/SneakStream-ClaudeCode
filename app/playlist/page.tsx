@@ -13,7 +13,6 @@ import Link from "next/link";
 export default function PlaylistPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
-  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("theater");
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -40,14 +39,6 @@ export default function PlaylistPage() {
       router.push("/");
     }
   }, [isLoaded, user, isAdmin, router]);
-
-  // Load layout mode from localStorage after hydration
-  useEffect(() => {
-    const saved = localStorage.getItem("layoutMode");
-    if (saved === "classic" || saved === "theater") {
-      setLayoutMode(saved);
-    }
-  }, []);
 
   const showNotification = (message: string) => {
     setNotification(message);
@@ -126,7 +117,7 @@ export default function PlaylistPage() {
   if (!isLoaded || isAdmin === undefined) {
     return (
       <div className="min-h-screen bg-black text-white">
-        <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
+        <MainNav />
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="text-xl text-zinc-400">Loading...</div>
@@ -143,7 +134,7 @@ export default function PlaylistPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
+      <MainNav />
 
       {/* Toast Notification */}
       {notification && (

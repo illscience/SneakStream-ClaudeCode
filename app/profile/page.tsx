@@ -11,7 +11,6 @@ import EditableAlias from "../../components/ui/editable-alias";
 export default function ProfilePage() {
   const { user, isLoaded } = useUser();
   const [alias, setAlias] = useState("");
-  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("classic");
 
   const upsertUser = useMutation(api.users.upsertUser);
   const convexUser = useQuery(
@@ -103,7 +102,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
+      <MainNav />
 
       {/* Header with gradient */}
       <div className="relative bg-gradient-to-br from-pink-500 via-purple-500 to-cyan-500 h-48 mt-16">

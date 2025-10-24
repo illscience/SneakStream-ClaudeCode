@@ -15,7 +15,6 @@ export default function LibraryPage() {
   const router = useRouter();
   const [checking, setChecking] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("classic");
   const [editingVideoId, setEditingVideoId] = useState<Id<"videos"> | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [notification, setNotification] = useState<string | null>(null);
@@ -278,7 +277,7 @@ export default function LibraryPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
+      <MainNav />
 
       {/* Toast Notification */}
       {notification && (

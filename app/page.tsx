@@ -1,6 +1,6 @@
 'use client';
 
-import { Heart, Download, Share2, Volume2, VolumeX, Tv, LayoutGrid, UserPlus, UserCheck, Clock, Radio } from "lucide-react";
+import { Heart, Download, Share2, Volume2, VolumeX, UserPlus, UserCheck, Clock, Radio } from "lucide-react";
 import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
 import VideoTimer from "./components/VideoTimer";
 import MainNav from "@/components/navigation/MainNav";
@@ -15,38 +15,21 @@ import Link from "next/link";
 export default function Home() {
   const { user } = useUser();
   const [isHeartAnimating, setIsHeartAnimating] = useState(false);
-  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("theater");
   const [isMuted, setIsMuted] = useState(true);
   const [isDesktop, setIsDesktop] = useState(false);
   const [viewerCount, setViewerCount] = useState<number>(0);
 
-  // Load layout mode from localStorage after hydration
-  useEffect(() => {
-    const saved = localStorage.getItem('layoutMode');
-    if (saved === 'classic' || saved === 'theater') {
-      setLayoutMode(saved);
-    }
-  }, []);
-
-  // Save layout mode to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem('layoutMode', layoutMode);
-  }, [layoutMode]);
-
-  // Force classic layout on screens below the lg breakpoint
+  // Check screen size for responsive layout
   useEffect(() => {
     const handleResize = () => {
       const width = window.innerWidth;
       setIsDesktop(width >= 1024);
-      if (width < 1024 && layoutMode !== 'classic') {
-        setLayoutMode('classic');
-      }
     };
 
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [layoutMode]);
+  }, []);
 
   // Get active live stream
   const activeStream = useQuery(api.livestream.getActiveStream);
@@ -192,7 +175,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
+      <MainNav />
 
       {/* Main Content */}
       <main className="pt-20">
@@ -467,21 +450,6 @@ export default function Home() {
             )}
           </div>
 
-          {/* Right - View Controls */}
-          <div className="hidden lg:flex items-center gap-3 flex-1 justify-end">
-            <button
-              onClick={() => setLayoutMode(layoutMode === "classic" ? "theater" : "classic")}
-              className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700 transition-colors"
-            >
-              <LayoutGrid className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setLayoutMode("theater")}
-              className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700 transition-colors"
-            >
-              <Tv className="w-5 h-5" />
-            </button>
-          </div>
         </div>
 
       </div>

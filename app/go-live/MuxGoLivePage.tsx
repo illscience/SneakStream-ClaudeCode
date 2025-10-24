@@ -13,7 +13,6 @@ type StreamStep = "idle" | "preview" | "live";
 export default function MuxGoLivePage() {
   const { user } = useUser();
   const [isLoading, setIsLoading] = useState(false);
-  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("classic");
   const [streamStep, setStreamStep] = useState<StreamStep>("idle");
   const [previewStream, setPreviewStream] = useState<{
     streamId: string;
@@ -295,7 +294,7 @@ export default function MuxGoLivePage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
+      <MainNav />
 
       <main className="pt-24 px-4 lg:px-8 pb-16 max-w-2xl mx-auto">
         {activeStream && (
