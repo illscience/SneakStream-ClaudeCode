@@ -18,8 +18,8 @@ interface NavLink {
 
 const navLinks: NavLink[] = [
   { href: "/", label: "Home" },
-  { href: "/library", label: "My Library", authOnly: true },
-  { href: "/profile", label: "Profile", authOnly: true },
+  { href: "/library", label: "My Library" },
+  { href: "/profile", label: "Profile" },
   { href: "/go-live", label: "Go Live", adminOnly: true },
   { href: "/playlist", label: "Playlist", adminOnly: true },
   { href: "/admin", label: "Admin", adminOnly: true },
