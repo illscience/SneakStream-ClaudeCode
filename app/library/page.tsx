@@ -506,7 +506,7 @@ export default function LibraryPage() {
                       className="w-10 h-10 bg-lime-400/90 hover:bg-lime-500 rounded-full flex items-center justify-center shadow-lg backdrop-blur-sm text-black"
                       title="Play Now - Switch all viewers to this video immediately"
                     >
-                      <Plus className="w-5 h-5" />
+                      <Radio className="w-5 h-5" />
                     </button>
                   )}
 
@@ -518,9 +518,9 @@ export default function LibraryPage() {
                         handlePlayNext(video._id, video.title);
                       }}
                       className="w-10 h-10 bg-blue-600/90 hover:bg-blue-700 rounded-full flex items-center justify-center shadow-lg backdrop-blur-sm text-white"
-                      title="Play Next - Queue this video to play after current"
+                      title="Play Next - Add to queue"
                     >
-                      <SkipForward className="w-5 h-5" />
+                      <Plus className="w-5 h-5" />
                     </button>
                   )}
 
