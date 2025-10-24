@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
-import { Film, Plus, Play, Eye, Clock, RefreshCw, Trash2, Heart, Star, Edit2, Check, X } from "lucide-react";
+import { Film, Plus, Play, Eye, Clock, RefreshCw, Trash2, Heart, Edit2, Check, X, SkipForward, Radio } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import MainNav from "@/components/navigation/MainNav";
@@ -15,9 +15,9 @@ export default function LibraryPage() {
   const router = useRouter();
   const [checking, setChecking] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("classic");
   const [editingVideoId, setEditingVideoId] = useState<Id<"videos"> | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
+  const [notification, setNotification] = useState<string | null>(null);
 
   const videos = useQuery(
     api.videos.getUserVideos,
@@ -26,19 +26,44 @@ export default function LibraryPage() {
 
   const updateVideoStatus = useMutation(api.videos.updateVideoStatus);
   const updateVideo = useMutation(api.videos.updateVideo);
-  const setDefaultVideo = useMutation(api.videos.setDefaultVideo);
-  const unsetDefaultVideo = useMutation(api.videos.unsetDefaultVideo);
+  const playNow = useMutation(api.playlist.playNow);
+  const playNext = useMutation(api.playlist.playNext);
 
-  const handleSetDefault = async (videoId: Id<"videos">, isCurrentlyDefault: boolean) => {
+  // Get current default video to show "ON AIR NOW" indicator
+  const defaultVideo = useQuery(api.videos.getDefaultVideo);
+
+  const showNotification = (message: string) => {
+    setNotification(message);
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handlePlayNow = async (videoId: Id<"videos">, videoTitle: string) => {
+    if (!user?.id) return;
+    
+    // Confirmation dialog to prevent accidental interruption
+    const confirmed = confirm(
+      `Play "${videoTitle}" now?\n\nThis will immediately switch all viewers to this video.`
+    );
+    
+    if (!confirmed) return;
+
     try {
-      if (isCurrentlyDefault) {
-        await unsetDefaultVideo({ videoId });
-      } else {
-        await setDefaultVideo({ videoId });
-      }
+      await playNow({ videoId, clerkId: user.id });
+      showNotification(`Now playing: ${videoTitle}`);
     } catch (error) {
-      console.error("Set default error:", error);
-      alert("Failed to set default video. Please try again.");
+      console.error("Play now error:", error);
+      alert("Failed to play video. Please try again.");
+    }
+  };
+
+  const handlePlayNext = async (videoId: Id<"videos">, videoTitle: string) => {
+    if (!user?.id) return;
+    try {
+      await playNext({ videoId, clerkId: user.id });
+      showNotification(`"${videoTitle}" added to queue`);
+    } catch (error) {
+      console.error("Play next error:", error);
+      alert("Failed to queue video. Please try again.");
     }
   };
 
@@ -252,7 +277,18 @@ export default function LibraryPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
+      <MainNav />
+
+      {/* Toast Notification */}
+      {notification && (
+        <div className="fixed top-24 right-4 z-50 animate-in slide-in-from-top-5 fade-in duration-300">
+          <div className="bg-lime-400 text-black px-6 py-3 rounded-full shadow-lg font-medium flex items-center gap-2">
+            <div className="w-2 h-2 bg-black rounded-full animate-pulse"></div>
+            {notification}
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto p-8 pt-24">
         <div className="flex flex-col gap-4 mb-8">
           <div className="flex items-center justify-between">
@@ -337,10 +373,10 @@ export default function LibraryPage() {
 
                       {/* Status Badge */}
                       <div className="absolute top-3 right-3 flex gap-2">
-                        {video.isDefault && (
+                        {defaultVideo?._id === video._id && (
                           <span className="px-3 py-1 rounded-full text-xs font-medium bg-lime-400 text-black flex items-center gap-1">
-                            <Star className="w-3 h-3 fill-current" />
-                            Default
+                            <Radio className="w-3 h-3" />
+                            ON AIR NOW
                           </span>
                         )}
                         <span
@@ -459,21 +495,31 @@ export default function LibraryPage() {
 
                 {/* Action Buttons - Always visible on mobile, hover on desktop */}
                 <div className="absolute top-3 left-3 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10">
-                  {/* Set as Default Button */}
-                  {video.status === "ready" && (
+                  {/* Play Now Button */}
+                  {video.status === "ready" && defaultVideo?._id !== video._id && (
                     <button
                       onClick={(e) => {
                         e.preventDefault();
-                        handleSetDefault(video._id, video.isDefault || false);
+                        handlePlayNow(video._id, video.title);
                       }}
-                      className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg ${
-                        video.isDefault
-                          ? "bg-lime-400 hover:bg-lime-500 text-black"
-                          : "bg-zinc-800/90 hover:bg-zinc-700 text-white backdrop-blur-sm"
-                      }`}
-                      title={video.isDefault ? "Unset as default" : "Set as default video"}
+                      className="w-10 h-10 bg-lime-400/90 hover:bg-lime-500 rounded-full flex items-center justify-center shadow-lg backdrop-blur-sm text-black"
+                      title="Play Now - Switch all viewers to this video immediately"
                     >
-                      <Star className={`w-5 h-5 ${video.isDefault ? "fill-current" : ""}`} />
+                      <Radio className="w-5 h-5" />
+                    </button>
+                  )}
+
+                  {/* Play Next Button */}
+                  {video.status === "ready" && defaultVideo?._id !== video._id && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handlePlayNext(video._id, video.title);
+                      }}
+                      className="w-10 h-10 bg-blue-600/90 hover:bg-blue-700 rounded-full flex items-center justify-center shadow-lg backdrop-blur-sm text-white"
+                      title="Play Next - Add to queue"
+                    >
+                      <Plus className="w-5 h-5" />
                     </button>
                   )}
 

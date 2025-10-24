@@ -13,7 +13,6 @@ export default function LivepeerGoLivePage() {
   const [streamTitle, setStreamTitle] = useState("");
   const [streamDescription, setStreamDescription] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("classic");
 
   const [videoQuality, setVideoQuality] = useState("1080p");
   const [videoBitrate, setVideoBitrate] = useState("6000");
@@ -93,7 +92,7 @@ export default function LivepeerGoLivePage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
+      <MainNav />
 
       <main className="pt-24 px-8 pb-16 max-w-4xl mx-auto">
         {activeStream && (

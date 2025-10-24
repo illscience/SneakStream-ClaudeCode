@@ -1,6 +1,6 @@
 'use client';
 
-import { Heart, Download, Share2, Volume2, VolumeX, Tv, LayoutGrid, UserPlus, UserCheck } from "lucide-react";
+import { Heart, Download, Share2, Volume2, VolumeX, UserPlus, UserCheck, Clock, Radio } from "lucide-react";
 import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
 import VideoTimer from "./components/VideoTimer";
 import MainNav from "@/components/navigation/MainNav";
@@ -10,48 +10,35 @@ import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 export default function Home() {
   const { user } = useUser();
   const [isHeartAnimating, setIsHeartAnimating] = useState(false);
-  const [layoutMode, setLayoutMode] = useState<"classic" | "theater">("theater");
   const [isMuted, setIsMuted] = useState(true);
   const [isDesktop, setIsDesktop] = useState(false);
   const [viewerCount, setViewerCount] = useState<number>(0);
 
-  // Load layout mode from localStorage after hydration
-  useEffect(() => {
-    const saved = localStorage.getItem('layoutMode');
-    if (saved === 'classic' || saved === 'theater') {
-      setLayoutMode(saved);
-    }
-  }, []);
-
-  // Save layout mode to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem('layoutMode', layoutMode);
-  }, [layoutMode]);
-
-  // Force classic layout on screens below the lg breakpoint
+  // Check screen size for responsive layout
   useEffect(() => {
     const handleResize = () => {
       const width = window.innerWidth;
       setIsDesktop(width >= 1024);
-      if (width < 1024 && layoutMode !== 'classic') {
-        setLayoutMode('classic');
-      }
     };
 
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [layoutMode]);
+  }, []);
 
   // Get active live stream
   const activeStream = useQuery(api.livestream.getActiveStream);
 
   // Get default video to play when no live stream is active
   const defaultVideo = useQuery(api.videos.getDefaultVideo);
+
+  // Get playlist (next videos queued to play)
+  const playlist = useQuery(api.playlist.getPlaylist);
 
   // Get admin setting for showing nightclub on homepage
   const showNightclubOnHome = useQuery(
@@ -117,7 +104,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [activeStream?.playbackId, activeStream?._id, updateViewerCount]);
 
-  const heroTitle = activeStream?.title ?? defaultVideo?.title ?? "DJ SNEAK";
+  const heroTitle = activeStream?.title ?? defaultVideo?.title ?? "Dream In Audio";
 
   const renderVideoContent = () => {
     if (activeStream && activeStream.playbackUrl) {
@@ -188,7 +175,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <MainNav layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
+      <MainNav />
 
       {/* Main Content */}
       <main className="pt-20">
@@ -309,8 +296,84 @@ export default function Home() {
           </div>
         )}
 
+        {/* Now Playing / Up Next Section */}
+        {!activeStream && (defaultVideo || (playlist && playlist.length > 0)) && (
+          <div className="px-4 lg:px-8 py-4">
+            <div className="flex justify-center">
+              <div className="max-w-6xl w-full">
+                <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
+                  {/* Current Playing */}
+                  {defaultVideo && (
+                    <div className="mb-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Radio className="w-3.5 h-3.5 text-lime-400" />
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-lime-400">Now Playing</h3>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <Link href={`/watch/${defaultVideo._id}`} className="hover:text-lime-400 transition-colors">
+                            <h4 className="font-bold truncate">{defaultVideo.title}</h4>
+                          </Link>
+                          {defaultVideo.description && (
+                            <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1">{defaultVideo.description}</p>
+                          )}
+                        </div>
+                        {defaultVideo.duration && (
+                          <div className="flex items-center gap-1 text-zinc-400 flex-shrink-0">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span className="text-xs">
+                              {Math.floor(defaultVideo.duration / 60)}:{String(Math.floor(defaultVideo.duration % 60)).padStart(2, "0")}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Up Next Queue */}
+                  {playlist && playlist.length > 0 && (
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-2">Up Next</h3>
+                      <div className="space-y-1.5">
+                        {playlist.slice(0, 5).map((entry, index) => (
+                          <div key={entry._id} className="flex items-center gap-3 p-2.5 bg-zinc-800/50 rounded-lg hover:bg-zinc-800 transition-colors">
+                            <div className="flex items-center justify-center w-7 h-7 bg-zinc-700 rounded-full text-sm font-bold text-zinc-400 flex-shrink-0">
+                              {index + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <Link href={`/watch/${entry.videoId}`} className="hover:text-lime-400 transition-colors">
+                                <h4 className="font-medium truncate text-sm">{entry.video?.title || "Untitled"}</h4>
+                              </Link>
+                              {entry.video?.description && (
+                                <p className="text-xs text-zinc-500 truncate">{entry.video.description}</p>
+                              )}
+                            </div>
+                            {entry.video?.duration && (
+                              <div className="flex items-center gap-1 text-zinc-500 flex-shrink-0">
+                                <Clock className="w-3 h-3" />
+                                <span className="text-xs">
+                                  {Math.floor(entry.video.duration / 60)}:{String(Math.floor(entry.video.duration % 60)).padStart(2, "0")}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {playlist.length > 5 && (
+                        <p className="text-xs text-zinc-500 mt-2 text-center">
+                          +{playlist.length - 5} more in queue
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Nightclub and Chat Section */}
-        <div className="px-4 lg:px-8 pb-48 pt-8">
+        <div className="px-4 lg:px-8 pb-48 pt-4">
           {showNightclubOnHome ? (
             // Full layout when nightclub is visible
             <NightclubSimulation>
@@ -387,21 +450,6 @@ export default function Home() {
             )}
           </div>
 
-          {/* Right - View Controls */}
-          <div className="hidden lg:flex items-center gap-3 flex-1 justify-end">
-            <button
-              onClick={() => setLayoutMode(layoutMode === "classic" ? "theater" : "classic")}
-              className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700 transition-colors"
-            >
-              <LayoutGrid className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => setLayoutMode("theater")}
-              className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center hover:bg-zinc-700 transition-colors"
-            >
-              <Tv className="w-5 h-5" />
-            </button>
-          </div>
         </div>
 
       </div>

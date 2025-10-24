@@ -146,4 +146,17 @@ export default defineSchema({
     updatedAt: v.number(),
     updatedBy: v.string(), // clerkId of admin who updated
   }).index("by_key", ["key"]),
+
+  // Playlist queue for broadcast-style video playback
+  playlist: defineTable({
+    videoId: v.id("videos"), // Reference to video in queue
+    addedBy: v.string(), // clerkId of user who queued it
+    addedAt: v.number(), // Timestamp when added
+    position: v.optional(v.number()), // Queue position (0 = next up)
+    status: v.optional(v.string()), // "queued" | "playing" | "played"
+    order: v.optional(v.number()), // Legacy field from old implementation
+  })
+    .index("by_status", ["status"])
+    .index("by_position", ["position"])
+    .index("by_status_and_position", ["status", "position"]),
 });

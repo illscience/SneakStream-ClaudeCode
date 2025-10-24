@@ -15,12 +15,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DJ SNEAK - Live Streaming",
-  description: "Watch DJ SNEAK live performances and sets",
+  title: "Dream In Audio - Live Streaming",
+  description: "Watch Dream In Audio live performances and sets",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "DJ SNEAK",
+    title: "Dream In Audio",
   },
   other: {
     "mobile-web-app-capable": "yes",
