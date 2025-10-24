@@ -67,8 +67,9 @@ export default function SyncedVideoPlayer({
       video.src = playbackUrl;
     }
 
-    // Only loop if not a live stream AND no next video in playlist
-    video.loop = !isLiveStream;
+    // Set loop based on whether there's a next video
+    // Loop if: not live stream AND no next video in queue
+    video.loop = !isLiveStream && !nextInPlaylist;
     video.autoplay = true;
     video.playsInline = true;
     video.muted = isMuted; // Set initial muted state
@@ -91,19 +92,19 @@ export default function SyncedVideoPlayer({
     const handleVideoEnd = async () => {
       if (isLiveStream || !enableSync) return;
       
+      console.log("Video ended. Next in playlist:", nextInPlaylist ? "Yes" : "No");
+      
       // Check if there's a next video in playlist
       if (nextInPlaylist) {
-        console.log("Video ended, advancing to next in playlist...");
-        video.loop = false; // Disable loop to allow transition
+        console.log("Advancing to next video in playlist...");
         try {
           await advancePlaylist();
         } catch (error) {
           console.error("Failed to advance playlist:", error);
-          // Re-enable loop as fallback
-          video.loop = true;
         }
+      } else {
+        console.log("No next video, looping current video");
       }
-      // If no next video, loop continues naturally (video.loop = true)
     };
 
     video.addEventListener("ended", handleVideoEnd);
