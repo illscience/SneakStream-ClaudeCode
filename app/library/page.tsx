@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
-import { Film, Plus, Play, Eye, Clock, RefreshCw, Trash2, Heart, Edit2, Check, X, SkipForward } from "lucide-react";
+import { Film, Plus, Play, Eye, Clock, RefreshCw, Trash2, Heart, Edit2, Check, X, SkipForward, Radio } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import MainNav from "@/components/navigation/MainNav";
