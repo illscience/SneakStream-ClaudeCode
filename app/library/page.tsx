@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
-import { Film, Plus, Play, Eye, Clock, RefreshCw, Trash2, Heart, Edit2, Check, X, Radio, SkipForward } from "lucide-react";
+import { Film, Plus, Play, Eye, Clock, RefreshCw, Trash2, Heart, Edit2, Check, X, SkipForward } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import MainNav from "@/components/navigation/MainNav";
@@ -506,7 +506,7 @@ export default function LibraryPage() {
                       className="w-10 h-10 bg-lime-400/90 hover:bg-lime-500 rounded-full flex items-center justify-center shadow-lg backdrop-blur-sm text-black"
                       title="Play Now - Switch all viewers to this video immediately"
                     >
-                      <Radio className="w-5 h-5" />
+                      <Plus className="w-5 h-5" />
                     </button>
                   )}
 
