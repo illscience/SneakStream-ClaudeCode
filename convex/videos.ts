@@ -33,6 +33,66 @@ export const createVideo = mutation({
   },
 });
 
+// Upsert a Mux asset into the videos collection
+export const upsertMuxAsset = mutation({
+  args: {
+    assetId: v.string(),
+    userId: v.string(),
+    title: v.string(),
+    description: v.optional(v.string()),
+    playbackId: v.optional(v.string()),
+    duration: v.optional(v.number()),
+    status: v.optional(v.string()),
+    visibility: v.optional(v.string()),
+    liveStreamId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("videos")
+      .withIndex("by_assetId", (q) => q.eq("assetId", args.assetId))
+      .first();
+
+    const playbackUrl = args.playbackId
+      ? `https://stream.mux.com/${args.playbackId}.m3u8`
+      : undefined;
+
+    if (existing) {
+      const updates: Record<string, unknown> = {};
+
+      if (args.title) updates.title = args.title;
+      if (args.description !== undefined) updates.description = args.description;
+      if (args.playbackId) {
+        updates.playbackId = args.playbackId;
+        updates.playbackUrl = playbackUrl;
+      }
+      if (args.duration !== undefined) updates.duration = args.duration;
+      if (args.status) updates.status = args.status;
+      if (args.visibility) updates.visibility = args.visibility;
+
+      if (Object.keys(updates).length > 0) {
+        await ctx.db.patch(existing._id, updates);
+      }
+
+      return existing._id;
+    }
+
+    return await ctx.db.insert("videos", {
+      userId: args.userId,
+      title: args.title,
+      description: args.description,
+      provider: "mux",
+      assetId: args.assetId,
+      playbackId: args.playbackId,
+      playbackUrl,
+      duration: args.duration,
+      status: args.status || "processing",
+      visibility: args.visibility || "public",
+      viewCount: 0,
+      heartCount: 0,
+    });
+  },
+});
+
 // Update video status
 export const updateVideoStatus = mutation({
   args: {

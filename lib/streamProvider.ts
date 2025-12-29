@@ -28,7 +28,10 @@ function resolveProvider() {
   }
 
   // Fall back to Mux when credentials are present or when no provider is specified.
-  if (process.env.MUX_TOKEN_ID && (process.env.MUX_TOKEN_SECRET || process.env.MUX_SECRET_KEY)) {
+  if (
+    process.env.MUX_TOKEN_ID &&
+    (process.env.MUX_TOKEN_SECRET || process.env.MUX_SECRET_KEY || process.env.MUX_SECRET)
+  ) {
     return "mux";
   }
 

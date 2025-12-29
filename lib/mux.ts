@@ -1,17 +1,81 @@
-import { env } from "process";
+import { existsSync, readFileSync } from "fs";
+import { join } from "path";
 
 const MUX_BASE_URL = "https://api.mux.com";
+const MUX_ENV_KEYS = new Set([
+  "MUX_TOKEN_ID",
+  "MUX_TOKEN",
+  "MUX_TOKEN_SECRET",
+  "MUX_SECRET_KEY",
+  "MUX_SECRET",
+]);
+let didAttemptEnvLoad = false;
+
+function loadMuxEnvFromFile() {
+  if (didAttemptEnvLoad || process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  didAttemptEnvLoad = true;
+
+  const envFiles = [".env.local", ".env"];
+  for (const filename of envFiles) {
+    const filepath = join(process.cwd(), filename);
+    if (!existsSync(filepath)) {
+      continue;
+    }
+
+    const contents = readFileSync(filepath, "utf8");
+    for (const line of contents.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) {
+        continue;
+      }
+
+      const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+      if (!match) {
+        continue;
+      }
+
+      const key = match[1];
+      if (!MUX_ENV_KEYS.has(key) || process.env[key]) {
+        continue;
+      }
+
+      let value = match[2].trim();
+      if (
+        (value.startsWith("\"") && value.endsWith("\"")) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+
+      process.env[key] = value;
+    }
+  }
+}
+
+export function ensureMuxEnvLoaded() {
+  if (process.env.MUX_TOKEN_ID && (process.env.MUX_TOKEN_SECRET || process.env.MUX_SECRET_KEY || process.env.MUX_SECRET)) {
+    return;
+  }
+
+  loadMuxEnvFromFile();
+}
 
 function resolveMuxSecret() {
-  return env.MUX_TOKEN_SECRET || env.MUX_SECRET_KEY;
+  return process.env.MUX_TOKEN_SECRET || process.env.MUX_SECRET_KEY || process.env.MUX_SECRET;
 }
 
 function getMuxAuthHeader() {
-  const tokenId = env.MUX_TOKEN_ID || env.MUX_TOKEN;
+  ensureMuxEnvLoaded();
+  const tokenId = process.env.MUX_TOKEN_ID || process.env.MUX_TOKEN;
   const tokenSecret = resolveMuxSecret();
 
   if (!tokenId || !tokenSecret) {
-    throw new Error("MUX credentials are not configured. Please set MUX_TOKEN_ID and MUX_TOKEN_SECRET (or legacy MUX_TOKEN / MUX_SECRET_KEY) in your environment.");
+    throw new Error(
+      "MUX credentials are not configured. Please set MUX_TOKEN_ID and MUX_TOKEN_SECRET (or legacy MUX_TOKEN / MUX_SECRET_KEY / MUX_SECRET) in your environment."
+    );
   }
 
   const credentials = Buffer.from(`${tokenId}:${tokenSecret}`).toString("base64");
@@ -121,9 +185,31 @@ export interface MuxAssetPlaybackId {
 export interface MuxAssetData {
   id: string;
   status: string;
+  created_at?: number;
   duration?: number;
   playback_ids?: MuxAssetPlaybackId[];
   tracks?: Array<{ type: string; max_width?: number; max_height?: number }>;
+}
+
+export interface MuxAssetListItem extends MuxAssetData {
+  live_stream_id?: string;
+  passthrough?: string;
+}
+
+export async function listAssets(params: { liveStreamId?: string; limit?: number; page?: number } = {}): Promise<MuxAssetListItem[]> {
+  const searchParams = new URLSearchParams();
+  if (params.limit) {
+    searchParams.set("limit", String(params.limit));
+  }
+  if (params.page) {
+    searchParams.set("page", String(params.page));
+  }
+  if (params.liveStreamId) {
+    searchParams.set("live_stream_id", params.liveStreamId);
+  }
+
+  const query = searchParams.toString();
+  return muxRequest<MuxAssetListItem[]>(`/video/v1/assets${query ? `?${query}` : ""}`);
 }
 
 export async function getAsset(assetId: string): Promise<MuxAssetData> {
@@ -138,6 +224,7 @@ export interface MuxLiveStream {
   reconnect_window?: number;
   created_at: string;
   latency_mode: string;
+  active_asset_id?: string;
   new_asset_settings?: {
     playback_policy?: string[];
   };
@@ -174,6 +261,18 @@ export async function createLiveStream(name: string): Promise<{
 
 export async function getLiveStream(liveStreamId: string): Promise<MuxLiveStream> {
   return muxRequest<MuxLiveStream>(`/video/v1/live-streams/${liveStreamId}`);
+}
+
+export async function enableLiveStream(liveStreamId: string): Promise<void> {
+  await muxRequest(`/video/v1/live-streams/${liveStreamId}/enable`, {
+    method: "PUT",
+  });
+}
+
+export async function disableLiveStream(liveStreamId: string): Promise<void> {
+  await muxRequest(`/video/v1/live-streams/${liveStreamId}/disable`, {
+    method: "PUT",
+  });
 }
 
 export async function deleteLiveStream(liveStreamId: string): Promise<void> {

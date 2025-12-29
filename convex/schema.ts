@@ -49,7 +49,8 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_status", ["status"])
     .index("by_visibility", ["visibility"])
-    .index("by_isDefault", ["isDefault"]),
+    .index("by_isDefault", ["isDefault"])
+    .index("by_assetId", ["assetId"]),
 
   events: defineTable({
     artist: v.string(),
@@ -83,7 +84,8 @@ export default defineSchema({
     rtmpIngestUrl: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_streamId", ["streamId"]),
 
   // Synchronized playback state for default video
   playbackState: defineTable({

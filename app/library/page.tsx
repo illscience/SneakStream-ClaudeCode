@@ -130,7 +130,9 @@ export default function LibraryPage() {
       for (const video of processingVideos) {
         const payload =
           video.provider === "mux"
-            ? { uploadId: video.uploadId, provider: "mux" }
+            ? video.uploadId
+              ? { uploadId: video.uploadId, provider: "mux" }
+              : { assetId: video.assetId, provider: "mux" }
             : { assetId: video.assetId, provider: "livepeer" };
 
         if (!payload.uploadId && !payload.assetId) {

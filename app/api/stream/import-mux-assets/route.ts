@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
-import { env } from "process";
-
+import { ensureMuxEnvLoaded } from "@/lib/mux";
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
-// List all Mux assets
+  // List all Mux assets
 async function listAllMuxAssets() {
   const MUX_BASE_URL = "https://api.mux.com";
-  const tokenId = env.MUX_TOKEN_ID || env.MUX_TOKEN;
-  const tokenSecret = env.MUX_TOKEN_SECRET || env.MUX_SECRET_KEY;
+  ensureMuxEnvLoaded();
+  const tokenId = process.env.MUX_TOKEN_ID || process.env.MUX_TOKEN;
+  const tokenSecret =
+    process.env.MUX_TOKEN_SECRET ||
+    process.env.MUX_SECRET_KEY ||
+    process.env.MUX_SECRET;
 
   if (!tokenId || !tokenSecret) {
     throw new Error("MUX credentials not configured");

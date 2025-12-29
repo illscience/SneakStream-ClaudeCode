@@ -117,7 +117,20 @@ export default function MuxGoLivePage() {
           console.log("HLS level loaded, duration:", data?.details?.totalduration);
         });
 
-        hlsRef.current.on(Hls.Events.ERROR, (_event: unknown, data: { fatal?: boolean; type?: string }) => {
+        hlsRef.current.on(
+          Hls.Events.ERROR,
+          (_event: unknown, data: { fatal?: boolean; type?: string; response?: { code?: number } }) => {
+            if (data.response?.code === 412) {
+              console.warn("HLS manifest not ready (412), retrying...");
+              setStreamStatus("waiting");
+              setTimeout(() => {
+                if (hlsRef.current) {
+                  hlsRef.current.loadSource(playbackUrl);
+                }
+              }, 3000);
+              return;
+            }
+
           if (data.fatal) {
             console.error("HLS fatal error:", data);
             if (data.type === "networkError") {
@@ -133,7 +146,8 @@ export default function MuxGoLivePage() {
               setStreamStatus("error");
             }
           }
-        });
+          }
+        );
 
         hlsRef.current.loadSource(playbackUrl);
         hlsRef.current.attachMedia(video);
@@ -203,6 +217,23 @@ export default function MuxGoLivePage() {
 
       // Check if user has saved credentials
       if (savedCredentials) {
+        if (savedCredentials.provider === "mux") {
+          try {
+            const enableResponse = await fetch("/api/stream/enable", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ streamId: savedCredentials.streamId }),
+            });
+
+            if (!enableResponse.ok) {
+              const error = await enableResponse.json();
+              console.warn("Failed to enable Mux live stream:", error);
+            }
+          } catch (error) {
+            console.warn("Failed to enable Mux live stream:", error);
+          }
+        }
+
         // Reuse existing stream
         streamData = {
           streamId: savedCredentials.streamId,
@@ -287,20 +318,35 @@ export default function MuxGoLivePage() {
     try {
       console.log("Ending stream with ID:", activeStream.streamId);
 
-      // Fetch the asset info from Mux
-      const response = await fetch("/api/stream/end", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ streamId: activeStream.streamId }),
-      });
+      const pollDelayMs = 4000;
+      const pollAttempts = 4;
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to end stream");
-      }
+      const fetchAssetData = async () => {
+        const response = await fetch("/api/stream/end", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ streamId: activeStream.streamId }),
+        });
 
-      const assetData = await response.json();
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || "Failed to end stream");
+        }
+
+        return response.json();
+      };
+
+      let assetData = await fetchAssetData();
       console.log("Asset data from Mux:", assetData);
+
+      let attempt = 0;
+      while ((!assetData.assetId || !assetData.playbackId) && attempt < pollAttempts) {
+        attempt += 1;
+        console.log(`Recording not ready, retrying (${attempt}/${pollAttempts})...`);
+        await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
+        assetData = await fetchAssetData();
+        console.log("Asset data from Mux:", assetData);
+      }
 
       // End stream and save recording
       if (assetData.assetId && assetData.playbackId) {
@@ -313,6 +359,14 @@ export default function MuxGoLivePage() {
         });
         console.log("Recording saved successfully!");
         alert("Stream ended! Your recording is being saved to MY LIBRARY.");
+      } else if (assetData.assetId) {
+        console.warn("Asset created but still processing. Saving placeholder to library...");
+        await endStream({
+          streamId: activeStream._id,
+          assetId: assetData.assetId,
+          duration: assetData.duration,
+        });
+        alert("Stream ended! Recording is processing and will appear in MY LIBRARY shortly.");
       } else {
         console.warn("Asset not ready yet. Recording will be available shortly.");
         await endStream({

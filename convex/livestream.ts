@@ -27,6 +27,17 @@ export const getUserStreams = query({
   },
 });
 
+// Get a stream by provider stream ID
+export const getStreamByStreamId = query({
+  args: { streamId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("livestreams")
+      .withIndex("by_streamId", (q) => q.eq("streamId", args.streamId))
+      .first();
+  },
+});
+
 // Start a new stream (end any existing active streams first)
 export const startStream = mutation({
   args: {
@@ -95,8 +106,12 @@ export const endStream = mutation({
       endedAt: Date.now(),
     });
 
-    // If we have asset info, save recording to library
-    if (args.assetId && args.playbackId) {
+    // Save recording to library (even if still processing).
+    if (args.assetId) {
+      const playbackUrl = args.playbackId
+        ? `https://stream.mux.com/${args.playbackId}.m3u8`
+        : undefined;
+
       await ctx.db.insert("videos", {
         userId: stream.userId,
         title: stream.title,
@@ -104,9 +119,9 @@ export const endStream = mutation({
         provider: "mux",
         assetId: args.assetId,
         playbackId: args.playbackId,
-        playbackUrl: `https://stream.mux.com/${args.playbackId}.m3u8`,
+        playbackUrl,
         duration: args.duration,
-        status: "ready",
+        status: args.playbackId ? "ready" : "processing",
         visibility: "public",
         viewCount: 0,
         heartCount: 0,

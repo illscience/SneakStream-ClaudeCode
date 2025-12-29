@@ -9,34 +9,50 @@ export async function POST(request: NextRequest) {
     const provider = (providerOverride || getStreamProvider()).toLowerCase();
 
     if (provider === "mux") {
-      if (!uploadId) {
-        return NextResponse.json({ error: "uploadId is required" }, { status: 400 });
+      if (!uploadId && !assetId) {
+        return NextResponse.json({ error: "uploadId or assetId is required" }, { status: 400 });
       }
 
-      const upload = await getUploadStatus(uploadId);
+      if (uploadId) {
+        const upload = await getUploadStatus(uploadId);
 
-      let playbackId: string | undefined;
-      let playbackUrl: string | undefined;
-      let duration: number | undefined;
-      let assetStatus: string | undefined;
+        let playbackId: string | undefined;
+        let playbackUrl: string | undefined;
+        let duration: number | undefined;
+        let assetStatus: string | undefined;
 
-      if (upload.asset_id) {
-        const asset = await getAsset(upload.asset_id);
-        assetStatus = asset.status;
-        playbackId = asset.playback_ids?.find((p) => p.policy === "public")?.id;
-        playbackUrl = playbackId ? getMuxPlaybackUrl(playbackId) : undefined;
-        duration = asset.duration;
+        if (upload.asset_id) {
+          const asset = await getAsset(upload.asset_id);
+          assetStatus = asset.status;
+          playbackId = asset.playback_ids?.find((p) => p.policy === "public")?.id;
+          playbackUrl = playbackId ? getMuxPlaybackUrl(playbackId) : undefined;
+          duration = asset.duration;
+        }
+
+        return NextResponse.json({
+          provider: "mux",
+          uploadId,
+          status: upload.status,
+          assetId: upload.asset_id,
+          assetStatus,
+          playbackId,
+          playbackUrl,
+          duration,
+        });
       }
+
+      const asset = await getAsset(assetId);
+      const playbackId = asset.playback_ids?.find((p) => p.policy === "public")?.id;
+      const playbackUrl = playbackId ? getMuxPlaybackUrl(playbackId) : undefined;
 
       return NextResponse.json({
         provider: "mux",
-        uploadId,
-        status: upload.status,
-        assetId: upload.asset_id,
-        assetStatus,
+        assetId,
+        status: asset.status,
+        assetStatus: asset.status,
         playbackId,
         playbackUrl,
-        duration,
+        duration: asset.duration,
       });
     }
 
