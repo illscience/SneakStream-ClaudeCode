@@ -1,7 +1,12 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 
-// Define the home page and nightclub-related APIs as public routes (allow viewing without login)
-const isPublicRoute = createRouteMatcher(['/', '/api/nightclub/(.*)', '/api/generate-polaroid'])
+// Define public routes (allow viewing without login)
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/api/nightclub/(.*)',
+  '/api/generate-polaroid',
+  '/api/webhooks/mux',
+])
 
 export default clerkMiddleware(async (auth, req) => {
   // Protect all routes except the home page
