@@ -34,6 +34,7 @@ export const getStreamByStreamId = query({
     return await ctx.db
       .query("livestreams")
       .withIndex("by_streamId", (q) => q.eq("streamId", args.streamId))
+      .order("desc")
       .first();
   },
 });
@@ -96,14 +97,29 @@ export const endStream = mutation({
     duration: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    console.log("[livestream.endStream] called", {
+      streamId: args.streamId,
+      assetId: args.assetId,
+      playbackId: args.playbackId,
+      duration: args.duration,
+    });
+
     const stream = await ctx.db.get(args.streamId);
     if (!stream) {
+      console.warn("[livestream.endStream] stream not found", {
+        streamId: args.streamId,
+      });
       throw new Error("Stream not found");
     }
 
     await ctx.db.patch(args.streamId, {
       status: "ended",
       endedAt: Date.now(),
+    });
+    console.log("[livestream.endStream] marked ended", {
+      streamId: args.streamId,
+      userId: stream.userId,
+      title: stream.title,
     });
 
     // Save recording to library (even if still processing).
@@ -112,7 +128,7 @@ export const endStream = mutation({
         ? `https://stream.mux.com/${args.playbackId}.m3u8`
         : undefined;
 
-      await ctx.db.insert("videos", {
+      const videoId = await ctx.db.insert("videos", {
         userId: stream.userId,
         title: stream.title,
         description: stream.description,
@@ -125,6 +141,18 @@ export const endStream = mutation({
         visibility: "public",
         viewCount: 0,
         heartCount: 0,
+      });
+      console.log("[livestream.endStream] inserted video record", {
+        videoId,
+        assetId: args.assetId,
+        playbackId: args.playbackId,
+        playbackUrl,
+        title: stream.title,
+        status: args.playbackId ? "ready" : "processing",
+      });
+    } else {
+      console.log("[livestream.endStream] no assetId provided; skipping video insert", {
+        streamId: args.streamId,
       });
     }
 

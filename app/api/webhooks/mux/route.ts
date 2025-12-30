@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
+import { getAsset as getMuxAsset } from "@/lib/mux";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
@@ -73,17 +74,29 @@ const verifySignature = (payload: string, headerValue: string | null) => {
 };
 
 async function upsertMuxAsset(event: MuxWebhookEvent) {
-  const asset = event.data;
-  if (!asset?.id) {
+  const eventAsset = event.data;
+  if (!eventAsset?.id) {
     return { ok: false, reason: "Missing asset id" };
   }
 
-  const liveStreamId = asset.live_stream_id;
-  const playbackId = asset.playback_ids?.find((p) => p.policy === "public")?.id;
-  const status = asset.status === "ready" ? "ready" : "processing";
+  let resolvedAsset = eventAsset;
+
+  if (!resolvedAsset.live_stream_id || !resolvedAsset.status || resolvedAsset.duration === undefined) {
+    try {
+      resolvedAsset = (await getMuxAsset(eventAsset.id)) as typeof resolvedAsset;
+    } catch (error) {
+      console.warn("[mux webhook] Failed to fetch full asset data from Mux:", error);
+    }
+  }
+
+  const liveStreamId = resolvedAsset.live_stream_id || eventAsset.live_stream_id;
+  const playbackId =
+    resolvedAsset.playback_ids?.find((p) => p.policy === "public")?.id ||
+    eventAsset.playback_ids?.find((p) => p.policy === "public")?.id;
+  const status = resolvedAsset.status === "ready" ? "ready" : "processing";
 
   let userId: string | undefined;
-  let title = asset.passthrough || "Stream Recording";
+  let title = resolvedAsset.passthrough || eventAsset.passthrough || "Stream Recording";
   let description = "Recorded via Mux";
 
   if (liveStreamId) {
@@ -102,13 +115,20 @@ async function upsertMuxAsset(event: MuxWebhookEvent) {
     return { ok: false, reason: "No matching livestream/user for asset" };
   }
 
+  console.log("[mux webhook] Upserting asset:", {
+    type: event.type,
+    assetId: eventAsset.id,
+    liveStreamId,
+    status,
+  });
+
   await convex.mutation(api.videos.upsertMuxAsset, {
-    assetId: asset.id,
+    assetId: eventAsset.id,
     userId,
     title,
     description,
     playbackId,
-    duration: asset.duration,
+    duration: resolvedAsset.duration ?? eventAsset.duration,
     status,
     visibility: "public",
     liveStreamId,
@@ -123,7 +143,15 @@ export async function POST(request: NextRequest) {
     const signatureHeader = request.headers.get("Mux-Signature");
     const verification = verifySignature(payload, signatureHeader);
 
+    console.log("[mux webhook] received", {
+      signatureHeader: signatureHeader ? "present" : "missing",
+      contentLength: payload.length,
+    });
+
     if (!verification.ok) {
+      console.warn("[mux webhook] signature verification failed", {
+        reason: verification.reason,
+      });
       return NextResponse.json({ error: verification.reason }, { status: 400 });
     }
 
@@ -131,6 +159,20 @@ export async function POST(request: NextRequest) {
     if (!event.type) {
       return NextResponse.json({ ok: true });
     }
+
+    const eventAsset = event.data;
+    console.log("[mux webhook] event parsed", {
+      type: event.type,
+      assetId: eventAsset?.id,
+      passthrough: eventAsset?.passthrough,
+      liveStreamId: eventAsset?.live_stream_id,
+      status: eventAsset?.status,
+      duration: eventAsset?.duration,
+      playbackIds: eventAsset?.playback_ids?.map((p) => ({
+        id: p.id,
+        policy: p.policy,
+      })),
+    });
 
     if (event.type === "video.asset.created" || event.type === "video.asset.ready") {
       const result = await upsertMuxAsset(event);

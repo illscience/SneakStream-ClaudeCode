@@ -22,6 +22,18 @@ export const createVideo = mutation({
     const resolvedProvider = provider || (livepeerAssetId ? "livepeer" : "mux");
     const resolvedAssetId = assetId || livepeerAssetId || undefined;
 
+    if (resolvedAssetId) {
+      const existing = await ctx.db
+        .query("videos")
+        .withIndex("by_assetId", (q) => q.eq("assetId", resolvedAssetId))
+        .order("desc")
+        .first();
+
+      if (existing) {
+        return existing._id;
+      }
+    }
+
     return await ctx.db.insert("videos", {
       ...rest,
       assetId: resolvedAssetId,
@@ -47,10 +59,36 @@ export const upsertMuxAsset = mutation({
     liveStreamId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
+    console.log("[videos.upsertMuxAsset] incoming", {
+      assetId: args.assetId,
+      userId: args.userId,
+      title: args.title,
+      status: args.status,
+      playbackId: args.playbackId,
+      liveStreamId: args.liveStreamId,
+    });
+
+    let existing = await ctx.db
       .query("videos")
       .withIndex("by_assetId", (q) => q.eq("assetId", args.assetId))
+      .order("desc")
       .first();
+
+    if (!existing && args.liveStreamId) {
+      const placeholderAssetId = `pending:${args.liveStreamId}`;
+      existing = await ctx.db
+        .query("videos")
+        .withIndex("by_assetId", (q) => q.eq("assetId", placeholderAssetId))
+        .order("desc")
+        .first();
+
+      if (existing) {
+        console.log("[videos.upsertMuxAsset] matched placeholder by liveStreamId", {
+          placeholderAssetId,
+          existingId: existing._id,
+        });
+      }
+    }
 
     const playbackUrl = args.playbackId
       ? `https://stream.mux.com/${args.playbackId}.m3u8`
@@ -68,15 +106,24 @@ export const upsertMuxAsset = mutation({
       if (args.duration !== undefined) updates.duration = args.duration;
       if (args.status) updates.status = args.status;
       if (args.visibility) updates.visibility = args.visibility;
+      if (args.assetId && existing.assetId !== args.assetId) {
+        updates.assetId = args.assetId;
+      }
+      if (existing.provider !== "mux") updates.provider = "mux";
 
       if (Object.keys(updates).length > 0) {
         await ctx.db.patch(existing._id, updates);
+        console.log("[videos.upsertMuxAsset] updated existing video", {
+          videoId: existing._id,
+          assetId: args.assetId,
+          updates,
+        });
       }
 
       return existing._id;
     }
 
-    return await ctx.db.insert("videos", {
+    const newVideoId = await ctx.db.insert("videos", {
       userId: args.userId,
       title: args.title,
       description: args.description,
@@ -90,6 +137,15 @@ export const upsertMuxAsset = mutation({
       viewCount: 0,
       heartCount: 0,
     });
+
+    console.log("[videos.upsertMuxAsset] inserted new video", {
+      videoId: newVideoId,
+      assetId: args.assetId,
+      playbackId: args.playbackId,
+      status: args.status || "processing",
+    });
+
+    return newVideoId;
   },
 });
 
