@@ -3,20 +3,26 @@
 import { useUser } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { useEffect, useState } from "react";
-import { Users, UserPlus, Heart, Music } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
+import { Users, UserPlus, Heart, Music, Loader2 } from "lucide-react";
 import MainNav from "@/components/navigation/MainNav";
 import EditableAlias from "../../components/ui/editable-alias";
 
 export default function ProfilePage() {
   const { user, isLoaded } = useUser();
   const [alias, setAlias] = useState("");
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const upsertUser = useMutation(api.users.upsertUser);
   const convexUser = useQuery(
     api.users.getUserByClerkId,
     user?.id ? { clerkId: user.id } : "skip"
   );
+  const updateAvatar = useMutation(api.users.updateSelectedAvatar);
+  const generateAvatarUploadUrl = useMutation(api.users.generateAvatarUploadUrl);
   const followers = useQuery(
     api.users.getFollowers,
     user?.id ? { clerkId: user.id } : "skip"
@@ -89,6 +95,61 @@ export default function ProfilePage() {
     }
   };
 
+  const currentAvatar = convexUser?.selectedAvatar || user?.imageUrl || "";
+  useEffect(() => {
+    if (convexUser?.selectedAvatar) {
+      setAvatarPreview(convexUser.selectedAvatar);
+    } else if (user?.imageUrl) {
+      setAvatarPreview(user.imageUrl);
+    }
+  }, [convexUser?.selectedAvatar, user?.imageUrl]);
+
+  const handleAvatarUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file.");
+      return;
+    }
+    const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
+    if (file.size > MAX_IMAGE_SIZE) {
+      alert("Image is too large. Please choose a file under 8MB.");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    const previewUrl = URL.createObjectURL(file);
+    setAvatarPreview(previewUrl);
+
+    try {
+      const { uploadUrl } = await generateAvatarUploadUrl({});
+      const uploadRes = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!uploadRes.ok) {
+        throw new Error("Upload failed");
+      }
+      const { storageId } = await uploadRes.json();
+      const result = await updateAvatar({
+        clerkId: user.id,
+        avatarStorageId: storageId,
+      });
+      if (result?.imageUrl) {
+        setAvatarPreview(result.imageUrl);
+      }
+    } catch (error) {
+      console.error("[profile] avatar upload failed", error);
+      alert("Failed to upload avatar. Please try again.");
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setAvatarPreview(null);
+    } finally {
+      setIsUploadingAvatar(false);
+      event.target.value = "";
+    }
+  };
+
   if (!isLoaded || !user) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -113,14 +174,42 @@ export default function ProfilePage() {
         <div className="bg-zinc-900 rounded-3xl p-6 sm:p-8 mb-6 border border-zinc-800">
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-8">
             <div className="relative flex-shrink-0">
-              <img
-                src={user.imageUrl}
-                alt={alias}
-                className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-lime-400 shadow-xl object-cover"
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarUpload}
               />
-              <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-lime-400 rounded-full flex items-center justify-center">
-                <Music className="w-5 h-5 text-black" />
-              </div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="group relative"
+                aria-label="Upload new avatar"
+              >
+                <img
+                  src={avatarPreview || currentAvatar || "/placeholder.svg"}
+                  alt={alias}
+                  className="w-24 h-24 sm:w-32 sm:h-32 rounded-full border-4 border-lime-400 shadow-xl object-cover"
+                />
+                <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  {isUploadingAvatar ? (
+                    <Loader2 className="w-6 h-6 text-lime-300 animate-spin" />
+                  ) : (
+                    <span className="text-xs text-lime-200 font-semibold">Change</span>
+                  )}
+                </div>
+                <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-lime-400 rounded-full flex items-center justify-center">
+                  <Music className="w-5 h-5 text-black" />
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-3 w-full rounded-lg border border-lime-400/40 bg-black/40 px-3 py-2 text-xs font-semibold text-lime-200 hover:bg-lime-400/10 transition"
+              >
+                {isUploadingAvatar ? "Uploading..." : "Upload photo"}
+              </button>
             </div>
             <div className="flex-1 text-center sm:text-left w-full">
               <div className="mb-4">

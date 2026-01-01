@@ -130,22 +130,46 @@ export const getFollowingCount = query({
 export const updateSelectedAvatar = mutation({
   args: {
     clerkId: v.string(),
-    avatarUrl: v.string(),
+    avatarUrl: v.optional(v.string()),
+    avatarStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
+    let imageUrl: string | undefined = args.avatarUrl ?? undefined;
+
+    if (args.avatarStorageId) {
+      const resolved = await ctx.storage.getUrl(args.avatarStorageId);
+      imageUrl = resolved ?? imageUrl;
+    }
+
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
       .first();
 
     if (!user) {
-      throw new Error("User not found");
+      const newUserId = await ctx.db.insert("users", {
+        clerkId: args.clerkId,
+        alias: args.clerkId,
+        email: undefined,
+        imageUrl: imageUrl ?? undefined,
+        selectedAvatar: imageUrl ?? undefined,
+      });
+      return { userId: newUserId, imageUrl };
     }
 
     await ctx.db.patch(user._id, {
-      selectedAvatar: args.avatarUrl,
+      selectedAvatar: imageUrl ?? undefined,
+      imageUrl: imageUrl ?? user.imageUrl,
     });
 
-    return user._id;
+    return { userId: user._id, imageUrl };
+  },
+});
+
+export const generateAvatarUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const uploadUrl = await ctx.storage.generateUploadUrl();
+    return { uploadUrl };
   },
 });
