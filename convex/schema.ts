@@ -8,6 +8,8 @@ export default defineSchema({
     userName: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
     body: v.string(),
+    imageStorageId: v.optional(v.id("_storage")),
+    imageMimeType: v.optional(v.string()),
   }),
 
   users: defineTable({

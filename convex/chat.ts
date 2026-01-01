@@ -8,6 +8,8 @@ export const sendMessage = mutation({
     userName: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
     body: v.string(),
+    imageStorageId: v.optional(v.id("_storage")),
+    imageMimeType: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("messages", {
@@ -16,6 +18,8 @@ export const sendMessage = mutation({
       userName: args.userName,
       avatarUrl: args.avatarUrl,
       body: args.body,
+      imageStorageId: args.imageStorageId,
+      imageMimeType: args.imageMimeType,
     });
   },
 });
@@ -24,7 +28,17 @@ export const getMessages = query({
   args: {},
   handler: async (ctx) => {
     const messages = await ctx.db.query("messages").order("desc").take(50);
-    return messages.reverse();
+
+    const withUrls = await Promise.all(
+      messages.map(async (message) => ({
+        ...message,
+        imageUrl: message.imageStorageId
+          ? await ctx.storage.getUrl(message.imageStorageId)
+          : undefined,
+      }))
+    );
+
+    return withUrls.reverse();
   },
 });
 
@@ -34,8 +48,20 @@ export const deleteMessage = mutation({
   },
   handler: async (ctx, args) => {
     const message = await ctx.db.get(args.messageId);
-    if (message) {
-      await ctx.db.delete(args.messageId);
+    if (!message) return;
+
+    if (message.imageStorageId) {
+      await ctx.storage.delete(message.imageStorageId);
     }
+
+    await ctx.db.delete(args.messageId);
+  },
+});
+
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const uploadUrl = await ctx.storage.generateUploadUrl();
+    return { uploadUrl };
   },
 });
