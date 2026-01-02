@@ -12,7 +12,6 @@ export default function LiveChat() {
   const { user } = useUser()
   const [newMessage, setNewMessage] = useState("")
   const [optimisticMessages, setOptimisticMessages] = useState<any[]>([])
-  const [optimisticRemixIds, setOptimisticRemixIds] = useState<Set<string>>(new Set())
   const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(new Set())
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -174,26 +173,43 @@ export default function LiveChat() {
   const handleRemix = async (messageId: Id<"messages">) => {
     const target = messages?.find((m) => m._id === messageId)
     const placeholderId = `optimistic-remix-${messageId}-${Date.now()}`
-    if (target?.imageUrl) {
-      setOptimisticMessages((prev) => [
-        ...prev,
-        {
-          _id: placeholderId,
-          _creationTime: Date.now(),
-          user: user?.id,
-          userId: user?.id,
-          userName: displayName,
-          avatarUrl: resolvedAvatar,
-          body: "Remixing...",
-          imageUrl: target.imageUrl,
-          imageMimeType: target.imageMimeType,
-          remixOf: messageId,
-          remixing: true,
-        },
-      ])
-      setOptimisticRemixIds((prev) => new Set(prev).add(placeholderId))
+
+    if (!target?.imageUrl) {
+      return
     }
-    const prompt = window.prompt("Enter a remix prompt (optional):", "") || undefined
+
+    // Add placeholder immediately
+    setOptimisticMessages((prev) => [
+      ...prev,
+      {
+        _id: placeholderId,
+        _creationTime: Date.now(),
+        user: user?.id,
+        userId: user?.id,
+        userName: displayName,
+        avatarUrl: resolvedAvatar,
+        body: "Remixing...",
+        imageUrl: target.imageUrl,
+        imageMimeType: target.imageMimeType,
+        remixOf: messageId,
+        remixing: true,
+        optimistic: true,
+      },
+    ])
+
+    // Allow React to render the placeholder before showing prompt
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const promptResult = window.prompt("Enter a remix prompt (optional):", "")
+
+    // If user clicks Cancel, promptResult is null - remove placeholder and abort
+    if (promptResult === null) {
+      setOptimisticMessages((prev) => prev.filter((m) => m._id !== placeholderId))
+      return
+    }
+
+    const prompt = promptResult || undefined
+
     try {
       setRemixingId(String(messageId))
       await remixImageToGif({
@@ -203,15 +219,27 @@ export default function LiveChat() {
         userName: displayName,
         avatarUrl: resolvedAvatar,
       })
+      // Success! The real message will appear via Convex subscription.
+      // The combinedMessages filter will automatically remove the placeholder
+      // when it detects a real message with the same remixOf value.
     } catch (error) {
       console.error("Failed to remix image:", error)
       alert("Remix failed. Please try again.")
+      // Remove placeholder on failure
+      setOptimisticMessages((prev) => prev.filter((m) => m._id !== placeholderId))
     } finally {
       setRemixingId(null)
-      setOptimisticMessages((prev) => prev.filter((m) => !optimisticRemixIds.has(m._id)))
-      setOptimisticRemixIds(new Set())
     }
   }
+
+  const combinedMessages = [...(messages || []), ...optimisticMessages].filter((msg: any) => {
+    const hasReal = (messages || []).some(
+      (real: any) => real.remixOf === msg.remixOf && !real.optimistic && !real.remixing
+    )
+    if (msg.optimistic && hasReal) return false
+    if (msg.remixing && hasReal) return false
+    return true
+  })
 
   return (
     <div className="flex flex-col">
@@ -292,7 +320,7 @@ export default function LiveChat() {
       </form>
 
       <div className="space-y-3 max-h-[560px] overflow-y-auto pr-2 bg-zinc-900/50 rounded-xl p-4 border border-zinc-800">
-        {[...(messages || []), ...optimisticMessages]
+        {combinedMessages
           .filter((message) => !deletedMessageIds.has(message._id))
           .slice()
           .reverse()

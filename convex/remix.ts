@@ -123,6 +123,9 @@ export const remixImageToGif = action({
     return {
       storageId,
       imageUrl: await ctx.storage.getUrl(storageId),
+      imageMimeType: contentType,
+      remixOf: args.messageId,
+      body: args.prompt ?? "Remix",
     };
   },
 });

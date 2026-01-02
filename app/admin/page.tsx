@@ -34,6 +34,7 @@ export default function AdminPage() {
     () => [
       { label: "wan/v2.6/image-to-video (default)", value: "wan/v2.6/image-to-video" },
       { label: "fal-ai/veo3.1/fast/first-last-frame-to-video (needs first/last frames)", value: "fal-ai/veo3.1/fast/first-last-frame-to-video" },
+      { label: "fal-ai/kling-video/v2.5-turbo/pro/image-to-video", value: "fal-ai/kling-video/v2.5-turbo/pro/image-to-video" },
     ],
     []
   );

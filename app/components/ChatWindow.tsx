@@ -15,7 +15,6 @@ export default function ChatWindow() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [optimisticMessages, setOptimisticMessages] = useState<any[]>([]);
-  const [optimisticRemixIds, setOptimisticRemixIds] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [remixingId, setRemixingId] = useState<string | null>(null);
   const messages = useQuery(api.chat.getMessages);
@@ -54,26 +53,43 @@ export default function ChatWindow() {
   const handleRemix = async (messageId: Id<"messages">) => {
     const target = messages?.find((m) => m._id === messageId);
     const placeholderId = `optimistic-remix-${messageId}-${Date.now()}`;
-    if (target?.imageUrl) {
-      setOptimisticMessages((prev) => [
-        ...prev,
-        {
-          _id: placeholderId,
-          _creationTime: Date.now(),
-          user: user?.id,
-          userId: user?.id,
-          userName: displayName,
-          avatarUrl: user?.imageUrl,
-          body: "Remixing...",
-          imageUrl: target.imageUrl,
-          imageMimeType: target.imageMimeType,
-          remixOf: messageId,
-          remixing: true,
-        },
-      ]);
-      setOptimisticRemixIds((prev) => new Set(prev).add(placeholderId));
+
+    if (!target?.imageUrl) {
+      return;
     }
-    const prompt = window.prompt("Enter a remix prompt (optional):", "") || undefined;
+
+    // Add placeholder immediately
+    setOptimisticMessages((prev) => [
+      ...prev,
+      {
+        _id: placeholderId,
+        _creationTime: Date.now(),
+        user: user?.id,
+        userId: user?.id,
+        userName: displayName,
+        avatarUrl: user?.imageUrl,
+        body: "Remixing...",
+        imageUrl: target.imageUrl,
+        imageMimeType: target.imageMimeType,
+        remixOf: messageId,
+        remixing: true,
+        optimistic: true,
+      },
+    ]);
+
+    // Allow React to render the placeholder before showing prompt
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const promptResult = window.prompt("Enter a remix prompt (optional):", "");
+
+    // If user clicks Cancel, promptResult is null - remove placeholder and abort
+    if (promptResult === null) {
+      setOptimisticMessages((prev) => prev.filter((m) => m._id !== placeholderId));
+      return;
+    }
+
+    const prompt = promptResult || undefined;
+
     try {
       setRemixingId(String(messageId));
       await remixImageToGif({
@@ -83,15 +99,27 @@ export default function ChatWindow() {
         userName: displayName,
         avatarUrl: user?.imageUrl,
       });
+      // Success! The real message will appear via Convex subscription.
+      // The combinedMessages filter will automatically remove the placeholder
+      // when it detects a real message with the same remixOf value.
     } catch (error) {
       console.error("Failed to remix image:", error);
       alert("Remix failed. Please try again.");
+      // Remove placeholder on failure
+      setOptimisticMessages((prev) => prev.filter((m) => m._id !== placeholderId));
     } finally {
       setRemixingId(null);
-      setOptimisticMessages((prev) => prev.filter((m) => !optimisticRemixIds.has(m._id)));
-      setOptimisticRemixIds(new Set());
     }
   };
+
+  const combinedMessages = [...(messages || []), ...optimisticMessages].filter((msg: any) => {
+    const hasReal = (messages || []).some(
+      (real: any) => real.remixOf === msg.remixOf && !real.optimistic && !real.remixing
+    );
+    if (msg.optimistic && hasReal) return false;
+    if (msg.remixing && hasReal) return false;
+    return true;
+  });
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -246,7 +274,7 @@ export default function ChatWindow() {
 
       <div className="max-h-[420px] overflow-y-auto rounded-2xl border border-white/5 bg-black/60 p-4">
         <div className="space-y-3">
-          {[...(messages || []), ...optimisticMessages]
+          {combinedMessages
             .slice()
             .reverse()
             .map((message) => (
