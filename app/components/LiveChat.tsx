@@ -12,6 +12,7 @@ export default function LiveChat() {
   const { user } = useUser()
   const [newMessage, setNewMessage] = useState("")
   const [optimisticMessages, setOptimisticMessages] = useState<any[]>([])
+  const [optimisticRemixIds, setOptimisticRemixIds] = useState<Set<string>>(new Set())
   const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(new Set())
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
@@ -171,6 +172,27 @@ export default function LiveChat() {
   }, [imagePreview])
 
   const handleRemix = async (messageId: Id<"messages">) => {
+    const target = messages?.find((m) => m._id === messageId)
+    const placeholderId = `optimistic-remix-${messageId}-${Date.now()}`
+    if (target?.imageUrl) {
+      setOptimisticMessages((prev) => [
+        ...prev,
+        {
+          _id: placeholderId,
+          _creationTime: Date.now(),
+          user: user?.id,
+          userId: user?.id,
+          userName: displayName,
+          avatarUrl: resolvedAvatar,
+          body: "Remixing...",
+          imageUrl: target.imageUrl,
+          imageMimeType: target.imageMimeType,
+          remixOf: messageId,
+          remixing: true,
+        },
+      ])
+      setOptimisticRemixIds((prev) => new Set(prev).add(placeholderId))
+    }
     const prompt = window.prompt("Enter a remix prompt (optional):", "") || undefined
     try {
       setRemixingId(String(messageId))
@@ -186,6 +208,8 @@ export default function LiveChat() {
       alert("Remix failed. Please try again.")
     } finally {
       setRemixingId(null)
+      setOptimisticMessages((prev) => prev.filter((m) => !optimisticRemixIds.has(m._id)))
+      setOptimisticRemixIds(new Set())
     }
   }
 
@@ -318,7 +342,12 @@ export default function LiveChat() {
                 )}
               </div>
               {message.body && message.body.trim().length > 0 && (
-                <p className="text-sm text-white break-words">{message.body}</p>
+                <p className="text-sm text-white break-words">
+                  {message.body}
+                  {message.remixing && (
+                    <span className="ml-2 text-xs text-zinc-400">(generating...)</span>
+                  )}
+                </p>
               )}
               {message.remixOf && (
                 <span className="text-xs text-zinc-500">Remix of {message.remixOf}</span>

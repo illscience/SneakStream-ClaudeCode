@@ -4,7 +4,7 @@ import { useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import MainNav from "@/components/navigation/MainNav";
 
 export default function AdminPage() {
@@ -30,6 +30,13 @@ export default function AdminPage() {
   // Update setting mutation
   const updateSetting = useMutation(api.adminSettings.updateSetting);
   const [modelInput, setModelInput] = useState("");
+  const modelOptions = useMemo(
+    () => [
+      { label: "wan/v2.6/image-to-video (default)", value: "wan/v2.6/image-to-video" },
+      { label: "fal-ai/veo3.1/fast/first-last-frame-to-video (needs first/last frames)", value: "fal-ai/veo3.1/fast/first-last-frame-to-video" },
+    ],
+    []
+  );
 
   useEffect(() => {
     if (typeof img2vidModel === "string") {
@@ -123,16 +130,22 @@ export default function AdminPage() {
               <h3 className="text-lg font-semibold">Img2Vid Model</h3>
               <p className="text-sm text-zinc-400">
                 Controls the model used for chat GIF remixes (img2vid). Leave empty to use default
-                env value or built-in fallback.
+                env value or built-in fallback. The veo model requires first/last frames (we auto-extract
+                from GIFs when available).
               </p>
               <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-                <input
-                  type="text"
+                <select
                   value={modelInput}
                   onChange={(e) => setModelInput(e.target.value)}
-                  placeholder="e.g. fal-ai/flux-vid"
-                  className="w-full sm:w-2/3 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-lime-400"
-                />
+                  className="w-full sm:w-2/3 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-lime-400"
+                >
+                  <option value="">(Use default)</option>
+                  {modelOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
                 <button
                   onClick={async () => {
                     if (!user?.id) return;

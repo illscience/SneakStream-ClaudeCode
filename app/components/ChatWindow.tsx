@@ -14,6 +14,8 @@ export default function ChatWindow() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const [optimisticMessages, setOptimisticMessages] = useState<any[]>([]);
+  const [optimisticRemixIds, setOptimisticRemixIds] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [remixingId, setRemixingId] = useState<string | null>(null);
   const messages = useQuery(api.chat.getMessages);
@@ -50,6 +52,27 @@ export default function ChatWindow() {
   };
 
   const handleRemix = async (messageId: Id<"messages">) => {
+    const target = messages?.find((m) => m._id === messageId);
+    const placeholderId = `optimistic-remix-${messageId}-${Date.now()}`;
+    if (target?.imageUrl) {
+      setOptimisticMessages((prev) => [
+        ...prev,
+        {
+          _id: placeholderId,
+          _creationTime: Date.now(),
+          user: user?.id,
+          userId: user?.id,
+          userName: displayName,
+          avatarUrl: user?.imageUrl,
+          body: "Remixing...",
+          imageUrl: target.imageUrl,
+          imageMimeType: target.imageMimeType,
+          remixOf: messageId,
+          remixing: true,
+        },
+      ]);
+      setOptimisticRemixIds((prev) => new Set(prev).add(placeholderId));
+    }
     const prompt = window.prompt("Enter a remix prompt (optional):", "") || undefined;
     try {
       setRemixingId(String(messageId));
@@ -65,6 +88,8 @@ export default function ChatWindow() {
       alert("Remix failed. Please try again.");
     } finally {
       setRemixingId(null);
+      setOptimisticMessages((prev) => prev.filter((m) => !optimisticRemixIds.has(m._id)));
+      setOptimisticRemixIds(new Set());
     }
   };
 
@@ -221,7 +246,10 @@ export default function ChatWindow() {
 
       <div className="max-h-[420px] overflow-y-auto rounded-2xl border border-white/5 bg-black/60 p-4">
         <div className="space-y-3">
-          {messages?.slice().reverse().map((message) => (
+          {[...(messages || []), ...optimisticMessages]
+            .slice()
+            .reverse()
+            .map((message) => (
             <div key={message._id} className="flex flex-col gap-1">
               <div className="flex items-baseline gap-2">
                 <span className="text-xs font-semibold text-lime-300">
@@ -233,7 +261,12 @@ export default function ChatWindow() {
                 </span>
               </div>
               {message.body && message.body.trim().length > 0 && (
-                <p className="text-sm text-white break-words">{message.body}</p>
+                <p className="text-sm text-white break-words">
+                  {message.body}
+                  {message.remixing && (
+                    <span className="ml-2 text-xs text-zinc-400">(generating...)</span>
+                  )}
+                </p>
               )}
               {message.remixOf && (
                 <span className="text-xs text-zinc-500">Remix of {message.remixOf}</span>
