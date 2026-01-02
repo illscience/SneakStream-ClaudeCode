@@ -84,6 +84,8 @@ export interface GenerateImg2VidOptions {
   imageUrl: string;
   prompt?: string;
   model?: string;
+  firstFrameUrl?: string;
+  lastFrameUrl?: string;
 }
 
 export interface GenerateImg2VidResult {
@@ -96,6 +98,8 @@ export const generateImg2Vid = async ({
   imageUrl,
   prompt,
   model,
+  firstFrameUrl,
+  lastFrameUrl,
 }: GenerateImg2VidOptions): Promise<GenerateImg2VidResult> => {
   ensureConfigured();
 
@@ -105,12 +109,14 @@ export const generateImg2Vid = async ({
     image_url: imageUrl,
     prompt: effectivePrompt,
   };
+  if (firstFrameUrl) input.first_frame_url = firstFrameUrl;
+  if (lastFrameUrl) input.last_frame_url = lastFrameUrl;
 
   console.log(`[FAL] Starting img2vid with model ${modelId}, prompt: ${effectivePrompt.slice(0, 50)}`);
 
   let result: any;
   try {
-    result = await fal.subscribe(modelId, { input, pollInterval: 4000, requestTimeout: 300000 });
+    result = await fal.subscribe(modelId, { input, pollInterval: 4000 });
   } catch (err: any) {
     const detail =
       err?.body ||
@@ -130,23 +136,15 @@ export const generateImg2Vid = async ({
   }
 
   const videoUrl =
-    // @ts-expect-error wan response shape
-    result?.video?.url ||
-    // common fields across fal video models
-    // @ts-expect-error untyped
-    result?.video_url ||
-    // @ts-expect-error alternative nesting
-    result?.output?.[0]?.video?.url ||
-    // @ts-expect-error alternative nesting
-    result?.output?.[0]?.url ||
-    // @ts-expect-error legacy
-    result?.url;
+    (result as any)?.video?.url ||
+    (result as any)?.video_url ||
+    (result as any)?.output?.[0]?.video?.url ||
+    (result as any)?.output?.[0]?.url ||
+    (result as any)?.url;
 
   const imageUrlOut =
-    // @ts-expect-error image outputs
-    result?.images?.[0]?.url ||
-    // @ts-expect-error alternate nesting
-    result?.output?.[0]?.image?.url ||
+    (result as any)?.images?.[0]?.url ||
+    (result as any)?.output?.[0]?.image?.url ||
     (result as any)?.url;
 
   const mediaUrl = videoUrl || imageUrlOut;

@@ -19,7 +19,7 @@ export default function ChatWindow() {
   const messages = useQuery(api.chat.getMessages);
   const sendMessage = useMutation(api.chat.sendMessage);
   const generateUploadUrl = useMutation(api.chat.generateUploadUrl);
-  const remixImageToGif = useAction(api.chat.remixImageToGif);
+  const remixImageToGif = useAction(api.remix.remixImageToGif);
 
   const convexUser = useQuery(
     api.users.getUserByClerkId,

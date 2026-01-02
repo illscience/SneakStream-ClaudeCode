@@ -23,7 +23,7 @@ export default function LiveChat() {
   const sendMessage = useMutation(api.chat.sendMessage)
   const deleteMessage = useMutation(api.chat.deleteMessage)
   const generateUploadUrl = useMutation(api.chat.generateUploadUrl)
-  const remixImageToGif = useAction(api.chat.remixImageToGif)
+  const remixImageToGif = useAction(api.remix.remixImageToGif)
   const convexUser = useQuery(
     api.users.getUserByClerkId,
     user?.id ? { clerkId: user.id } : "skip"
