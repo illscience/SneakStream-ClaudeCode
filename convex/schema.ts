@@ -18,6 +18,7 @@ export default defineSchema({
     email: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     selectedAvatar: v.optional(v.string()),
+    isAdmin: v.optional(v.boolean()), // Admin privileges flag
   }).index("by_clerk_id", ["clerkId"]),
 
   follows: defineTable({
