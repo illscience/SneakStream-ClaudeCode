@@ -25,6 +25,7 @@ export default function LibraryPage() {
   );
 
   const updateVideoStatus = useMutation(api.videos.updateVideoStatus);
+  const upsertMuxAsset = useMutation(api.videos.upsertMuxAsset);
   const updateVideo = useMutation(api.videos.updateVideo);
   const playNow = useMutation(api.playlist.playNow);
   const playNext = useMutation(api.playlist.playNext);
@@ -128,6 +129,38 @@ export default function LibraryPage() {
 
     try {
       for (const video of processingVideos) {
+        if (video.provider === "mux" && video.assetId?.startsWith("pending:")) {
+          const liveStreamId = video.assetId.slice("pending:".length);
+          try {
+            const response = await fetch("/api/stream/recording-status", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ streamId: liveStreamId }),
+            });
+
+            if (!response.ok) {
+              continue;
+            }
+
+            const asset = await response.json();
+            if (asset?.assetId) {
+              await upsertMuxAsset({
+                assetId: asset.assetId,
+                userId: video.userId,
+                title: video.title,
+                description: video.description,
+                playbackId: asset.playbackId || undefined,
+                duration: asset.duration || undefined,
+                status: asset.status === "ready" ? "ready" : "processing",
+                visibility: video.visibility,
+                liveStreamId,
+              });
+            }
+          } catch (error) {
+            console.warn("Failed to resolve pending Mux recording:", error);
+          }
+          continue;
+        }
         const payload =
           video.provider === "mux"
             ? video.uploadId

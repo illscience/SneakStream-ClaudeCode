@@ -79,3 +79,82 @@ export const generateAvatarImage = async ({
   console.log(`[FAL] Successfully generated image: ${image}`);
   return { imageUrl: image as string, raw: result };
 };
+
+export interface GenerateImg2VidOptions {
+  imageUrl: string;
+  prompt?: string;
+  model?: string;
+}
+
+export interface GenerateImg2VidResult {
+  mediaUrl: string;
+  isVideo: boolean;
+  raw: unknown;
+}
+
+export const generateImg2Vid = async ({
+  imageUrl,
+  prompt,
+  model,
+}: GenerateImg2VidOptions): Promise<GenerateImg2VidResult> => {
+  ensureConfigured();
+
+  const modelId = model || process.env.FAL_IMG2VID_MODEL || "wan/v2.6/image-to-video";
+  const effectivePrompt = prompt ?? "Remix animation";
+  const input: Record<string, unknown> = {
+    image_url: imageUrl,
+    prompt: effectivePrompt,
+  };
+
+  console.log(`[FAL] Starting img2vid with model ${modelId}, prompt: ${effectivePrompt.slice(0, 50)}`);
+
+  let result: any;
+  try {
+    result = await fal.subscribe(modelId, { input, pollInterval: 4000, requestTimeout: 300000 });
+  } catch (err: any) {
+    const detail =
+      err?.body ||
+      err?.response?.data ||
+      err?.response ||
+      err?.message ||
+      "Unknown FAL error";
+    console.error("[FAL] img2vid error", detail);
+
+    const friendly =
+      (typeof detail === "string" && detail) ||
+      (detail?.detail?.[0]?.msg as string | undefined) ||
+      (detail?.message as string | undefined) ||
+      "Img2Vid failed";
+
+    throw new Error(friendly);
+  }
+
+  const videoUrl =
+    // @ts-expect-error wan response shape
+    result?.video?.url ||
+    // common fields across fal video models
+    // @ts-expect-error untyped
+    result?.video_url ||
+    // @ts-expect-error alternative nesting
+    result?.output?.[0]?.video?.url ||
+    // @ts-expect-error alternative nesting
+    result?.output?.[0]?.url ||
+    // @ts-expect-error legacy
+    result?.url;
+
+  const imageUrlOut =
+    // @ts-expect-error image outputs
+    result?.images?.[0]?.url ||
+    // @ts-expect-error alternate nesting
+    result?.output?.[0]?.image?.url ||
+    (result as any)?.url;
+
+  const mediaUrl = videoUrl || imageUrlOut;
+  if (!mediaUrl) {
+    console.error("[FAL] Failed to resolve media URL from response", result);
+    throw new Error("Failed to resolve media URL from FAL response");
+  }
+
+  console.log(`[FAL] Img2Vid generated: ${mediaUrl}`);
+  return { mediaUrl, isVideo: !!videoUrl, raw: result };
+};

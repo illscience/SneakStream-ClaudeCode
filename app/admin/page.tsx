@@ -22,9 +22,22 @@ export default function AdminPage() {
     api.adminSettings.getSetting,
     { key: "showNightclubOnHome" }
   );
+  const img2vidModel = useQuery(
+    api.adminSettings.getSetting,
+    { key: "img2vidModel" }
+  );
 
   // Update setting mutation
   const updateSetting = useMutation(api.adminSettings.updateSetting);
+  const [modelInput, setModelInput] = useState("");
+
+  useEffect(() => {
+    if (typeof img2vidModel === "string") {
+      setModelInput(img2vidModel);
+    } else if (!img2vidModel && process.env.NEXT_PUBLIC_IMG2VID_MODEL) {
+      setModelInput(process.env.NEXT_PUBLIC_IMG2VID_MODEL);
+    }
+  }, [img2vidModel]);
 
   // Redirect if not admin
   useEffect(() => {
@@ -50,7 +63,7 @@ export default function AdminPage() {
   };
 
   // Show loading state
-  if (!isLoaded || isAdmin === undefined || showNightclubOnHome === undefined) {
+  if (!isLoaded || isAdmin === undefined || showNightclubOnHome === undefined || img2vidModel === undefined) {
     return (
       <div className="min-h-screen bg-black text-white">
         <MainNav />
@@ -105,6 +118,37 @@ export default function AdminPage() {
               </button>
             </div>
 
+            {/* Img2Vid Model */}
+            <div className="flex flex-col gap-2">
+              <h3 className="text-lg font-semibold">Img2Vid Model</h3>
+              <p className="text-sm text-zinc-400">
+                Controls the model used for chat GIF remixes (img2vid). Leave empty to use default
+                env value or built-in fallback.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                <input
+                  type="text"
+                  value={modelInput}
+                  onChange={(e) => setModelInput(e.target.value)}
+                  placeholder="e.g. fal-ai/flux-vid"
+                  className="w-full sm:w-2/3 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-lime-400"
+                />
+                <button
+                  onClick={async () => {
+                    if (!user?.id) return;
+                    await updateSetting({
+                      clerkId: user.id,
+                      key: "img2vidModel",
+                      value: modelInput || "",
+                    });
+                  }}
+                  className="px-4 py-2 rounded-lg bg-lime-400 text-black text-sm font-semibold hover:bg-lime-300 transition"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+
             {/* Status indicator */}
             <div className="pt-4 border-t border-zinc-800">
               <div className="flex items-center gap-2 text-sm">
@@ -136,4 +180,3 @@ export default function AdminPage() {
     </div>
   );
 }
-

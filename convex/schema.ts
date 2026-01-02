@@ -10,6 +10,7 @@ export default defineSchema({
     body: v.string(),
     imageStorageId: v.optional(v.id("_storage")),
     imageMimeType: v.optional(v.string()),
+    remixOf: v.optional(v.id("messages")),
   }),
 
   users: defineTable({
@@ -146,7 +147,7 @@ export default defineSchema({
   // Admin settings for controlling site features
   adminSettings: defineTable({
     key: v.string(), // unique setting key (e.g., "showNightclubOnHome")
-    value: v.boolean(), // boolean value for the setting
+    value: v.any(), // setting value (boolean, string, or structured)
     updatedAt: v.number(),
     updatedBy: v.string(), // clerkId of admin who updated
   }).index("by_key", ["key"]),

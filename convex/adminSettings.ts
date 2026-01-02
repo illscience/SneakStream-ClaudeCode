@@ -22,8 +22,10 @@ export const getSetting = query({
       .withIndex("by_key", (q) => q.eq("key", args.key))
       .first();
     
-    // Default to true if setting doesn't exist (show nightclub by default)
-    return setting?.value ?? true;
+    if (setting) return setting.value;
+    // Default to true only for showNightclubOnHome to preserve behavior
+    if (args.key === "showNightclubOnHome") return true;
+    return null;
   },
 });
 
@@ -32,7 +34,7 @@ export const updateSetting = mutation({
   args: {
     clerkId: v.string(),
     key: v.string(),
-    value: v.boolean(),
+    value: v.any(),
   },
   handler: async (ctx, args) => {
     // Verify admin access
@@ -69,4 +71,3 @@ export const checkIsAdmin = query({
     return await isAdmin(ctx, args.clerkId);
   },
 });
-

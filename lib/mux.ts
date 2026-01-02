@@ -187,6 +187,8 @@ export interface MuxAssetData {
   status: string;
   created_at?: number;
   duration?: number;
+  live_stream_id?: string;
+  passthrough?: string;
   playback_ids?: MuxAssetPlaybackId[];
   tracks?: Array<{ type: string; max_width?: number; max_height?: number }>;
 }
@@ -273,6 +275,22 @@ export async function disableLiveStream(liveStreamId: string): Promise<void> {
   await muxRequest(`/video/v1/live-streams/${liveStreamId}/disable`, {
     method: "PUT",
   });
+}
+
+export async function completeLiveStream(liveStreamId: string): Promise<void> {
+  const errors: unknown[] = [];
+  for (const method of ["PUT", "POST"] as const) {
+    try {
+      await muxRequest(`/video/v1/live-streams/${liveStreamId}/complete`, {
+        method,
+      });
+      return;
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+
+  throw errors[0] || new Error("Failed to complete live stream");
 }
 
 export async function deleteLiveStream(liveStreamId: string): Promise<void> {

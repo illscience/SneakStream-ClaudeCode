@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import type { ChangeEvent, ClipboardEvent, FormEvent } from "react"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useUser } from "@clerk/nextjs"
-import { useQuery, useMutation } from "convex/react"
+import { useQuery, useMutation, useAction } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Image as ImageIcon, Loader2, MessageSquare, Send, Trash2 } from "lucide-react"
 
@@ -23,6 +23,7 @@ export default function LiveChat() {
   const sendMessage = useMutation(api.chat.sendMessage)
   const deleteMessage = useMutation(api.chat.deleteMessage)
   const generateUploadUrl = useMutation(api.chat.generateUploadUrl)
+  const remixImageToGif = useAction(api.chat.remixImageToGif)
   const convexUser = useQuery(
     api.users.getUserByClerkId,
     user?.id ? { clerkId: user.id } : "skip"
@@ -32,6 +33,7 @@ export default function LiveChat() {
   const userSelectedAvatar = convexUser?.selectedAvatar || null
   const isAdmin = user?.primaryEmailAddress?.emailAddress === "illscience@gmail.com"
   const resolvedAvatar = userSelectedAvatar || user?.imageUrl || undefined
+  const [remixingId, setRemixingId] = useState<string | null>(null)
 
   const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp)
@@ -168,6 +170,25 @@ export default function LiveChat() {
     }
   }, [imagePreview])
 
+  const handleRemix = async (messageId: Id<"messages">) => {
+    const prompt = window.prompt("Enter a remix prompt (optional):", "") || undefined
+    try {
+      setRemixingId(String(messageId))
+      await remixImageToGif({
+        messageId,
+        prompt,
+        userId: user?.id,
+        userName: displayName,
+        avatarUrl: resolvedAvatar,
+      })
+    } catch (error) {
+      console.error("Failed to remix image:", error)
+      alert("Remix failed. Please try again.")
+    } finally {
+      setRemixingId(null)
+    }
+  }
+
   return (
     <div className="flex flex-col">
       <div className="flex items-center gap-2 mb-4">
@@ -299,14 +320,36 @@ export default function LiveChat() {
               {message.body && message.body.trim().length > 0 && (
                 <p className="text-sm text-white break-words">{message.body}</p>
               )}
+              {message.remixOf && (
+                <span className="text-xs text-zinc-500">Remix of {message.remixOf}</span>
+              )}
               {message.imageUrl && (
-                <div className="mt-2 max-w-full">
-                  <img
-                    src={message.imageUrl}
-                    alt="Shared in chat"
-                    loading="lazy"
-                    className="max-h-64 w-full max-w-md rounded-xl border border-zinc-800 object-contain bg-black/40"
-                  />
+                <div className="mt-2 max-w-full space-y-2">
+                  {message.imageMimeType?.startsWith("video/") ? (
+                    <video
+                      src={message.imageUrl}
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      className="max-h-64 w-full max-w-md rounded-xl border border-zinc-800 object-contain bg-black/40"
+                    />
+                  ) : (
+                    <img
+                      src={message.imageUrl}
+                      alt="Shared in chat"
+                      loading="lazy"
+                      className="max-h-64 w-full max-w-md rounded-xl border border-zinc-800 object-contain bg-black/40"
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleRemix(message._id)}
+                    disabled={remixingId === message._id}
+                    className="text-xs px-3 py-1 rounded-full border border-zinc-800 text-zinc-300 hover:text-white hover:border-lime-400 transition disabled:opacity-50 disabled:cursor-not-allowed w-fit"
+                  >
+                    {remixingId === message._id ? "Remixing..." : "Remix"}
+                  </button>
                 </div>
               )}
             </div>

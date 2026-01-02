@@ -31,6 +31,8 @@ export default function MuxGoLivePage() {
   const activeStream = useQuery(api.livestream.getActiveStream);
   const startStream = useMutation(api.livestream.startStream);
   const endStream = useMutation(api.livestream.endStream);
+  const createVideo = useMutation(api.videos.createVideo);
+  const upsertMuxAsset = useMutation(api.videos.upsertMuxAsset);
   const updateStreamTitle = useMutation(api.livestream.updateStreamTitle);
   const savedCredentials = useQuery(
     api.streamCredentials.getOrCreateCredentials,
@@ -313,70 +315,67 @@ export default function MuxGoLivePage() {
   };
 
   const handleEndStream = async () => {
-    if (!activeStream) return;
+    if (!activeStream || !user) return;
     setIsLoading(true);
+    const streamSnapshot = activeStream;
     try {
-      console.log("Ending stream with ID:", activeStream.streamId);
+      console.log("Ending stream with ID:", streamSnapshot.streamId);
 
-      const pollDelayMs = 4000;
-      const pollAttempts = 4;
-
-      const fetchAssetData = async () => {
-        const response = await fetch("/api/stream/end", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ streamId: activeStream.streamId }),
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || "Failed to end stream");
+      await endStream({ streamId: streamSnapshot._id });
+      if (streamSnapshot.streamId) {
+        try {
+          await createVideo({
+            userId: streamSnapshot.userId,
+            title: streamSnapshot.title,
+            description: streamSnapshot.description,
+            provider: "mux",
+            assetId: `pending:${streamSnapshot.streamId}`,
+            visibility: "public",
+          });
+        } catch (error) {
+          console.warn("[stream/end] Failed to create placeholder recording:", error);
         }
-
-        return response.json();
-      };
-
-      let assetData = await fetchAssetData();
-      console.log("Asset data from Mux:", assetData);
-
-      let attempt = 0;
-      while ((!assetData.assetId || !assetData.playbackId) && attempt < pollAttempts) {
-        attempt += 1;
-        console.log(`Recording not ready, retrying (${attempt}/${pollAttempts})...`);
-        await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
-        assetData = await fetchAssetData();
-        console.log("Asset data from Mux:", assetData);
       }
-
-      // End stream and save recording
-      if (assetData.assetId && assetData.playbackId) {
-        console.log("Saving recording to library...");
-        await endStream({
-          streamId: activeStream._id,
-          assetId: assetData.assetId,
-          playbackId: assetData.playbackId,
-          duration: assetData.duration,
-        });
-        console.log("Recording saved successfully!");
-        alert("Stream ended! Your recording is being saved to MY LIBRARY.");
-      } else if (assetData.assetId) {
-        console.warn("Asset created but still processing. Saving placeholder to library...");
-        await endStream({
-          streamId: activeStream._id,
-          assetId: assetData.assetId,
-          duration: assetData.duration,
-        });
-        alert("Stream ended! Recording is processing and will appear in MY LIBRARY shortly.");
-      } else {
-        console.warn("Asset not ready yet. Recording will be available shortly.");
-        await endStream({
-          streamId: activeStream._id,
-        });
-        alert("Stream ended! Recording is still processing and will appear in MY LIBRARY shortly.");
-      }
+      setStreamStep("idle");
+      setPreviewStream(null);
+      setHasAudio(false);
+      setStreamStatus("waiting");
+      alert("Stream ended! Recording is processing and will appear in MY LIBRARY shortly.");
     } catch (error) {
       console.error("Failed to end stream:", error);
       alert(error instanceof Error ? error.message : "Failed to end stream");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/stream/end", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ streamId: streamSnapshot.streamId, skipAssetPolling: true }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to disable stream in Mux");
+      }
+
+      const assetData = await response.json();
+      if (assetData.assetId) {
+        await upsertMuxAsset({
+          assetId: assetData.assetId,
+          userId: streamSnapshot.userId,
+          title: streamSnapshot.title,
+          description: streamSnapshot.description,
+          playbackId: assetData.playbackId,
+          duration: assetData.duration,
+          status: assetData.playbackId ? "ready" : "processing",
+          visibility: "public",
+          liveStreamId: streamSnapshot.streamId,
+        });
+      }
+    } catch (error) {
+      console.warn("[stream/end] Failed to disable stream or seed asset:", error);
     }
     setIsLoading(false);
   };
@@ -451,6 +450,9 @@ export default function MuxGoLivePage() {
                 {previewStream.playbackId && (
                   <p className="text-xs text-zinc-600 mt-1">Playback ID: {previewStream.playbackId}</p>
                 )}
+                {previewStream.streamId && (
+                  <p className="text-xs text-zinc-600 mt-1">Stream ID: {previewStream.streamId}</p>
+                )}
               </div>
 
               {/* Video Preview */}
@@ -500,6 +502,24 @@ export default function MuxGoLivePage() {
                     <p className="text-zinc-500 mb-1">Stream Key:</p>
                     <code className="block px-3 py-2 bg-zinc-900 rounded border border-zinc-700 text-lime-400 break-all font-mono">
                       {previewStream.streamKey}
+                    </code>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-zinc-800/50 border border-zinc-700 rounded-xl">
+                <h3 className="font-bold mb-3 text-sm text-zinc-400">STREAM INFO</h3>
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <p className="text-zinc-500 mb-1">Stream ID:</p>
+                    <code className="block px-3 py-2 bg-zinc-900 rounded border border-zinc-700 text-lime-400 break-all font-mono">
+                      {previewStream.streamId}
+                    </code>
+                  </div>
+                  <div>
+                    <p className="text-zinc-500 mb-1">Playback URL:</p>
+                    <code className="block px-3 py-2 bg-zinc-900 rounded border border-zinc-700 text-lime-400 break-all font-mono">
+                      {previewStream.playbackUrl}
                     </code>
                   </div>
                 </div>

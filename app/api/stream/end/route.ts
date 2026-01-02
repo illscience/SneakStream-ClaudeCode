@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getLiveStream, getAsset, disableLiveStream, listAssets } from "@/lib/mux";
+import { getLiveStream, getAsset, completeLiveStream, disableLiveStream, listAssets } from "@/lib/mux";
 
 const ASSET_POLL_ATTEMPTS = 6;
 const ASSET_POLL_DELAY_MS = 2000;
@@ -151,7 +151,7 @@ async function fetchRecordingAsset(streamId: string, preferredAssetId?: string) 
 
 export async function POST(request: NextRequest) {
   try {
-    const { streamId } = await request.json();
+    const { streamId, skipAssetPolling } = await request.json();
 
     console.log("[stream/end] Received request for streamId:", streamId);
 
@@ -163,37 +163,72 @@ export async function POST(request: NextRequest) {
     }
 
     // Mux creates an asset automatically when recording is enabled.
-    // Poll briefly for the asset to become ready.
+    // Poll briefly for the asset to become ready unless we are in fast mode.
     let assetId: string | undefined;
     let playbackId: string | undefined;
     let duration: number | undefined;
     let preferredAssetId: string | undefined;
+    let liveStreamStatus: string | undefined;
+    let recentAssetIds: string[] | undefined;
 
     try {
       try {
         const liveStream = await getLiveStream(streamId);
-        preferredAssetId = liveStream.active_asset_id;
+        preferredAssetId = liveStream.active_asset_id || liveStream.recent_asset_ids?.[0];
       } catch (error) {
-        console.warn("[stream/end] Failed to fetch live stream before disable:", error);
+        console.warn("[stream/end] Failed to fetch live stream before complete:", error);
       }
 
-      console.log("[stream/end] Disabling live stream in Mux...");
-      await disableLiveStream(streamId);
-      console.log("[stream/end] Live stream disabled.");
+      try {
+        console.log("[stream/end] Completing live stream in Mux...");
+        await completeLiveStream(streamId);
+        console.log("[stream/end] Live stream completed.");
+      } catch (error) {
+        console.warn("[stream/end] Failed to complete live stream, attempting disable:", error);
+      }
+
+      try {
+        console.log("[stream/end] Disabling live stream in Mux...");
+        await disableLiveStream(streamId);
+        console.log("[stream/end] Live stream disabled.");
+      } catch (error) {
+        console.warn("[stream/end] Failed to disable live stream:", error);
+      }
     } catch (error) {
-      console.warn("[stream/end] Failed to disable live stream:", error);
+      console.warn("[stream/end] Failed to end live stream in Mux:", error);
     }
 
-    try {
-      console.log("[stream/end] Polling Mux for recording asset...");
-      const result = await fetchRecordingAsset(streamId, preferredAssetId);
-      assetId = result.assetId;
-      playbackId = result.playbackId;
-      duration = result.duration;
-      console.log("[stream/end] Poll result:", result);
-    } catch (error) {
-      // If Mux API fails (e.g., credentials not configured), allow stream to end gracefully
-      console.error("[stream/end] Failed to fetch Mux data (this is OK if Mux is not configured):", error);
+    if (!skipAssetPolling) {
+      try {
+        console.log("[stream/end] Polling Mux for recording asset...");
+        const result = await fetchRecordingAsset(streamId, preferredAssetId);
+        assetId = result.assetId;
+        playbackId = result.playbackId;
+        duration = result.duration;
+        console.log("[stream/end] Poll result:", result);
+      } catch (error) {
+        // If Mux API fails (e.g., credentials not configured), allow stream to end gracefully
+        console.error("[stream/end] Failed to fetch Mux data (this is OK if Mux is not configured):", error);
+      }
+    } else {
+      try {
+        const liveStream = await getLiveStream(streamId);
+        liveStreamStatus = liveStream.status;
+        recentAssetIds = liveStream.recent_asset_ids;
+        assetId = preferredAssetId || liveStream.active_asset_id || liveStream.recent_asset_ids?.[0];
+      } catch (error) {
+        console.warn("[stream/end] Failed to fetch live stream after complete:", error);
+        assetId = preferredAssetId;
+      }
+
+      if (!assetId) {
+        const listedAsset = await findAssetFromList(streamId);
+        if (listedAsset) {
+          assetId = listedAsset.id;
+          playbackId = listedAsset.playback_ids?.find((p) => p.policy === "public")?.id;
+          duration = listedAsset.duration;
+        }
+      }
     }
 
     console.log("[stream/end] Returning asset data:", { assetId, playbackId, duration });
@@ -201,6 +236,8 @@ export async function POST(request: NextRequest) {
       assetId,
       playbackId,
       duration,
+      liveStreamStatus,
+      recentAssetIds,
     });
   } catch (error) {
     console.error("[stream/end] Stream end error:", error);
