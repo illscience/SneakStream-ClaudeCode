@@ -18,7 +18,7 @@ interface NavLink {
 
 const navLinks: NavLink[] = [
   { href: "/", label: "Home" },
-  { href: "/library", label: "My Library" },
+  { href: "/library", label: "My Library", adminOnly: true },
   { href: "/profile", label: "Profile" },
   { href: "/go-live", label: "Go Live", adminOnly: true },
   { href: "/playlist", label: "Playlist", adminOnly: true },
@@ -28,7 +28,10 @@ const navLinks: NavLink[] = [
 export default function MainNav() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoTextColor, setLogoTextColor] = useState<string | null>(null);
-  const [letterColors, setLetterColors] = useState<(string | null)[]>(Array(13).fill(null));
+  const logoText = "djsneak";
+  const [letterColors, setLetterColors] = useState<(string | null)[]>(
+    Array(logoText.length).fill(null)
+  );
   const pathname = usePathname();
   const { user } = useUser();
   const activeStream = useQuery(api.livestream.getActiveStream);
@@ -64,7 +67,6 @@ export default function MainNav() {
       "text-lime-600",
     ];
 
-    const logoText = "Dream In Audio";
     const letterCount = logoText.length;
 
     let letterIndex = 0;
@@ -152,7 +154,7 @@ export default function MainNav() {
               onClick={handleLogoTextClick}
               className="text-xl font-bold tracking-tight cursor-pointer"
             >
-              {"Dream In Audio".split("").map((letter, index) => (
+              {logoText.split("").map((letter, index) => (
                 <span
                   key={index}
                   className={`transition-all duration-300 ${

@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, QueryCtx } from "./_generated/server";
 
-const ADMIN_EMAIL = "illscience@gmail.com";
+const ADMIN_EMAIL = "sneakthedj@gmail.com";
 
 // Helper to check if user is admin
 async function isAdmin(ctx: QueryCtx, clerkId: string): Promise<boolean> {
@@ -10,7 +10,7 @@ async function isAdmin(ctx: QueryCtx, clerkId: string): Promise<boolean> {
     .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
     .first();
   
-  return user?.email === ADMIN_EMAIL;
+  return user?.email?.toLowerCase() === ADMIN_EMAIL;
 }
 
 // Get a setting by key
@@ -69,4 +69,3 @@ export const checkIsAdmin = query({
     return await isAdmin(ctx, args.clerkId);
   },
 });
-

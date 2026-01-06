@@ -18,6 +18,10 @@ export default function LibraryPage() {
   const [editingVideoId, setEditingVideoId] = useState<Id<"videos"> | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [notification, setNotification] = useState<string | null>(null);
+  const isAdmin = useQuery(
+    api.adminSettings.checkIsAdmin,
+    user?.id ? { clerkId: user.id } : "skip"
+  );
 
   const videos = useQuery(
     api.videos.getUserVideos,
@@ -269,12 +273,24 @@ export default function LibraryPage() {
     return () => clearInterval(interval);
   }, [videos?.length]);
 
-  if (!isLoaded || !user) {
+  useEffect(() => {
+    if (isLoaded && !user) {
+      router.push("/");
+    } else if (isLoaded && user && isAdmin === false) {
+      router.push("/");
+    }
+  }, [isLoaded, user, isAdmin, router]);
+
+  if (!isLoaded || isAdmin === undefined) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <p>Loading...</p>
       </div>
     );
+  }
+
+  if (!user || !isAdmin) {
+    return null;
   }
 
   return (
