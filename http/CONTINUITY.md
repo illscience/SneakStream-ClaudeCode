@@ -10,7 +10,7 @@ Key decisions:
 - Follow requested implementation order: remove dancefloor first, then mobile/chat UI fixes, then GIFs, loves, @mentions.
 
 State:
-- On branch `qol-improvements`; QoL changes complete; user testing locally.
+- On branch `qol-improvements`; QoL changes committed; user testing locally.
 
 Done:
 - Created `qol-improvements` branch for QoL work.
@@ -22,7 +22,7 @@ Done:
 - Added @mention autocomplete (Convex user search + LiveChat UI).
 
 Now:
-- Normalize GIF links (e.g., giphy.com/...) to direct GIF URLs for inline rendering.
+- Changes committed; awaiting further instructions.
 
 Next:
 - Deploy preview if requested.
