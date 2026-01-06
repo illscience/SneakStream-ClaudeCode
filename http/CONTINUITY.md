@@ -1,42 +1,40 @@
 Goal (incl. success criteria):
-- Update branding text to “djsneak” and hide “My Library” from non-admins.
-- Ensure the UI reflects these changes in preview after deployment.
+- Implement chat QoL: GIF link embeds, mobile stability, portrait image styling, @ mention autocomplete, love button, and remove all nightclub/dancefloor features.
 
 Constraints/Assumptions:
-- Keep `main` clean; feature work remains on `feature/remix-video`.
+- Work on `qol-improvements` branch.
 - Use preview deployments unless production is explicitly requested.
+- Do not modify production DB; user will deploy schema changes to dev.
 
 Key decisions:
-- Gate `/library` nav link by admin status.
-- Rename logo text to “djsneak”.
-- Update admin email to `sneakthedj@gmail.com` (case-insensitive compare).
+- Follow requested implementation order: remove dancefloor first, then mobile/chat UI fixes, then GIFs, loves, @mentions.
 
 State:
-- On branch `qol-improvements`; `STABLE` tag created on `main`.
+- On branch `qol-improvements`; QoL changes complete; user testing locally.
 
 Done:
-- Set `/library` nav link to admin-only.
-- Replaced logo text with “djsneak” and verified animation uses `logoText`.
-- Added admin gating + redirect in `app/library/page.tsx`.
-- Updated admin email in `convex/adminSettings.ts`.
-- Deployed Convex functions to dev (`colorful-ant-503`) and prod (`resilient-spider-207`).
-- Deployed Vercel preview and production builds (preview URL in latest run output).
-- Ran `npm run build` (ESLint circular JSON warning, build still completed).
-- Committed changes on `main` and created `STABLE` tag with Jan 2 DJ Sneak party message.
+- Created `qol-improvements` branch for QoL work.
+- Removed nightclub pages/components/APIs and homepage/admin references.
+- Deleted nightclub Convex tables from schema and removed related server code files.
+- Applied mobile chat stability tweaks and portrait image styling updates.
+- Added GIF URL detection and inline rendering in chat messages.
+- Added love button support (schema + Convex + UI) and ran `npx convex codegen`.
+- Added @mention autocomplete (Convex user search + LiveChat UI).
 
 Now:
-- Ready for QoL improvements work.
+- Normalize GIF links (e.g., giphy.com/...) to direct GIF URLs for inline rendering.
 
 Next:
-- None.
+- Deploy preview if requested.
 
 Open questions (UNCONFIRMED if needed):
 - None.
 
 Working set (files/ids/commands):
-- components/navigation/MainNav.tsx
-- app/library/page.tsx
-- convex/adminSettings.ts
-- http/CONTINUITY.md
-- Preview deploy: https://sneak-stream-claude-code-1criixjdr-illscience-5392s-projects.vercel.app
-- Production deploy: https://sneak-stream-claude-code-dukvm8gqu-illscience-5392s-projects.vercel.app
+- app/components/LiveChat.tsx
+- app/page.tsx
+- app/admin/page.tsx
+- convex/schema.ts
+- convex/chat.ts
+- convex/users.ts
+- app/globals.css

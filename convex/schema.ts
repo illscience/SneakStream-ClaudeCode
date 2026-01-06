@@ -12,6 +12,14 @@ export default defineSchema({
     imageMimeType: v.optional(v.string()),
   }),
 
+  messageLoves: defineTable({
+    messageId: v.id("messages"),
+    clerkId: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_message", ["messageId"])
+    .index("by_user_message", ["clerkId", "messageId"]),
+
   users: defineTable({
     clerkId: v.string(),
     alias: v.string(),
@@ -110,42 +118,9 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_user", ["userId"]),
 
-  nightclubAvatars: defineTable({
-    clerkId: v.string(), // Owner Clerk ID (may differ from active viewer)
-    aliasSnapshot: v.string(),
-    imageUrl: v.optional(v.string()),
-    prompt: v.optional(v.string()),
-    seed: v.number(), // deterministic movement seed
-    spawnedAt: v.number(),
-    isActive: v.boolean(),
-    lastConversationAt: v.optional(v.number()),
-  })
-    .index("by_active", ["isActive"])
-    .index("by_clerk", ["clerkId"]),
-
-  nightclubEncounters: defineTable({
-    avatarA: v.id("nightclubAvatars"),
-    avatarB: v.id("nightclubAvatars"),
-    pairKey: v.string(),
-    startedAt: v.number(),
-    transcript: v.optional(v.string()),
-    summary: v.optional(v.string()),
-    status: v.string(), // pending, completed, failed
-  })
-    .index("by_recent", ["startedAt"])
-    .index("by_pair", ["pairKey"]),
-
-  // Pre-generated avatar pool for instant loading (no reservations, immediate deletion)
-  avatarPool: defineTable({
-    imageUrl: v.string(),
-    prompt: v.string(),
-    seed: v.number(),
-    createdAt: v.number(),
-  }),
-
   // Admin settings for controlling site features
   adminSettings: defineTable({
-    key: v.string(), // unique setting key (e.g., "showNightclubOnHome")
+    key: v.string(), // unique setting key
     value: v.boolean(), // boolean value for the setting
     updatedAt: v.number(),
     updatedBy: v.string(), // clerkId of admin who updated

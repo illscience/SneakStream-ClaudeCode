@@ -6,7 +6,56 @@ import type { Id } from "@/convex/_generated/dataModel"
 import { useUser } from "@clerk/nextjs"
 import { useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { Image as ImageIcon, Loader2, MessageSquare, Send, Trash2 } from "lucide-react"
+import { Heart, Image as ImageIcon, Loader2, MessageSquare, Send, Trash2 } from "lucide-react"
+
+const GIF_URL_PATTERN =
+  /https?:\/\/[^\s]+\.gif(\?[^\s]*)?|https?:\/\/(media\.giphy\.com|giphy\.com|media\.tenor\.com|tenor\.com|imgur\.com|i\.imgur\.com)\/[^\s]+/gi
+
+const normalizeGifUrl = (rawUrl: string) => {
+  try {
+    const url = new URL(rawUrl)
+    const host = url.hostname.replace(/^www\./, "")
+    const path = url.pathname
+    const lastSegment = path.split("/").filter(Boolean).pop() ?? ""
+
+    if (path.toLowerCase().endsWith(".gif")) {
+      return rawUrl
+    }
+
+    if (host === "giphy.com" || host === "media.giphy.com") {
+      const id =
+        (path.match(/\/media\/([^/]+)/)?.[1] ?? lastSegment.split("-").pop()) || ""
+      return id ? `https://media.giphy.com/media/${id}/giphy.gif` : rawUrl
+    }
+
+    if (host === "tenor.com" || host === "media.tenor.com") {
+      const itemId = url.searchParams.get("itemid")
+      const id = itemId ?? lastSegment.split("-").pop()
+      return id ? `https://media.tenor.com/${id}/tenor.gif` : rawUrl
+    }
+
+    if (host === "imgur.com") {
+      return lastSegment ? `https://i.imgur.com/${lastSegment}.gif` : rawUrl
+    }
+
+    if (host === "i.imgur.com") {
+      return rawUrl
+    }
+
+    return rawUrl
+  } catch {
+    return rawUrl
+  }
+}
+
+const extractGifUrls = (body: string) => {
+  const matches = body.match(GIF_URL_PATTERN) ?? []
+  const urls = Array.from(
+    new Set(matches.map((match) => normalizeGifUrl(match.trim())))
+  ).filter(Boolean)
+  const text = body.replace(GIF_URL_PATTERN, " ").replace(/\s{2,}/g, " ").trim()
+  return { text, urls }
+}
 
 export default function LiveChat() {
   const { user } = useUser()
@@ -16,6 +65,10 @@ export default function LiveChat() {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [isSending, setIsSending] = useState(false)
+  const [loveAnimatingId, setLoveAnimatingId] = useState<string | null>(null)
+  const [mentionSearch, setMentionSearch] = useState("")
+  const [showMentionPopup, setShowMentionPopup] = useState(false)
+  const [mentionPosition, setMentionPosition] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // Chat functionality
@@ -23,14 +76,20 @@ export default function LiveChat() {
   const sendMessage = useMutation(api.chat.sendMessage)
   const deleteMessage = useMutation(api.chat.deleteMessage)
   const generateUploadUrl = useMutation(api.chat.generateUploadUrl)
+  const loveMessage = useMutation(api.chat.loveMessage)
   const convexUser = useQuery(
     api.users.getUserByClerkId,
     user?.id ? { clerkId: user.id } : "skip"
   )
+  const mentionResults = useQuery(
+    api.users.searchUsersByAlias,
+    showMentionPopup ? { searchTerm: mentionSearch } : "skip"
+  )
 
   const displayName = convexUser?.alias || user?.username || user?.firstName || "Anonymous"
   const userSelectedAvatar = convexUser?.selectedAvatar || null
-  const isAdmin = user?.primaryEmailAddress?.emailAddress === "illscience@gmail.com"
+  const isAdmin =
+    user?.primaryEmailAddress?.emailAddress?.toLowerCase() === "sneakthedj@gmail.com"
   const resolvedAvatar = userSelectedAvatar || user?.imageUrl || undefined
 
   const formatTimestamp = (timestamp: number) => {
@@ -49,6 +108,54 @@ export default function LiveChat() {
     } else {
       return date.toLocaleDateString()
     }
+  }
+
+  const handleLove = async (messageId: string) => {
+    if (!user?.id) return
+    setLoveAnimatingId(messageId)
+    setTimeout(() => setLoveAnimatingId(null), 300)
+    try {
+      await loveMessage({ messageId: messageId as Id<"messages">, clerkId: user.id })
+    } catch (error) {
+      console.error("Failed to love message:", error)
+    }
+  }
+
+  const renderMessageBody = (body: string) => {
+    const parts = body.split(/(@\w+)/g)
+    return parts.map((part, index) =>
+      part.startsWith("@") ? (
+        <span key={`mention-${index}`} className="text-[#c4ff0e] font-semibold">
+          {part}
+        </span>
+      ) : (
+        <span key={`text-${index}`}>{part}</span>
+      )
+    )
+  }
+
+  const updateMentionState = (value: string) => {
+    const mentionMatch = value.match(/@(\w*)$/)
+    if (mentionMatch) {
+      setMentionSearch(mentionMatch[1])
+      setShowMentionPopup(true)
+      setMentionPosition(value.lastIndexOf("@"))
+    } else {
+      setShowMentionPopup(false)
+      setMentionSearch("")
+      setMentionPosition(null)
+    }
+  }
+
+  const insertMention = (alias: string) => {
+    const updated =
+      mentionPosition !== null
+        ? `${newMessage.slice(0, mentionPosition)}@${alias} `
+        : newMessage.replace(/@(\w*)$/, `@${alias} `)
+    setNewMessage(updated)
+    setShowMentionPopup(false)
+    setMentionSearch("")
+    setMentionPosition(null)
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -71,6 +178,9 @@ export default function LiveChat() {
 
     setOptimisticMessages((prev) => [...prev, optimisticMsg])
     setNewMessage("")
+    setShowMentionPopup(false)
+    setMentionSearch("")
+    setMentionPosition(null)
     setIsSending(true)
 
     try {
@@ -169,7 +279,7 @@ export default function LiveChat() {
   }, [imagePreview])
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col touch-pan-y">
       <div className="flex items-center gap-2 mb-4">
         <MessageSquare className="w-6 h-6 text-[#c4ff0e]" />
         <h2 className="text-2xl font-bold text-[#c4ff0e]">Live Chat</h2>
@@ -205,14 +315,51 @@ export default function LiveChat() {
           <ImageIcon className="h-5 w-5" />
         </button>
         <div className="flex-1 flex flex-col gap-2">
-          <textarea
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onPaste={handlePaste}
-            placeholder="Type a message or paste an image..."
-            className="flex-1 bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#c4ff0e] border border-zinc-800 min-h-[44px] resize-none"
-            rows={2}
-          />
+          <div className="relative">
+            <textarea
+              value={newMessage}
+              onChange={(e) => {
+                setNewMessage(e.target.value)
+                updateMentionState(e.target.value)
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  setShowMentionPopup(false)
+                }
+              }}
+              onPaste={handlePaste}
+              placeholder="Type a message or paste an image..."
+              className="flex-1 w-full bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#c4ff0e] border border-zinc-800 min-h-[44px] resize-none"
+              rows={2}
+            />
+            {showMentionPopup && mentionResults && mentionResults.length > 0 && (
+              <div className="absolute left-0 top-full z-20 mt-2 w-full max-h-48 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950/95 p-2 shadow-xl">
+                {mentionResults.map((mention) => (
+                  <button
+                    key={mention._id}
+                    type="button"
+                    onClick={() => insertMention(mention.alias)}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-white hover:bg-zinc-800/80"
+                  >
+                    <div className="h-7 w-7 overflow-hidden rounded-full border border-zinc-700 bg-zinc-800">
+                      {mention.selectedAvatar || mention.imageUrl ? (
+                        <img
+                          src={mention.selectedAvatar || mention.imageUrl}
+                          alt={mention.alias}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center text-xs text-zinc-300">
+                          {mention.alias.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-medium">{mention.alias}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {imagePreview && (
             <div className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
               <img
@@ -246,72 +393,131 @@ export default function LiveChat() {
         </button>
       </form>
 
-      <div className="space-y-3 max-h-[560px] overflow-y-auto pr-2 bg-zinc-900/50 rounded-xl p-4 border border-zinc-800">
+      <div className="space-y-3 max-h-[560px] overflow-y-auto pr-2 bg-zinc-900/50 rounded-xl p-4 border border-zinc-800 overscroll-contain touch-pan-y">
         {[...(messages || []), ...optimisticMessages]
           .filter((message) => !deletedMessageIds.has(message._id))
           .slice()
           .reverse()
-          .map((message) => (
-          <div key={message._id} className="flex gap-3 group">
-            <div className="w-10 h-10 rounded-full border-2 border-[#ff00ff] flex-shrink-0 overflow-hidden flex items-center justify-center bg-black/40 text-[#c4ff0e] font-semibold"
-              style={{ boxShadow: "0 0 8px rgba(255, 0, 255, 0.4)" }}>
-              {message.avatarUrl ? (
-                <img
-                  src={message.avatarUrl}
-                  alt={message.userName || "User"}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-sm">
-                  {(message.userName || message.user || "A").charAt(0).toUpperCase()}
-                </span>
-              )}
-            </div>
-            <div className="flex flex-col gap-1 flex-1">
-              <div className="flex items-baseline gap-2">
-                <span className="text-xs font-semibold text-[#c4ff0e]">
-                  {message.userName || message.user || "Anonymous"}
-                </span>
-                <span className="text-xs text-zinc-600">·</span>
-                <span className="text-xs text-zinc-500">
-                  {formatTimestamp(message._creationTime)}
-                </span>
-                {isAdmin && (
-                  <button
-                    onClick={() => {
-                      setDeletedMessageIds((prev) => new Set(prev).add(message._id))
-                      deleteMessage({ messageId: message._id }).catch((error) => {
-                        console.error("Failed to delete message:", error)
-                        setDeletedMessageIds((prev) => {
-                          const newSet = new Set(prev)
-                          newSet.delete(message._id)
-                          return newSet
-                        })
-                      })
-                    }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-red-500 ml-auto"
-                    title="Delete message"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-              {message.body && message.body.trim().length > 0 && (
-                <p className="text-sm text-white break-words">{message.body}</p>
-              )}
-              {message.imageUrl && (
-                <div className="mt-2 max-w-full">
-                  <img
-                    src={message.imageUrl}
-                    alt="Shared in chat"
-                    loading="lazy"
-                    className="max-h-64 w-full max-w-md rounded-xl border border-zinc-800 object-contain bg-black/40"
-                  />
+          .map((message) => {
+            const { text, urls: gifUrls } = extractGifUrls(message.body ?? "")
+            const isGifUpload =
+              message.imageMimeType === "image/gif" ||
+              message.imageUrl?.toLowerCase().includes(".gif")
+            const isOptimistic = typeof message._id === "string" && message._id.startsWith("optimistic-")
+            const loveCount = message.loveCount ?? 0
+            const recentLovers = message.recentLovers ?? []
+
+            return (
+              <div key={message._id} className="flex gap-3 group">
+                <div className="w-10 h-10 rounded-full border-2 border-[#ff00ff] flex-shrink-0 overflow-hidden flex items-center justify-center bg-black/40 text-[#c4ff0e] font-semibold"
+                  style={{ boxShadow: "0 0 8px rgba(255, 0, 255, 0.4)" }}>
+                  {message.avatarUrl ? (
+                    <img
+                      src={message.avatarUrl}
+                      alt={message.userName || "User"}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-sm">
+                      {(message.userName || message.user || "A").charAt(0).toUpperCase()}
+                    </span>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-        ))}
+                <div className="flex flex-col gap-1 flex-1">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xs font-semibold text-[#c4ff0e]">
+                      {message.userName || message.user || "Anonymous"}
+                    </span>
+                    <span className="text-xs text-zinc-600">·</span>
+                    <span className="text-xs text-zinc-500">
+                      {formatTimestamp(message._creationTime)}
+                    </span>
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          setDeletedMessageIds((prev) => new Set(prev).add(message._id))
+                          deleteMessage({ messageId: message._id }).catch((error) => {
+                            console.error("Failed to delete message:", error)
+                            setDeletedMessageIds((prev) => {
+                              const newSet = new Set(prev)
+                              newSet.delete(message._id)
+                              return newSet
+                            })
+                          })
+                        }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-red-500 ml-auto"
+                        title="Delete message"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                  {text.length > 0 && (
+                    <p className="text-sm text-white break-words">
+                      {renderMessageBody(text)}
+                    </p>
+                  )}
+                  {gifUrls.length > 0 && (
+                    <div className="mt-2 flex flex-col gap-2">
+                      {gifUrls.map((url) => (
+                        <img
+                          key={url}
+                          src={url}
+                          alt="Shared GIF"
+                          loading="lazy"
+                          className="max-h-80 max-w-[280px] rounded-lg object-contain shadow-lg"
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {message.imageUrl && (
+                    <div className="mt-2">
+                      <img
+                        src={message.imageUrl}
+                        alt="Shared in chat"
+                        loading="lazy"
+                        className={`max-h-80 max-w-[280px] rounded-lg shadow-lg ${
+                          isGifUpload ? "object-contain" : "object-cover"
+                        }`}
+                      />
+                    </div>
+                  )}
+                  {!isOptimistic && (
+                    <div className="mt-2 flex items-center gap-2 text-xs text-zinc-500">
+                      <button
+                        onClick={() => handleLove(message._id)}
+                        className={`flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
+                          loveCount > 0 || loveAnimatingId === message._id
+                            ? "bg-red-600 text-white"
+                            : "bg-zinc-900/60 text-zinc-500 hover:text-red-500"
+                        }`}
+                      >
+                        <Heart className={`w-4 h-4 ${loveCount > 0 ? "fill-white" : ""}`} />
+                        <span>{loveCount}</span>
+                      </button>
+                      {recentLovers.length > 0 && (
+                        <div className="flex -space-x-2">
+                          {recentLovers.slice(0, 3).map((lover: { clerkId: string; alias: string; avatarUrl?: string }) => (
+                            <div
+                              key={`${message._id}-${lover.clerkId}`}
+                              className="h-5 w-5 rounded-full border border-zinc-900 bg-zinc-800 flex items-center justify-center overflow-hidden text-[10px]"
+                              title={lover.alias}
+                            >
+                              {lover.avatarUrl ? (
+                                <img src={lover.avatarUrl} alt={lover.alias} className="h-full w-full object-cover" />
+                              ) : (
+                                <span className="text-white">{lover.alias.charAt(0).toUpperCase()}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
       </div>
     </div>
   )

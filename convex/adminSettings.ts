@@ -22,7 +22,7 @@ export const getSetting = query({
       .withIndex("by_key", (q) => q.eq("key", args.key))
       .first();
     
-    // Default to true if setting doesn't exist (show nightclub by default)
+    // Default to true if setting doesn't exist
     return setting?.value ?? true;
   },
 });

@@ -142,6 +142,17 @@
   animation: expire 1s ease-in-out forwards;
 }
 
+@supports (height: 100dvh) {
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+}
+
+html,
+body {
+  overscroll-behavior: none;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

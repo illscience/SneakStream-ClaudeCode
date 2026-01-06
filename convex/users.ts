@@ -173,3 +173,15 @@ export const generateAvatarUploadUrl = mutation({
     return { uploadUrl };
   },
 });
+
+export const searchUsersByAlias = query({
+  args: { searchTerm: v.string() },
+  handler: async (ctx, args) => {
+    const users = await ctx.db.query("users").collect();
+    return users
+      .filter((user) =>
+        user.alias.toLowerCase().includes(args.searchTerm.toLowerCase())
+      )
+      .slice(0, 10);
+  },
+});

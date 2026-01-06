@@ -14,12 +14,10 @@ import type {
   FunctionReference,
 } from "convex/server";
 import type * as adminSettings from "../adminSettings.js";
-import type * as avatarQueue from "../avatarQueue.js";
 import type * as chat from "../chat.js";
 import type * as events from "../events.js";
 import type * as follows from "../follows.js";
 import type * as livestream from "../livestream.js";
-import type * as nightclub from "../nightclub.js";
 import type * as playbackState from "../playbackState.js";
 import type * as playlist from "../playlist.js";
 import type * as streamCredentials from "../streamCredentials.js";
@@ -36,12 +34,10 @@ import type * as videos from "../videos.js";
  */
 declare const fullApi: ApiFromModules<{
   adminSettings: typeof adminSettings;
-  avatarQueue: typeof avatarQueue;
   chat: typeof chat;
   events: typeof events;
   follows: typeof follows;
   livestream: typeof livestream;
-  nightclub: typeof nightclub;
   playbackState: typeof playbackState;
   playlist: typeof playlist;
   streamCredentials: typeof streamCredentials;

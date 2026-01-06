@@ -30,15 +30,101 @@ export const getMessages = query({
     const messages = await ctx.db.query("messages").order("desc").take(50);
 
     const withUrls = await Promise.all(
-      messages.map(async (message) => ({
-        ...message,
-        imageUrl: message.imageStorageId
-          ? await ctx.storage.getUrl(message.imageStorageId)
-          : undefined,
-      }))
+      messages.map(async (message) => {
+        const loves = await ctx.db
+          .query("messageLoves")
+          .withIndex("by_message", (q) => q.eq("messageId", message._id))
+          .collect();
+
+        const recentLoves = loves
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .slice(0, 3);
+
+        const recentLovers = await Promise.all(
+          recentLoves.map(async (love) => {
+            const user = await ctx.db
+              .query("users")
+              .withIndex("by_clerk_id", (q) => q.eq("clerkId", love.clerkId))
+              .first();
+
+            return {
+              clerkId: love.clerkId,
+              alias: user?.alias ?? "Anonymous",
+              avatarUrl: user?.selectedAvatar ?? user?.imageUrl ?? undefined,
+            };
+          })
+        );
+
+        return {
+          ...message,
+          imageUrl: message.imageStorageId
+            ? await ctx.storage.getUrl(message.imageStorageId)
+            : undefined,
+          loveCount: loves.length,
+          recentLovers,
+        };
+      })
     );
 
     return withUrls.reverse();
+  },
+});
+
+export const getMessageLoves = query({
+  args: { messageIds: v.array(v.id("messages")) },
+  handler: async (ctx, args) => {
+    return await Promise.all(
+      args.messageIds.map(async (messageId) => {
+        const loves = await ctx.db
+          .query("messageLoves")
+          .withIndex("by_message", (q) => q.eq("messageId", messageId))
+          .collect();
+
+        const recentLoves = loves
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .slice(0, 3);
+
+        const recentLovers = await Promise.all(
+          recentLoves.map(async (love) => {
+            const user = await ctx.db
+              .query("users")
+              .withIndex("by_clerk_id", (q) => q.eq("clerkId", love.clerkId))
+              .first();
+
+            return {
+              clerkId: love.clerkId,
+              alias: user?.alias ?? "Anonymous",
+              avatarUrl: user?.selectedAvatar ?? user?.imageUrl ?? undefined,
+            };
+          })
+        );
+
+        return {
+          messageId,
+          loveCount: loves.length,
+          recentLovers,
+        };
+      })
+    );
+  },
+});
+
+export const loveMessage = mutation({
+  args: {
+    messageId: v.id("messages"),
+    clerkId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) {
+      throw new Error("Message not found");
+    }
+
+    await ctx.db.insert("messageLoves", {
+      messageId: args.messageId,
+      clerkId: args.clerkId,
+      createdAt: Date.now(),
+    });
   },
 });
 

@@ -4,7 +4,6 @@ import { Heart, Download, Share2, Volume2, VolumeX, UserPlus, UserCheck, Clock, 
 import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
 import VideoTimer from "./components/VideoTimer";
 import MainNav from "@/components/navigation/MainNav";
-import NightclubSimulation from "./components/NightclubSimulation";
 import LiveChat from "./components/LiveChat";
 import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
@@ -39,12 +38,6 @@ export default function Home() {
 
   // Get playlist (next videos queued to play)
   const playlist = useQuery(api.playlist.getPlaylist);
-
-  // Get admin setting for showing nightclub on homepage
-  const showNightclubOnHome = useQuery(
-    api.adminSettings.getSetting,
-    { key: "showNightclubOnHome" }
-  );
 
   // Get the streamer's userId (from active stream or default video)
   const streamerId = activeStream?.userId || defaultVideo?.userId;
@@ -174,7 +167,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-dvh overscroll-contain bg-black text-white">
       <MainNav />
 
       {/* Main Content */}
@@ -372,21 +365,13 @@ export default function Home() {
           </div>
         )}
 
-        {/* Nightclub and Chat Section */}
+        {/* Chat Section */}
         <div className="px-4 lg:px-8 pb-48 pt-4">
-          {showNightclubOnHome ? (
-            // Full layout when nightclub is visible
-            <NightclubSimulation>
+          <div className="flex justify-center">
+            <div className="max-w-6xl w-full lg:static sticky top-24">
               <LiveChat />
-            </NightclubSimulation>
-          ) : (
-            // Align chat with video content when nightclub is hidden
-            <div className="flex justify-center">
-              <div className="max-w-6xl w-full">
-                <LiveChat />
-              </div>
             </div>
-          )}
+          </div>
         </div>
       </main>
 
