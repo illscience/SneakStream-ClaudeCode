@@ -12,7 +12,7 @@ Key decisions:
 - Update admin email to `sneakthedj@gmail.com` (case-insensitive compare).
 
 State:
-- On branch `main`; uncommitted changes in `components/navigation/MainNav.tsx`, `app/library/page.tsx`, `convex/adminSettings.tsx`; untracked `http/`.
+- On branch `main`; changes committed; `STABLE` tag created.
 
 Done:
 - Set `/library` nav link to admin-only.
@@ -22,9 +22,10 @@ Done:
 - Deployed Convex functions to dev (`colorful-ant-503`) and prod (`resilient-spider-207`).
 - Deployed Vercel preview and production builds (preview URL in latest run output).
 - Ran `npm run build` (ESLint circular JSON warning, build still completed).
+- Committed changes on `main` and created `STABLE` tag with Jan 2 DJ Sneak party message.
 
 Now:
-- Commit current `main` changes and add `STABLE` tag with message for Jan 2 DJ Sneak party.
+- Create and switch to a new QoL improvements branch.
 
 Next:
 - None.
