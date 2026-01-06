@@ -185,3 +185,37 @@ export const searchUsersByAlias = query({
       .slice(0, 10);
   },
 });
+
+export const backfillUsersFromMessages = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const messages = await ctx.db.query("messages").collect();
+    const seen = new Set<string>();
+    let created = 0;
+
+    for (const message of messages) {
+      const clerkId = message.userId;
+      if (!clerkId || seen.has(clerkId)) continue;
+      seen.add(clerkId);
+
+      const existing = await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+        .first();
+
+      if (existing) continue;
+
+      const alias = message.userName || message.user || "User";
+      await ctx.db.insert("users", {
+        clerkId,
+        alias,
+        email: undefined,
+        imageUrl: message.avatarUrl ?? undefined,
+        selectedAvatar: message.avatarUrl ?? undefined,
+      });
+      created += 1;
+    }
+
+    return { created };
+  },
+});

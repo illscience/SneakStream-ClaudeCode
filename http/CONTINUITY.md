@@ -1,40 +1,31 @@
 Goal (incl. success criteria):
-- Implement chat QoL: GIF link embeds, mobile stability, portrait image styling, @ mention autocomplete, love button, and remove all nightclub/dancefloor features.
+- Back up production Convex data and copy it into development for realistic testing.
 
 Constraints/Assumptions:
-- Work on `qol-improvements` branch.
-- Use preview deployments unless production is explicitly requested.
-- Do not modify production DB; user will deploy schema changes to dev.
+- Do not modify production DB; read-only access for backup.
+- OK to overwrite development data (confirm wipe).
 
 Key decisions:
-- Follow requested implementation order: remove dancefloor first, then mobile/chat UI fixes, then GIFs, loves, @mentions.
+- None yet.
 
 State:
-- On branch `qol-improvements`; QoL changes committed; user testing locally.
+- On branch `qol-improvements`; prod→dev data copy completed.
 
 Done:
-- Created `qol-improvements` branch for QoL work.
-- Removed nightclub pages/components/APIs and homepage/admin references.
-- Deleted nightclub Convex tables from schema and removed related server code files.
-- Applied mobile chat stability tweaks and portrait image styling updates.
-- Added GIF URL detection and inline rendering in chat messages.
-- Added love button support (schema + Convex + UI) and ran `npx convex codegen`.
-- Added @mention autocomplete (Convex user search + LiveChat UI).
+- QoL changes committed on `qol-improvements`.
+- Prod snapshot created and imported into dev (with file storage).
+- Convex functions deployed to dev for user backfill.
 
 Now:
-- Fix @mention autocomplete not showing by ensuring user records exist + show empty state.
+- Backfilled users from messages in dev and redeployed Convex (created 20 users).
 
 Next:
-- Re-test @mention popup after deploying Convex changes.
+- Verify @mention autocomplete includes `jennylasers`.
 
 Open questions (UNCONFIRMED if needed):
 - None.
 
 Working set (files/ids/commands):
-- app/components/LiveChat.tsx
-- app/page.tsx
-- app/admin/page.tsx
-- convex/schema.ts
-- convex/chat.ts
-- convex/users.ts
-- app/globals.css
+- http/CONTINUITY.md
+- backups/convex-prod-20260105-221444.zip (full prod snapshot with file storage)
+- backups/convex-prod-20260105-221444-filtered.zip (schema-matched snapshot for import)

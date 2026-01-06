@@ -22,6 +22,24 @@ export const sendMessage = mutation({
       imageStorageId: args.imageStorageId,
       imageMimeType: args.imageMimeType,
     });
+
+    if (args.userId) {
+      const existingUser = await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.userId))
+        .first();
+
+      if (!existingUser) {
+        const alias = args.userName || args.user || "User";
+        await ctx.db.insert("users", {
+          clerkId: args.userId,
+          alias,
+          email: undefined,
+          imageUrl: args.avatarUrl,
+          selectedAvatar: args.avatarUrl,
+        });
+      }
+    }
   },
 });
 
