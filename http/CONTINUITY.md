@@ -12,7 +12,7 @@ Key decisions:
 - Update admin email to `sneakthedj@gmail.com` (case-insensitive compare).
 
 State:
-- On branch `main`; changes committed; `STABLE` tag created.
+- On branch `qol-improvements`; `STABLE` tag created on `main`.
 
 Done:
 - Set `/library` nav link to admin-only.
@@ -25,7 +25,7 @@ Done:
 - Committed changes on `main` and created `STABLE` tag with Jan 2 DJ Sneak party message.
 
 Now:
-- Create and switch to a new QoL improvements branch.
+- Ready for QoL improvements work.
 
 Next:
 - None.
