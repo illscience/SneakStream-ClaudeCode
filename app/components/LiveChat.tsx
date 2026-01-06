@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import type { ChangeEvent, ClipboardEvent, FormEvent } from "react"
 import type { Id } from "@/convex/_generated/dataModel"
 import { useUser } from "@clerk/nextjs"
-import { useQuery, useMutation } from "convex/react"
+import { usePaginatedQuery, useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { Heart, Image as ImageIcon, Loader2, MessageSquare, Send, Trash2 } from "lucide-react"
 
@@ -69,14 +69,21 @@ export default function LiveChat() {
   const [mentionSearch, setMentionSearch] = useState("")
   const [showMentionPopup, setShowMentionPopup] = useState(false)
   const [mentionPosition, setMentionPosition] = useState<number | null>(null)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
+  const hasSyncedUserRef = useRef(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // Chat functionality
-  const messages = useQuery(api.chat.getMessages)
+  const { results: messages, status, loadMore } = usePaginatedQuery(
+    api.chat.getMessagesPage,
+    {},
+    { initialNumItems: 30 }
+  )
   const sendMessage = useMutation(api.chat.sendMessage)
   const deleteMessage = useMutation(api.chat.deleteMessage)
   const generateUploadUrl = useMutation(api.chat.generateUploadUrl)
   const loveMessage = useMutation(api.chat.loveMessage)
+  const upsertUser = useMutation(api.users.upsertUser)
   const convexUser = useQuery(
     api.users.getUserByClerkId,
     user?.id ? { clerkId: user.id } : "skip"
@@ -135,7 +142,7 @@ export default function LiveChat() {
   }
 
   const updateMentionState = (value: string) => {
-    const mentionMatch = value.match(/@(\w*)$/)
+    const mentionMatch = value.match(/@([\w.-]*)$/)
     if (mentionMatch) {
       setMentionSearch(mentionMatch[1])
       setShowMentionPopup(true)
@@ -278,6 +285,38 @@ export default function LiveChat() {
     }
   }, [imagePreview])
 
+  useEffect(() => {
+    if (!user || convexUser || hasSyncedUserRef.current) return
+    hasSyncedUserRef.current = true
+    const fallbackAlias = user.username || user.firstName || "User"
+    upsertUser({
+      clerkId: user.id,
+      alias: fallbackAlias,
+      email: user.primaryEmailAddress?.emailAddress,
+      imageUrl: user.imageUrl,
+    }).catch((error) => {
+      console.error("Failed to sync user profile:", error)
+    })
+  }, [user, convexUser, upsertUser])
+
+  useEffect(() => {
+    if (status !== "CanLoadMore") return
+    const node = loadMoreRef.current
+    if (!node) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          loadMore(30)
+        }
+      },
+      { rootMargin: "200px" }
+    )
+
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [status, loadMore])
+
   return (
     <div className="flex flex-col touch-pan-y">
       <div className="flex items-center gap-2 mb-4">
@@ -332,9 +371,15 @@ export default function LiveChat() {
               className="flex-1 w-full bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#c4ff0e] border border-zinc-800 min-h-[44px] resize-none"
               rows={2}
             />
-            {showMentionPopup && mentionResults && mentionResults.length > 0 && (
+            {showMentionPopup && (
               <div className="absolute left-0 top-full z-20 mt-2 w-full max-h-48 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950/95 p-2 shadow-xl">
-                {mentionResults.map((mention) => (
+                {mentionResults === undefined && (
+                  <div className="px-2 py-2 text-xs text-zinc-400">Loading matches…</div>
+                )}
+                {mentionResults && mentionResults.length === 0 && (
+                  <div className="px-2 py-2 text-xs text-zinc-400">No matches found</div>
+                )}
+                {mentionResults?.map((mention) => (
                   <button
                     key={mention._id}
                     type="button"
@@ -393,11 +438,10 @@ export default function LiveChat() {
         </button>
       </form>
 
-      <div className="space-y-3 max-h-[560px] overflow-y-auto pr-2 bg-zinc-900/50 rounded-xl p-4 border border-zinc-800 overscroll-contain touch-pan-y">
-        {[...(messages || []), ...optimisticMessages]
+      <div className="space-y-3 bg-zinc-900/50 rounded-xl p-4 border border-zinc-800 touch-pan-y">
+        {[...optimisticMessages, ...(messages || [])]
           .filter((message) => !deletedMessageIds.has(message._id))
-          .slice()
-          .reverse()
+          .sort((a, b) => b._creationTime - a._creationTime)
           .map((message) => {
             const { text, urls: gifUrls } = extractGifUrls(message.body ?? "")
             const isGifUpload =
@@ -496,8 +540,8 @@ export default function LiveChat() {
                         <span>{loveCount}</span>
                       </button>
                       {recentLovers.length > 0 && (
-                        <div className="flex -space-x-2">
-                          {recentLovers.slice(0, 3).map((lover: { clerkId: string; alias: string; avatarUrl?: string }) => (
+                        <div className="flex flex-wrap gap-1">
+                          {recentLovers.map((lover: { clerkId: string; alias: string; avatarUrl?: string }) => (
                             <div
                               key={`${message._id}-${lover.clerkId}`}
                               className="h-5 w-5 rounded-full border border-zinc-900 bg-zinc-800 flex items-center justify-center overflow-hidden text-[10px]"
@@ -518,6 +562,11 @@ export default function LiveChat() {
               </div>
             )
           })}
+        <div ref={loadMoreRef} className="py-4 text-center text-xs text-zinc-500">
+          {status === "LoadingMore" && "Loading more messages..."}
+          {status === "CanLoadMore" && "Scroll for more messages"}
+          {status === "Exhausted" && "You're all caught up"}
+        </div>
       </div>
     </div>
   )

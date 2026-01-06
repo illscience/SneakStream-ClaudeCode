@@ -22,10 +22,10 @@ Done:
 - Added @mention autocomplete (Convex user search + LiveChat UI).
 
 Now:
-- Changes committed; awaiting further instructions.
+- Fix @mention autocomplete not showing by ensuring user records exist + show empty state.
 
 Next:
-- Deploy preview if requested.
+- Re-test @mention popup after deploying Convex changes.
 
 Open questions (UNCONFIRMED if needed):
 - None.

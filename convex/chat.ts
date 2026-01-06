@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 
 export const sendMessage = mutation({
   args: {
@@ -24,49 +25,68 @@ export const sendMessage = mutation({
   },
 });
 
+const buildMessageWithLoves = async (ctx: { db: any; storage: any }, message: any) => {
+  const loves = await ctx.db
+    .query("messageLoves")
+    .withIndex("by_message", (q: any) => q.eq("messageId", message._id))
+    .collect();
+
+  const sortedLoves = loves.sort((a: any, b: any) => b.createdAt - a.createdAt);
+  const seenLovers = new Set<string>();
+  const uniqueLoves = sortedLoves.filter((love: any) => {
+    if (seenLovers.has(love.clerkId)) return false;
+    seenLovers.add(love.clerkId);
+    return true;
+  });
+
+  const recentLovers = await Promise.all(
+    uniqueLoves.map(async (love: any) => {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q: any) => q.eq("clerkId", love.clerkId))
+        .first();
+
+      return {
+        clerkId: love.clerkId,
+        alias: user?.alias ?? "Anonymous",
+        avatarUrl: user?.selectedAvatar ?? user?.imageUrl ?? undefined,
+      };
+    })
+  );
+
+  return {
+    ...message,
+    imageUrl: message.imageStorageId
+      ? await ctx.storage.getUrl(message.imageStorageId)
+      : undefined,
+    loveCount: uniqueLoves.length,
+    recentLovers,
+  };
+};
+
 export const getMessages = query({
   args: {},
   handler: async (ctx) => {
     const messages = await ctx.db.query("messages").order("desc").take(50);
-
-    const withUrls = await Promise.all(
-      messages.map(async (message) => {
-        const loves = await ctx.db
-          .query("messageLoves")
-          .withIndex("by_message", (q) => q.eq("messageId", message._id))
-          .collect();
-
-        const recentLoves = loves
-          .sort((a, b) => b.createdAt - a.createdAt)
-          .slice(0, 3);
-
-        const recentLovers = await Promise.all(
-          recentLoves.map(async (love) => {
-            const user = await ctx.db
-              .query("users")
-              .withIndex("by_clerk_id", (q) => q.eq("clerkId", love.clerkId))
-              .first();
-
-            return {
-              clerkId: love.clerkId,
-              alias: user?.alias ?? "Anonymous",
-              avatarUrl: user?.selectedAvatar ?? user?.imageUrl ?? undefined,
-            };
-          })
-        );
-
-        return {
-          ...message,
-          imageUrl: message.imageStorageId
-            ? await ctx.storage.getUrl(message.imageStorageId)
-            : undefined,
-          loveCount: loves.length,
-          recentLovers,
-        };
-      })
-    );
-
+    const withUrls = await Promise.all(messages.map((message) => buildMessageWithLoves(ctx, message)));
     return withUrls.reverse();
+  },
+});
+
+export const getMessagesPage = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const results = await ctx.db
+      .query("messages")
+      .order("desc")
+      .paginate(args.paginationOpts);
+
+    const page = await Promise.all(results.page.map((message) => buildMessageWithLoves(ctx, message)));
+
+    return {
+      ...results,
+      page,
+    };
   },
 });
 
@@ -80,12 +100,16 @@ export const getMessageLoves = query({
           .withIndex("by_message", (q) => q.eq("messageId", messageId))
           .collect();
 
-        const recentLoves = loves
-          .sort((a, b) => b.createdAt - a.createdAt)
-          .slice(0, 3);
+        const sortedLoves = loves.sort((a, b) => b.createdAt - a.createdAt);
+        const seenLovers = new Set<string>();
+        const uniqueLoves = sortedLoves.filter((love) => {
+          if (seenLovers.has(love.clerkId)) return false;
+          seenLovers.add(love.clerkId);
+          return true;
+        });
 
         const recentLovers = await Promise.all(
-          recentLoves.map(async (love) => {
+          uniqueLoves.map(async (love) => {
             const user = await ctx.db
               .query("users")
               .withIndex("by_clerk_id", (q) => q.eq("clerkId", love.clerkId))
@@ -101,7 +125,7 @@ export const getMessageLoves = query({
 
         return {
           messageId,
-          loveCount: loves.length,
+          loveCount: uniqueLoves.length,
           recentLovers,
         };
       })
