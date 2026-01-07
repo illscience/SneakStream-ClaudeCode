@@ -1,5 +1,5 @@
 Goal (incl. success criteria):
-- Merge qol-improvements into main, push, then switch to main and sync.
+- Merge qol-improvements into main and sync with origin.
 
 Constraints/Assumptions:
 - Emotes stored as static assets under `public/emotes/` (no DB changes).
@@ -11,7 +11,7 @@ Key decisions:
 - If Next favicon route breaks locally, serve favicon from `public/favicon.ico` instead of `app/favicon.ico`.
 
 State:
-- On branch `qol-improvements` tracking origin; signed-out chat composer hidden update committed and pushed; favicon served from `public/favicon.ico`.
+- On branch `main`; qol-improvements merged and pushed; working tree clean except untracked `backups/`.
 
 Done:
 - Extracted emote images from `~/Downloads/Images.zip` into `public/emotes/`.
@@ -22,10 +22,10 @@ Done:
 - Verified `public/emotes/*` images are tracked and pushed.
 
 Now:
-- Merge/push request pending.
+- Main is up to date with origin after merge.
 
 Next:
-- Merge `qol-improvements` into `main`, push, then checkout `main` and pull.
+- None queued.
 
 Open questions (UNCONFIRMED if needed):
 - None.
