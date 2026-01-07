@@ -1,31 +1,30 @@
 Goal (incl. success criteria):
-- Back up production Convex data and copy it into development for realistic testing.
+- Add chat emotes picker: button next to photo, gallery of emotes, tap to send and render inline in chat.
 
 Constraints/Assumptions:
-- Do not modify production DB; read-only access for backup.
-- OK to overwrite development data (confirm wipe).
+- Emotes stored as static assets under `public/emotes/` (no DB changes).
+- Must work on mobile web and match existing neon chat style.
 
 Key decisions:
-- None yet.
+- Represent emote messages as `:emote:<filename>` in `messages.body`, render via static emote manifest.
 
 State:
-- On branch `qol-improvements`; prod→dev data copy completed.
+- On branch `qol-improvements`; emote assets extracted and UI implementation in progress (uncommitted).
 
 Done:
-- QoL changes committed on `qol-improvements`.
-- Prod snapshot created and imported into dev (with file storage).
-- Convex functions deployed to dev for user backfill.
+- Extracted emote images from `~/Downloads/Images.zip` into `public/emotes/`.
 
 Now:
-- Backfilled users from messages in dev and redeployed Convex (created 20 users).
+- Implement emote picker UI and message rendering in `app/components/LiveChat.tsx`.
 
 Next:
-- Verify @mention autocomplete includes `jennylasers`.
+- Test locally and commit changes.
 
 Open questions (UNCONFIRMED if needed):
 - None.
 
 Working set (files/ids/commands):
 - http/CONTINUITY.md
-- backups/convex-prod-20260105-221444.zip (full prod snapshot with file storage)
-- backups/convex-prod-20260105-221444-filtered.zip (schema-matched snapshot for import)
+- app/components/LiveChat.tsx
+- lib/emotes.ts
+- public/emotes/*

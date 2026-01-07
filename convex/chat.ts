@@ -23,16 +23,17 @@ export const sendMessage = mutation({
       imageMimeType: args.imageMimeType,
     });
 
-    if (args.userId) {
+    const clerkId = args.userId;
+    if (clerkId) {
       const existingUser = await ctx.db
         .query("users")
-        .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.userId))
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
         .first();
 
       if (!existingUser) {
         const alias = args.userName || args.user || "User";
         await ctx.db.insert("users", {
-          clerkId: args.userId,
+          clerkId,
           alias,
           email: undefined,
           imageUrl: args.avatarUrl,

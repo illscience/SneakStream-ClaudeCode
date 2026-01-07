@@ -6,7 +6,8 @@ import type { Id } from "@/convex/_generated/dataModel"
 import { useUser } from "@clerk/nextjs"
 import { usePaginatedQuery, useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { Heart, Image as ImageIcon, Loader2, MessageSquare, Send, Trash2 } from "lucide-react"
+import { EMOTE_BY_ID, EMOTES } from "@/lib/emotes"
+import { Heart, Image as ImageIcon, Loader2, MessageSquare, Send, Smile, Trash2, X } from "lucide-react"
 
 const GIF_URL_PATTERN =
   /https?:\/\/[^\s]+\.gif(\?[^\s]*)?|https?:\/\/(media\.giphy\.com|giphy\.com|media\.tenor\.com|tenor\.com|imgur\.com|i\.imgur\.com)\/[^\s]+/gi
@@ -65,6 +66,7 @@ export default function LiveChat() {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [isSending, setIsSending] = useState(false)
+  const [isEmotePickerOpen, setIsEmotePickerOpen] = useState(false)
   const [loveAnimatingId, setLoveAnimatingId] = useState<string | null>(null)
   const [mentionSearch, setMentionSearch] = useState("")
   const [showMentionPopup, setShowMentionPopup] = useState(false)
@@ -125,6 +127,40 @@ export default function LiveChat() {
       await loveMessage({ messageId: messageId as Id<"messages">, clerkId: user.id })
     } catch (error) {
       console.error("Failed to love message:", error)
+    }
+  }
+
+  const handleSendEmote = async (emoteId: string) => {
+    if (!user) return
+    const emote = EMOTE_BY_ID[emoteId]
+    if (!emote) return
+
+    const optimisticId = `optimistic-${Date.now()}`
+    const optimisticMsg = {
+      _id: optimisticId,
+      _creationTime: Date.now(),
+      user: user.id,
+      userId: user.id,
+      userName: displayName,
+      avatarUrl: resolvedAvatar,
+      body: `:emote:${emote.id}`,
+    }
+
+    setOptimisticMessages((prev) => [...prev, optimisticMsg])
+    setIsEmotePickerOpen(false)
+
+    try {
+      await sendMessage({
+        user: user.id,
+        userId: user.id,
+        userName: displayName,
+        avatarUrl: resolvedAvatar,
+        body: `:emote:${emote.id}`,
+      })
+      setOptimisticMessages((prev) => prev.filter((m) => m._id !== optimisticId))
+    } catch (error) {
+      console.error("Failed to send emote:", error)
+      setOptimisticMessages((prev) => prev.filter((m) => m._id !== optimisticId))
     }
   }
 
@@ -353,6 +389,14 @@ export default function LiveChat() {
         >
           <ImageIcon className="h-5 w-5" />
         </button>
+        <button
+          type="button"
+          onClick={() => setIsEmotePickerOpen(true)}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 text-zinc-300 transition-colors hover:text-white hover:border-[#c4ff0e]"
+          title="Emotes"
+        >
+          <Smile className="h-5 w-5" />
+        </button>
         <div className="flex-1 flex flex-col gap-2">
           <div className="relative">
             <textarea
@@ -443,7 +487,10 @@ export default function LiveChat() {
           .filter((message) => !deletedMessageIds.has(message._id))
           .sort((a, b) => b._creationTime - a._creationTime)
           .map((message) => {
-            const { text, urls: gifUrls } = extractGifUrls(message.body ?? "")
+            const rawBody = message.body ?? ""
+            const emoteMatch = rawBody.match(/^:emote:([^\s]+)$/)
+            const emote = emoteMatch ? EMOTE_BY_ID[emoteMatch[1]] : undefined
+            const { text, urls: gifUrls } = emote ? { text: "", urls: [] } : extractGifUrls(rawBody)
             const isGifUpload =
               message.imageMimeType === "image/gif" ||
               message.imageUrl?.toLowerCase().includes(".gif")
@@ -496,6 +543,16 @@ export default function LiveChat() {
                       </button>
                     )}
                   </div>
+                  {emote && (
+                    <div className="mt-2 inline-flex items-center justify-center rounded-2xl border border-zinc-800 bg-black/30 p-3 shadow-lg">
+                      <img
+                        src={emote.src}
+                        alt={emote.alt}
+                        className="max-h-44 max-w-[220px] object-contain"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
                   {text.length > 0 && (
                     <p className="text-sm text-white break-words">
                       {renderMessageBody(text)}
@@ -568,6 +625,60 @@ export default function LiveChat() {
           {status === "Exhausted" && "You're all caught up"}
         </div>
       </div>
+
+      {isEmotePickerOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setIsEmotePickerOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Emote picker"
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-[#c4ff0e]">Emotes</span>
+                <span className="text-xs text-zinc-500">{EMOTES.length}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEmotePickerOpen(false)}
+                className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-2 text-zinc-300 transition-colors hover:border-[#c4ff0e] hover:text-white"
+                aria-label="Close emote picker"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto pr-1">
+              <div className="grid grid-cols-5 gap-2 sm:grid-cols-7">
+                {EMOTES.map((emote) => (
+                  <button
+                    key={emote.id}
+                    type="button"
+                    onClick={() => handleSendEmote(emote.id)}
+                    className="group relative aspect-square overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/40 p-2 transition-all hover:-translate-y-0.5 hover:border-[#c4ff0e] hover:bg-zinc-900/70"
+                    aria-label={`Send ${emote.alt}`}
+                  >
+                    <img
+                      src={emote.src}
+                      alt={emote.alt}
+                      className="h-full w-full object-contain transition-transform group-hover:scale-105"
+                      loading="lazy"
+                    />
+                    <div className="pointer-events-none absolute inset-0 rounded-xl ring-0 ring-[#c4ff0e]/30 transition-all group-hover:ring-2" />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-3 text-xs text-zinc-500">
+              Tap an emote to send instantly.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
