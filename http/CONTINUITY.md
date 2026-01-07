@@ -11,18 +11,19 @@ Key decisions:
 - If Next favicon route breaks locally, serve favicon from `public/favicon.ico` instead of `app/favicon.ico`.
 
 State:
-- On branch `qol-improvements`; emotes feature implemented and committed, favicon served from `public/favicon.ico` to avoid `/favicon.ico` 500s.
+- On branch `qol-improvements`; emote row wrap update committed; favicon served from `public/favicon.ico` to avoid `/favicon.ico` 500s.
 
 Done:
 - Extracted emote images from `~/Downloads/Images.zip` into `public/emotes/`.
 - Added `lib/emotes.ts` manifest and emote picker + emote message rendering in `app/components/LiveChat.tsx`.
 - Smoke-tested via `npm run build` (ESLint circular JSON warning persists but build completes).
+- Emote picker row wraps to multiple lines without resizing the textarea.
 
 Now:
-- Emote row wraps instead of horizontal scroll; textarea no longer flex-grows with picker.
+- Ready to continue QoL tasks or deploy preview.
 
 Next:
-- Verify emote row wraps to a second line without expanding textarea height.
+- None queued.
 
 Open questions (UNCONFIRMED if needed):
 - None.
