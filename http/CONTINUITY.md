@@ -1,5 +1,5 @@
 Goal (incl. success criteria):
-- Emote picker shows a horizontal row below the input; tapping an emote posts it and closes the picker.
+- Logged-out users see a clear sign-in prompt; chat input/actions hidden.
 
 Constraints/Assumptions:
 - Emotes stored as static assets under `public/emotes/` (no DB changes).
@@ -20,10 +20,10 @@ Done:
 - Emote picker row wraps to multiple lines without resizing the textarea.
 
 Now:
-- Ready to continue QoL tasks or deploy preview.
+- Hide chat composer when signed out; show only sign-in CTA.
 
 Next:
-- None queued.
+- Verify signed-out flow on mobile and desktop.
 
 Open questions (UNCONFIRMED if needed):
 - None.

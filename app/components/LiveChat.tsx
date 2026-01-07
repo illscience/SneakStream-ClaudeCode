@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { ChangeEvent, ClipboardEvent, FormEvent } from "react"
 import type { Id } from "@/convex/_generated/dataModel"
-import { useUser } from "@clerk/nextjs"
+import { SignInButton, useUser } from "@clerk/nextjs"
 import { usePaginatedQuery, useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { EMOTE_BY_ID, EMOTES } from "@/lib/emotes"
@@ -100,6 +100,7 @@ export default function LiveChat() {
   const isAdmin =
     user?.primaryEmailAddress?.emailAddress?.toLowerCase() === "sneakthedj@gmail.com"
   const resolvedAvatar = userSelectedAvatar || user?.imageUrl || undefined
+  const isSignedIn = Boolean(user?.id)
 
   const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp)
@@ -373,134 +374,150 @@ export default function LiveChat() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex gap-2 mb-4 items-start">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleFileChange}
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 text-zinc-300 transition-colors hover:text-white hover:border-[#c4ff0e]"
-          title="Attach image"
-        >
-          <ImageIcon className="h-5 w-5" />
-        </button>
-        <button
-          type="button"
-          onClick={() => setIsEmotePickerOpen((prev) => !prev)}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 text-zinc-300 transition-colors hover:text-white hover:border-[#c4ff0e]"
-          title="Emotes"
-        >
-          <Smile className="h-5 w-5" />
-        </button>
-        <div className="flex-1 flex flex-col gap-2">
-          <div className="relative">
-            <textarea
-              value={newMessage}
-              onChange={(e) => {
-                setNewMessage(e.target.value)
-                updateMentionState(e.target.value)
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Escape") {
-                  setShowMentionPopup(false)
-                }
-              }}
-              onPaste={handlePaste}
-              placeholder="Type a message or paste an image..."
-              className="w-full bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#c4ff0e] border border-zinc-800 min-h-[44px] resize-none"
-              rows={2}
-            />
-            {showMentionPopup && (
-              <div className="absolute left-0 top-full z-20 mt-2 w-full max-h-48 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950/95 p-2 shadow-xl">
-                {mentionResults === undefined && (
-                  <div className="px-2 py-2 text-xs text-zinc-400">Loading matches…</div>
-                )}
-                {mentionResults && mentionResults.length === 0 && (
-                  <div className="px-2 py-2 text-xs text-zinc-400">No matches found</div>
-                )}
-                {mentionResults?.map((mention) => (
+      {isSignedIn ? (
+        <form onSubmit={handleSubmit} className="flex gap-2 mb-4 items-start">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 text-zinc-300 transition-colors hover:text-white hover:border-[#c4ff0e]"
+            title="Attach image"
+          >
+            <ImageIcon className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsEmotePickerOpen((prev) => !prev)}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 text-zinc-300 transition-colors hover:text-white hover:border-[#c4ff0e]"
+            title="Emotes"
+          >
+            <Smile className="h-5 w-5" />
+          </button>
+          <div className="flex-1 flex flex-col gap-2">
+            <div className="relative">
+              <textarea
+                value={newMessage}
+                onChange={(e) => {
+                  setNewMessage(e.target.value)
+                  updateMentionState(e.target.value)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setShowMentionPopup(false)
+                  }
+                }}
+                onPaste={handlePaste}
+                placeholder="Type a message or paste an image..."
+                className="w-full bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#c4ff0e] border border-zinc-800 min-h-[44px] resize-none"
+                rows={2}
+              />
+              {showMentionPopup && (
+                <div className="absolute left-0 top-full z-20 mt-2 w-full max-h-48 overflow-y-auto rounded-lg border border-zinc-800 bg-zinc-950/95 p-2 shadow-xl">
+                  {mentionResults === undefined && (
+                    <div className="px-2 py-2 text-xs text-zinc-400">Loading matches…</div>
+                  )}
+                  {mentionResults && mentionResults.length === 0 && (
+                    <div className="px-2 py-2 text-xs text-zinc-400">No matches found</div>
+                  )}
+                  {mentionResults?.map((mention) => (
+                    <button
+                      key={mention._id}
+                      type="button"
+                      onClick={() => insertMention(mention.alias)}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-white hover:bg-zinc-800/80"
+                    >
+                      <div className="h-7 w-7 overflow-hidden rounded-full border border-zinc-700 bg-zinc-800">
+                        {mention.selectedAvatar || mention.imageUrl ? (
+                          <img
+                            src={mention.selectedAvatar || mention.imageUrl}
+                            alt={mention.alias}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="flex h-full w-full items-center justify-center text-xs text-zinc-300">
+                            {mention.alias.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-medium">{mention.alias}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {isEmotePickerOpen && (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/70 px-3 py-2">
+                {EMOTES.map((emote) => (
                   <button
-                    key={mention._id}
+                    key={emote.id}
                     type="button"
-                    onClick={() => insertMention(mention.alias)}
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm text-white hover:bg-zinc-800/80"
+                    onClick={() => handleSendEmote(emote.id)}
+                    className="group relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/60 p-2 transition-all hover:-translate-y-0.5 hover:border-[#c4ff0e] hover:bg-zinc-900/80"
+                    aria-label={`Send ${emote.alt}`}
                   >
-                    <div className="h-7 w-7 overflow-hidden rounded-full border border-zinc-700 bg-zinc-800">
-                      {mention.selectedAvatar || mention.imageUrl ? (
-                        <img
-                          src={mention.selectedAvatar || mention.imageUrl}
-                          alt={mention.alias}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <span className="flex h-full w-full items-center justify-center text-xs text-zinc-300">
-                          {mention.alias.charAt(0).toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-                    <span className="font-medium">{mention.alias}</span>
+                    <img
+                      src={emote.src}
+                      alt={emote.alt}
+                      className="h-full w-full object-contain transition-transform group-hover:scale-105"
+                      loading="lazy"
+                    />
                   </button>
                 ))}
               </div>
             )}
-          </div>
-          {isEmotePickerOpen && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/70 px-3 py-2">
-              {EMOTES.map((emote) => (
-                <button
-                  key={emote.id}
-                  type="button"
-                  onClick={() => handleSendEmote(emote.id)}
-                  className="group relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/60 p-2 transition-all hover:-translate-y-0.5 hover:border-[#c4ff0e] hover:bg-zinc-900/80"
-                  aria-label={`Send ${emote.alt}`}
-                >
-                  <img
-                    src={emote.src}
-                    alt={emote.alt}
-                    className="h-full w-full object-contain transition-transform group-hover:scale-105"
-                    loading="lazy"
-                  />
-                </button>
-              ))}
-            </div>
-          )}
-          {imagePreview && (
-            <div className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-              <img
-                src={imagePreview}
-                alt="Preview"
-                className="h-16 w-16 rounded-md border border-zinc-700 object-cover"
-              />
-              <div className="flex flex-1 items-center justify-between gap-2">
-                <span className="text-xs text-zinc-400">Image ready to send</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (imagePreview) URL.revokeObjectURL(imagePreview)
-                    setImagePreview(null)
-                    setImageFile(null)
-                  }}
-                  className="text-xs text-zinc-400 hover:text-white underline"
-                >
-                  Remove
-                </button>
+            {imagePreview && (
+              <div className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="h-16 w-16 rounded-md border border-zinc-700 object-cover"
+                />
+                <div className="flex flex-1 items-center justify-between gap-2">
+                  <span className="text-xs text-zinc-400">Image ready to send</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (imagePreview) URL.revokeObjectURL(imagePreview)
+                      setImagePreview(null)
+                      setImageFile(null)
+                    }}
+                    className="text-xs text-zinc-400 hover:text-white underline"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+          <button
+            type="submit"
+            disabled={isSending || (!newMessage.trim() && !imageFile)}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#c4ff0e] text-black transition-colors hover:bg-[#b3e60d] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </button>
+        </form>
+      ) : (
+        <div className="mb-4 rounded-lg border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-sm text-zinc-300">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>Sign in to join the chat and post messages.</span>
+            <SignInButton mode="modal">
+              <button
+                type="button"
+                className="w-full sm:w-auto rounded-lg bg-[#c4ff0e] px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-[#b3e60d]"
+              >
+                Sign in to chat
+              </button>
+            </SignInButton>
+          </div>
         </div>
-        <button
-          type="submit"
-          disabled={isSending || (!newMessage.trim() && !imageFile)}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#c4ff0e] text-black transition-colors hover:bg-[#b3e60d] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-        </button>
-      </form>
+      )}
 
       <div className="space-y-3 bg-zinc-900/50 rounded-xl p-4 border border-zinc-800 touch-pan-y">
         {[...optimisticMessages, ...(messages || [])]
