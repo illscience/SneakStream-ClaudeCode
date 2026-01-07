@@ -7,7 +7,7 @@ import { useUser } from "@clerk/nextjs"
 import { usePaginatedQuery, useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { EMOTE_BY_ID, EMOTES } from "@/lib/emotes"
-import { Heart, Image as ImageIcon, Loader2, MessageSquare, Send, Smile, Trash2, X } from "lucide-react"
+import { Heart, Image as ImageIcon, Loader2, MessageSquare, Send, Smile, Trash2 } from "lucide-react"
 
 const GIF_URL_PATTERN =
   /https?:\/\/[^\s]+\.gif(\?[^\s]*)?|https?:\/\/(media\.giphy\.com|giphy\.com|media\.tenor\.com|tenor\.com|imgur\.com|i\.imgur\.com)\/[^\s]+/gi
@@ -391,7 +391,7 @@ export default function LiveChat() {
         </button>
         <button
           type="button"
-          onClick={() => setIsEmotePickerOpen(true)}
+          onClick={() => setIsEmotePickerOpen((prev) => !prev)}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900/70 text-zinc-300 transition-colors hover:text-white hover:border-[#c4ff0e]"
           title="Emotes"
         >
@@ -412,7 +412,7 @@ export default function LiveChat() {
               }}
               onPaste={handlePaste}
               placeholder="Type a message or paste an image..."
-              className="flex-1 w-full bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#c4ff0e] border border-zinc-800 min-h-[44px] resize-none"
+              className="w-full bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#c4ff0e] border border-zinc-800 min-h-[44px] resize-none"
               rows={2}
             />
             {showMentionPopup && (
@@ -449,6 +449,26 @@ export default function LiveChat() {
               </div>
             )}
           </div>
+          {isEmotePickerOpen && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/70 px-3 py-2">
+              {EMOTES.map((emote) => (
+                <button
+                  key={emote.id}
+                  type="button"
+                  onClick={() => handleSendEmote(emote.id)}
+                  className="group relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/60 p-2 transition-all hover:-translate-y-0.5 hover:border-[#c4ff0e] hover:bg-zinc-900/80"
+                  aria-label={`Send ${emote.alt}`}
+                >
+                  <img
+                    src={emote.src}
+                    alt={emote.alt}
+                    className="h-full w-full object-contain transition-transform group-hover:scale-105"
+                    loading="lazy"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
           {imagePreview && (
             <div className="flex items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
               <img
@@ -544,11 +564,11 @@ export default function LiveChat() {
                     )}
                   </div>
                   {emote && (
-                    <div className="mt-2 inline-flex items-center justify-center rounded-2xl border border-zinc-800 bg-black/30 p-3 shadow-lg">
+                    <div className="mt-2">
                       <img
                         src={emote.src}
                         alt={emote.alt}
-                        className="max-h-44 max-w-[220px] object-contain"
+                        className="max-h-80 max-w-[280px] rounded-lg object-contain shadow-lg"
                         loading="lazy"
                       />
                     </div>
@@ -626,59 +646,6 @@ export default function LiveChat() {
         </div>
       </div>
 
-      {isEmotePickerOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 backdrop-blur-sm"
-          onClick={() => setIsEmotePickerOpen(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Emote picker"
-        >
-          <div
-            className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-950 p-4 shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-[#c4ff0e]">Emotes</span>
-                <span className="text-xs text-zinc-500">{EMOTES.length}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsEmotePickerOpen(false)}
-                className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-2 text-zinc-300 transition-colors hover:border-[#c4ff0e] hover:text-white"
-                aria-label="Close emote picker"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="max-h-[60vh] overflow-y-auto pr-1">
-              <div className="grid grid-cols-5 gap-2 sm:grid-cols-7">
-                {EMOTES.map((emote) => (
-                  <button
-                    key={emote.id}
-                    type="button"
-                    onClick={() => handleSendEmote(emote.id)}
-                    className="group relative aspect-square overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/40 p-2 transition-all hover:-translate-y-0.5 hover:border-[#c4ff0e] hover:bg-zinc-900/70"
-                    aria-label={`Send ${emote.alt}`}
-                  >
-                    <img
-                      src={emote.src}
-                      alt={emote.alt}
-                      className="h-full w-full object-contain transition-transform group-hover:scale-105"
-                      loading="lazy"
-                    />
-                    <div className="pointer-events-none absolute inset-0 rounded-xl ring-0 ring-[#c4ff0e]/30 transition-all group-hover:ring-2" />
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="mt-3 text-xs text-zinc-500">
-              Tap an emote to send instantly.
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

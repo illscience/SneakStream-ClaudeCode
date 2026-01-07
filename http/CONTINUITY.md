@@ -1,5 +1,5 @@
 Goal (incl. success criteria):
-- Emotes picker works and local dev server runs without 500s (notably `/favicon.ico`).
+- Emote picker shows a horizontal row below the input; tapping an emote posts it and closes the picker.
 
 Constraints/Assumptions:
 - Emotes stored as static assets under `public/emotes/` (no DB changes).
@@ -19,10 +19,10 @@ Done:
 - Smoke-tested via `npm run build` (ESLint circular JSON warning persists but build completes).
 
 Now:
-- Verify locally with `npm run dev` (should load `/` + `/favicon.ico` without errors).
+- Emote row wraps instead of horizontal scroll; textarea no longer flex-grows with picker.
 
 Next:
-- Verify `npm run dev` no longer 500s on `/` and `/favicon.ico`.
+- Verify emote row wraps to a second line without expanding textarea height.
 
 Open questions (UNCONFIRMED if needed):
 - None.
