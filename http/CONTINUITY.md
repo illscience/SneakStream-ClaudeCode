@@ -1,5 +1,5 @@
 Goal (incl. success criteria):
-- Logged-out users see a clear sign-in prompt; chat input/actions hidden.
+- Merge qol-improvements into main, push, then switch to main and sync.
 
 Constraints/Assumptions:
 - Emotes stored as static assets under `public/emotes/` (no DB changes).
@@ -19,12 +19,13 @@ Done:
 - Smoke-tested via `npm run build` (ESLint circular JSON warning persists but build completes).
 - Emote picker row wraps to multiple lines without resizing the textarea.
 - Hide chat composer when signed out; show sign-in CTA.
+- Verified `public/emotes/*` images are tracked and pushed.
 
 Now:
-- Ready for next request.
+- Merge/push request pending.
 
 Next:
-- Verify signed-out flow on mobile and desktop.
+- Merge `qol-improvements` into `main`, push, then checkout `main` and pull.
 
 Open questions (UNCONFIRMED if needed):
 - None.
