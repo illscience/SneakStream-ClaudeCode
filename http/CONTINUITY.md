@@ -9,16 +9,18 @@ Key decisions:
 - Represent emote messages as `:emote:<filename>` in `messages.body`, render via static emote manifest.
 
 State:
-- On branch `qol-improvements`; emote assets extracted and UI implementation in progress (uncommitted).
+- On branch `qol-improvements`; emotes feature implemented and committed.
 
 Done:
 - Extracted emote images from `~/Downloads/Images.zip` into `public/emotes/`.
+- Added `lib/emotes.ts` manifest and emote picker + emote message rendering in `app/components/LiveChat.tsx`.
+- Smoke-tested via `npm run build` (ESLint circular JSON warning persists but build completes).
 
 Now:
-- Implement emote picker UI and message rendering in `app/components/LiveChat.tsx`.
+- Ready for local testing and/or preview deploy.
 
 Next:
-- Test locally and commit changes.
+- Deploy preview if requested.
 
 Open questions (UNCONFIRMED if needed):
 - None.
