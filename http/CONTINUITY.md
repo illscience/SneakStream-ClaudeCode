@@ -11,7 +11,7 @@ Key decisions:
 - If Next favicon route breaks locally, serve favicon from `public/favicon.ico` instead of `app/favicon.ico`.
 
 State:
-- On branch `qol-improvements`; emotes feature implemented and committed, but local dev hit 500s due to missing `.next` chunk for `/favicon.ico` (UNCONFIRMED root cause).
+- On branch `qol-improvements`; emotes feature implemented and committed, favicon served from `public/favicon.ico` to avoid `/favicon.ico` 500s.
 
 Done:
 - Extracted emote images from `~/Downloads/Images.zip` into `public/emotes/`.
@@ -19,7 +19,7 @@ Done:
 - Smoke-tested via `npm run build` (ESLint circular JSON warning persists but build completes).
 
 Now:
-- Fix local `/favicon.ico` 500 by moving favicon to `public/` (or rebuilding `.next`).
+- Verify locally with `npm run dev` (should load `/` + `/favicon.ico` without errors).
 
 Next:
 - Verify `npm run dev` no longer 500s on `/` and `/favicon.ico`.
