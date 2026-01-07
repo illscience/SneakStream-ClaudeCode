@@ -11,16 +11,17 @@ Key decisions:
 - If Next favicon route breaks locally, serve favicon from `public/favicon.ico` instead of `app/favicon.ico`.
 
 State:
-- On branch `qol-improvements`; emote row wrap update committed; favicon served from `public/favicon.ico` to avoid `/favicon.ico` 500s.
+- On branch `qol-improvements` tracking origin; signed-out chat composer hidden update committed and pushed; favicon served from `public/favicon.ico`.
 
 Done:
 - Extracted emote images from `~/Downloads/Images.zip` into `public/emotes/`.
 - Added `lib/emotes.ts` manifest and emote picker + emote message rendering in `app/components/LiveChat.tsx`.
 - Smoke-tested via `npm run build` (ESLint circular JSON warning persists but build completes).
 - Emote picker row wraps to multiple lines without resizing the textarea.
+- Hide chat composer when signed out; show sign-in CTA.
 
 Now:
-- Hide chat composer when signed out; show only sign-in CTA.
+- Ready for next request.
 
 Next:
 - Verify signed-out flow on mobile and desktop.
