@@ -22,7 +22,7 @@ import {
   LogIn,
 } from "lucide-react-native";
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, usePaginatedQuery } from "convex/react";
 import { useUser, useAuth } from "@clerk/clerk-expo";
 import { api } from "convex/_generated/api";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -37,6 +37,8 @@ export default function Index() {
   const [hasHearted, setHasHearted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const scrollViewRef = useRef(null);
+  const [contentHeight, setContentHeight] = useState(0);
+  const [scrollViewHeight, setScrollViewHeight] = useState(0);
 
   const { width } = Dimensions.get("window");
   const videoHeight = width * (9 / 16);
@@ -45,8 +47,28 @@ export default function Index() {
   const playbackState = useQuery(api.playbackState.getPlaybackState);
   const defaultVideo = useQuery(api.videos.getDefaultVideo);
   const publicVideos = useQuery(api.videos.getPublicVideos, { limit: 1 });
-  const messages = useQuery(api.chat.getMessages);
   const activeStream = useQuery(api.livestream.getActiveStream);
+
+  // Paginated messages - loads 15 at a time, oldest first for display
+  const {
+    results: messages,
+    status: messagesStatus,
+    loadMore,
+  } = usePaginatedQuery(api.chat.getMessagesPage, {}, { initialNumItems: 15 });
+
+  const isLoadingMore = messagesStatus === "LoadingMore";
+  const canLoadMore = messagesStatus === "CanLoadMore";
+
+  // Auto-load more messages when scrolling near bottom
+  const handleScroll = useCallback((event) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const paddingToBottom = 100; // pixels from bottom to trigger load
+    const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+
+    if (isCloseToBottom && canLoadMore && !isLoadingMore) {
+      loadMore(15);
+    }
+  }, [canLoadMore, isLoadingMore, loadMore]);
 
   // Get video from playbackState, or fall back to defaultVideo, or any public video
   const currentVideo = playbackState?.video || defaultVideo || publicVideos?.[0];
@@ -71,6 +93,16 @@ export default function Index() {
     console.log("Video Source:", JSON.stringify(videoSource, null, 2));
     console.log("==================");
   }, [playbackState, defaultVideo, publicVideos, currentVideo, videoSource]);
+
+  // Debug image URLs
+  useEffect(() => {
+    console.log("=== IMAGE DEBUG ===");
+    console.log("User imageUrl:", user?.imageUrl);
+    if (messages && messages.length > 0) {
+      console.log("First message avatarUrl:", messages[0]?.avatarUrl);
+    }
+    console.log("==================");
+  }, [user?.imageUrl, messages]);
 
   const player = useVideoPlayer(videoSource, (player) => {
     player.loop = true;
@@ -160,6 +192,8 @@ export default function Index() {
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={400}
       >
         {/* Header */}
         <View
@@ -407,7 +441,7 @@ export default function Index() {
                 }}
               >
                 {user.imageUrl ? (
-                  <Image source={user.imageUrl} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                  <Image source={{ uri: user.imageUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
                 ) : (
                   <View style={{ width: "100%", height: "100%", justifyContent: "center", alignItems: "center" }}>
                     <Text style={{ color: "#fff", fontWeight: "700" }}>
@@ -507,9 +541,16 @@ export default function Index() {
           )}
 
           {/* Chat Messages */}
-          {messages && messages.length > 0 ? (
-            messages.slice().reverse().slice(0, 10).map((msg, index) => (
-              <View key={msg._id} style={{ marginBottom: index < 9 ? 20 : 0 }}>
+          {messagesStatus === "LoadingFirstPage" ? (
+            <View style={{ alignItems: "center", paddingVertical: 40 }}>
+              <ActivityIndicator size="large" color="#9ACD32" />
+              <Text style={{ color: "#666", marginTop: 12 }}>Loading messages...</Text>
+            </View>
+          ) : messages && messages.length > 0 ? (
+            <>
+              {/* Messages are returned newest-first from query, reverse for display */}
+              {messages.slice().reverse().map((msg, index) => (
+              <View key={msg._id} style={{ marginBottom: index < messages.length - 1 ? 20 : 0 }}>
                 <View style={{ flexDirection: "row" }}>
                   <View
                     style={{
@@ -522,7 +563,7 @@ export default function Index() {
                     }}
                   >
                     {msg.avatarUrl ? (
-                      <Image source={msg.avatarUrl} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                      <Image source={{ uri: msg.avatarUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
                     ) : (
                       <View style={{ width: "100%", height: "100%", justifyContent: "center", alignItems: "center" }}>
                         <Text style={{ color: "#fff", fontWeight: "700" }}>
@@ -568,7 +609,21 @@ export default function Index() {
                   </View>
                 </View>
               </View>
-            ))
+              ))}
+
+              {/* Loading indicator when fetching more */}
+              {isLoadingMore && (
+                <View style={{ alignItems: "center", paddingVertical: 20 }}>
+                  <ActivityIndicator size="small" color="#9ACD32" />
+                  <Text style={{ color: "#666", marginTop: 8, fontSize: 12 }}>Loading more...</Text>
+                </View>
+              )}
+              {canLoadMore && !isLoadingMore && (
+                <Text style={{ color: "#444", textAlign: "center", marginTop: 16, fontSize: 12 }}>
+                  Scroll down for more messages
+                </Text>
+              )}
+            </>
           ) : (
             <View style={{ alignItems: "center", paddingVertical: 40 }}>
               <MessageCircle size={48} color="#333" />
