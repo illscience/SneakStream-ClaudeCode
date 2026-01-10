@@ -178,6 +178,27 @@ export const generateAvatarUploadUrl = mutation({
   },
 });
 
+// Update user alias
+export const updateAlias = mutation({
+  args: {
+    clerkId: v.string(),
+    alias: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await ctx.db.patch(user._id, { alias: args.alias });
+    return { success: true };
+  },
+});
+
 export const searchUsersByAlias = query({
   args: { searchTerm: v.string() },
   handler: async (ctx, args) => {
