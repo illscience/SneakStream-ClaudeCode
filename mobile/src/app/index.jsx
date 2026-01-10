@@ -6,6 +6,7 @@ import {
   Dimensions,
   TextInput,
   ActivityIndicator,
+  AppState,
 } from "react-native";
 import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
@@ -36,6 +37,7 @@ export default function Index() {
   const [isSending, setIsSending] = useState(false);
   const [hasHearted, setHasHearted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [hasSyncedPlayback, setHasSyncedPlayback] = useState(false);
   const scrollViewRef = useRef(null);
   const [contentHeight, setContentHeight] = useState(0);
   const [scrollViewHeight, setScrollViewHeight] = useState(0);
@@ -49,7 +51,7 @@ export default function Index() {
   const publicVideos = useQuery(api.videos.getPublicVideos, { limit: 1 });
   const activeStream = useQuery(api.livestream.getActiveStream);
 
-  // Paginated messages - loads 15 at a time, oldest first for display
+  // Paginated messages - loads 15 at a time, newest first for display
   const {
     results: messages,
     status: messagesStatus,
@@ -86,13 +88,12 @@ export default function Index() {
   // Debug logging
   useEffect(() => {
     console.log("=== VIDEO DEBUG ===");
-    console.log("PlaybackState:", JSON.stringify(playbackState, null, 2));
-    console.log("Default Video:", JSON.stringify(defaultVideo, null, 2));
-    console.log("Public Videos:", JSON.stringify(publicVideos, null, 2));
-    console.log("Current Video:", JSON.stringify(currentVideo, null, 2));
-    console.log("Video Source:", JSON.stringify(videoSource, null, 2));
+    console.log("PlaybackState startTime:", playbackState?.startTime);
+    console.log("DefaultVideo startTime:", defaultVideo?.startTime);
+    console.log("Current Video:", currentVideo?.title, "duration:", currentVideo?.duration);
+    console.log("Video Source:", videoSource?.uri ? "SET" : "NULL");
     console.log("==================");
-  }, [playbackState, defaultVideo, publicVideos, currentVideo, videoSource]);
+  }, [playbackState, defaultVideo, currentVideo, videoSource]);
 
   // Debug image URLs
   useEffect(() => {
@@ -120,21 +121,73 @@ export default function Index() {
     return () => clearInterval(interval);
   }, [player]);
 
-  // Sync video position with playback state
+  // Get the global startTime from playbackState (when the video started playing for everyone)
+  const globalStartTime = playbackState?.startTime || defaultVideo?.startTime;
+  const videoDurationForSync = currentVideo?.duration;
+
+  // Sync video position with global playback time
+  // This ensures all viewers see the same point in the video
   useEffect(() => {
-    if (player && currentVideo?.startTime && currentVideo?.duration) {
-      const now = Date.now();
-      const elapsed = (now - currentVideo.startTime) / 1000;
-      const duration = currentVideo.duration;
-
-      // Calculate position with looping
-      const position = duration > 0 ? elapsed % duration : elapsed;
-
-      if (position > 0 && position < duration) {
-        player.currentTime = position;
-      }
+    if (!player || !globalStartTime || !videoDurationForSync || hasSyncedPlayback) {
+      return;
     }
-  }, [player, currentVideo?.startTime, currentVideo?.duration]);
+
+    const syncToGlobalTime = () => {
+      const now = Date.now();
+      const elapsedSeconds = (now - globalStartTime) / 1000;
+      const duration = videoDurationForSync;
+
+      // Calculate position with looping (same as web)
+      const syncedPosition = duration > 0 ? elapsedSeconds % duration : elapsedSeconds;
+
+      console.log("=== SYNC DEBUG ===");
+      console.log("Global startTime:", globalStartTime);
+      console.log("Now:", now);
+      console.log("Elapsed seconds:", elapsedSeconds);
+      console.log("Duration:", duration);
+      console.log("Synced position:", syncedPosition);
+      console.log("==================");
+
+      if (syncedPosition >= 0 && syncedPosition < duration) {
+        player.currentTime = syncedPosition;
+        setHasSyncedPlayback(true);
+      }
+    };
+
+    // Small delay to ensure player is ready
+    const timeoutId = setTimeout(syncToGlobalTime, 500);
+    return () => clearTimeout(timeoutId);
+  }, [player, globalStartTime, videoDurationForSync, hasSyncedPlayback]);
+
+  // Reset sync flag when video source changes
+  useEffect(() => {
+    setHasSyncedPlayback(false);
+  }, [videoSource?.uri]);
+
+  // Re-sync when app comes back from background
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active" && player && globalStartTime && videoDurationForSync) {
+        // Re-calculate and sync position
+        const now = Date.now();
+        const elapsedSeconds = (now - globalStartTime) / 1000;
+        const syncedPosition = videoDurationForSync > 0
+          ? elapsedSeconds % videoDurationForSync
+          : elapsedSeconds;
+
+        console.log("App became active, re-syncing to position:", syncedPosition);
+
+        if (syncedPosition >= 0 && syncedPosition < videoDurationForSync) {
+          player.currentTime = syncedPosition;
+        }
+
+        // Resume playback
+        player.play();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [player, globalStartTime, videoDurationForSync]);
 
   const toggleLike = useCallback(async () => {
     if (!playbackState?.videoId || hasHearted) return;
@@ -548,9 +601,13 @@ export default function Index() {
             </View>
           ) : messages && messages.length > 0 ? (
             <>
-              {/* Messages are returned newest-first from query, reverse for display */}
-              {messages.slice().reverse().map((msg, index) => (
-              <View key={msg._id} style={{ marginBottom: index < messages.length - 1 ? 20 : 0 }}>
+              {/* Messages are returned newest-first from query */}
+              {messages.map((msg, index) => {
+                const isGifUpload =
+                  msg.imageMimeType === "image/gif" ||
+                  (typeof msg.imageUrl === "string" && msg.imageUrl.toLowerCase().includes(".gif"));
+                return (
+                <View key={msg._id} style={{ marginBottom: index < messages.length - 1 ? 20 : 0 }}>
                 <View style={{ flexDirection: "row" }}>
                   <View
                     style={{
@@ -583,9 +640,26 @@ export default function Index() {
                       </Text>
                     </View>
 
-                    <Text style={{ color: "#fff", fontSize: 15, lineHeight: 22, marginBottom: 8 }}>
-                      {msg.body}
-                    </Text>
+                    {msg.body ? (
+                      <Text style={{ color: "#fff", fontSize: 15, lineHeight: 22, marginBottom: 8 }}>
+                        {msg.body}
+                      </Text>
+                    ) : null}
+
+                    {msg.imageUrl ? (
+                      <View style={{ marginBottom: 8 }}>
+                        <Image
+                          source={{ uri: msg.imageUrl }}
+                          style={{
+                            width: "100%",
+                            maxWidth: 280,
+                            height: 200,
+                            borderRadius: 12,
+                          }}
+                          contentFit={isGifUpload ? "contain" : "cover"}
+                        />
+                      </View>
+                    ) : null}
 
                     {/* Likes */}
                     {msg.loveCount > 0 && (
@@ -609,7 +683,8 @@ export default function Index() {
                   </View>
                 </View>
               </View>
-              ))}
+                );
+              })}
 
               {/* Loading indicator when fetching more */}
               {isLoadingMore && (
