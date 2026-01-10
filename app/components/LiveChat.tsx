@@ -97,8 +97,10 @@ export default function LiveChat() {
 
   const displayName = convexUser?.alias || user?.username || user?.firstName || "Anonymous"
   const userSelectedAvatar = convexUser?.selectedAvatar || null
-  const isAdmin =
-    user?.primaryEmailAddress?.emailAddress?.toLowerCase() === "sneakthedj@gmail.com"
+  const isAdmin = useQuery(
+    api.adminSettings.checkIsAdmin,
+    user?.id ? { clerkId: user.id } : "skip"
+  )
   const resolvedAvatar = userSelectedAvatar || user?.imageUrl || undefined
   const isSignedIn = Boolean(user?.id)
 

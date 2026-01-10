@@ -1,10 +1,12 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { ADMIN_LIBRARY_USER_ID } from "./adminSettings";
 
 // Create a new video entry
 export const createVideo = mutation({
   args: {
     userId: v.string(),
+    uploadedBy: v.optional(v.string()),
     title: v.string(),
     description: v.optional(v.string()),
     assetId: v.optional(v.string()),
@@ -37,6 +39,7 @@ export const createVideo = mutation({
     return await ctx.db.insert("videos", {
       ...rest,
       assetId: resolvedAssetId,
+      uploadedBy: args.uploadedBy,
       ...(livepeerAssetId ? { livepeerAssetId } : {}),
       provider: resolvedProvider,
       status: "processing",
@@ -50,6 +53,7 @@ export const upsertMuxAsset = mutation({
   args: {
     assetId: v.string(),
     userId: v.string(),
+    uploadedBy: v.optional(v.string()),
     title: v.string(),
     description: v.optional(v.string()),
     playbackId: v.optional(v.string()),
@@ -109,6 +113,12 @@ export const upsertMuxAsset = mutation({
       if (args.assetId && existing.assetId !== args.assetId) {
         updates.assetId = args.assetId;
       }
+      if (args.userId && existing.userId !== args.userId) {
+        updates.userId = args.userId;
+      }
+      if (args.uploadedBy && !existing.uploadedBy) {
+        updates.uploadedBy = args.uploadedBy;
+      }
       if (existing.provider !== "mux") updates.provider = "mux";
 
       if (Object.keys(updates).length > 0) {
@@ -125,6 +135,7 @@ export const upsertMuxAsset = mutation({
 
     const newVideoId = await ctx.db.insert("videos", {
       userId: args.userId,
+      uploadedBy: args.uploadedBy,
       title: args.title,
       description: args.description,
       provider: "mux",
@@ -176,6 +187,73 @@ export const getUserVideos = query({
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .order("desc")
       .collect();
+  },
+});
+
+// Get shared admin library videos with uploader info (admin only)
+export const getAdminLibraryVideos = query({
+  handler: async (ctx) => {
+    const videos = await ctx.db
+      .query("videos")
+      .withIndex("by_user", (q) => q.eq("userId", ADMIN_LIBRARY_USER_ID))
+      .order("desc")
+      .collect();
+
+    const videosWithUploader = await Promise.all(
+      videos.map(async (video) => {
+        const uploadedBy = video.uploadedBy;
+        if (!uploadedBy) {
+          return { ...video, uploaderAlias: undefined, uploaderAvatar: undefined };
+        }
+
+        const uploader = await ctx.db
+          .query("users")
+          .withIndex("by_clerk_id", (q) => q.eq("clerkId", uploadedBy))
+          .first();
+
+        return {
+          ...video,
+          uploaderAlias: uploader?.alias,
+          uploaderAvatar: uploader?.selectedAvatar ?? uploader?.imageUrl,
+        };
+      })
+    );
+
+    return videosWithUploader;
+  },
+});
+
+// One-time migration: Move admin's videos to shared library
+export const migrateVideosToSharedLibrary = mutation({
+  args: {
+    sourceUserId: v.string(),
+    batchSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const batchSize = args.batchSize ?? 50;
+    const videos = await ctx.db
+      .query("videos")
+      .withIndex("by_user", (q) => q.eq("userId", args.sourceUserId))
+      .take(batchSize);
+
+    let migrated = 0;
+    let skipped = 0;
+
+    for (const video of videos) {
+      if (video.userId === ADMIN_LIBRARY_USER_ID) {
+        skipped += 1;
+        continue;
+      }
+
+      await ctx.db.patch(video._id, {
+        uploadedBy: video.uploadedBy ?? video.userId,
+        userId: ADMIN_LIBRARY_USER_ID,
+      });
+      migrated += 1;
+    }
+
+    const hasMore = videos.length === batchSize;
+    return { migrated, skipped, hasMore, batchSize };
   },
 });
 

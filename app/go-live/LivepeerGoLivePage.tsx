@@ -72,7 +72,7 @@ export default function LivepeerGoLivePage() {
     if (!activeStream) return;
     setIsLoading(true);
     try {
-      await endStream({ streamId: activeStream._id });
+      await endStream({ streamId: activeStream._id, userId: user?.id });
     } catch (error) {
       console.error("Failed to end stream:", error);
     }

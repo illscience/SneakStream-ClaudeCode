@@ -26,7 +26,12 @@ export default defineSchema({
     email: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     selectedAvatar: v.optional(v.string()),
-  }).index("by_clerk_id", ["clerkId"]),
+    isAdmin: v.optional(v.boolean()),
+  })
+    .index("by_clerk_id", ["clerkId"])
+    .index("by_email", ["email"])
+    .index("by_alias", ["alias"])
+    .index("by_isAdmin", ["isAdmin"]),
 
   follows: defineTable({
     followerId: v.string(), // Clerk user ID of the follower
@@ -38,6 +43,7 @@ export default defineSchema({
 
   videos: defineTable({
     userId: v.string(), // Clerk user ID of uploader
+    uploadedBy: v.optional(v.string()), // Clerk user ID of admin uploader
     title: v.string(),
     description: v.optional(v.string()),
     provider: v.optional(v.string()), // e.g., "mux"
@@ -80,6 +86,8 @@ export default defineSchema({
   livestreams: defineTable({
     userId: v.string(), // Clerk user ID of broadcaster
     userName: v.string(),
+    startedBy: v.optional(v.string()), // Clerk user ID who started the stream
+    endedBy: v.optional(v.string()), // Clerk user ID who ended the stream
     title: v.string(),
     description: v.optional(v.string()),
     status: v.string(), // "active", "ended"

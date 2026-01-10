@@ -20,6 +20,7 @@ export const upsertUser = mutation({
     imageUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const normalizedEmail = args.email?.toLowerCase();
     const existingUser = await ctx.db
       .query("users")
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
@@ -28,12 +29,15 @@ export const upsertUser = mutation({
     if (existingUser) {
       await ctx.db.patch(existingUser._id, {
         alias: args.alias,
-        email: args.email,
+        email: normalizedEmail,
         imageUrl: args.imageUrl,
       });
       return existingUser._id;
     } else {
-      return await ctx.db.insert("users", args);
+      return await ctx.db.insert("users", {
+        ...args,
+        email: normalizedEmail,
+      });
     }
   },
 });

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { ensureMuxEnvLoaded } from "@/lib/mux";
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+import { requireAdminFromRoute } from "@/lib/convexServer";
+import { ADMIN_LIBRARY_USER_ID } from "@/lib/adminConstants";
 
   // List all Mux assets
 async function listAllMuxAssets() {
@@ -37,23 +37,19 @@ async function listAllMuxAssets() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await request.json();
+    const { client, clerkId } = await requireAdminFromRoute();
+    await request.json().catch(() => ({}));
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Missing userId" },
-        { status: 400 }
-      );
-    }
-
-    console.log("[import-mux-assets] Starting import for user:", userId);
+    console.log("[import-mux-assets] Starting import for admin library");
 
     // Get all Mux assets
     const muxAssets = await listAllMuxAssets();
     console.log(`[import-mux-assets] Found ${muxAssets.length} total Mux assets`);
 
     // Get existing videos from database
-    const existingVideos = await convex.query(api.videos.getUserVideos, { userId });
+    const existingVideos = await client.query(api.videos.getUserVideos, {
+      userId: ADMIN_LIBRARY_USER_ID,
+    });
     const existingAssetIds = new Set(existingVideos.map((v) => v.assetId).filter(Boolean));
 
     const imported = [];
@@ -90,8 +86,9 @@ export async function POST(request: NextRequest) {
         }
 
         // Create video record
-        await convex.mutation(api.videos.createVideo, {
-          userId,
+        await client.mutation(api.videos.createVideo, {
+          userId: ADMIN_LIBRARY_USER_ID,
+          uploadedBy: clerkId,
           title,
           description: `Imported from Mux${asset.live_stream_id ? ` (Stream ID: ${asset.live_stream_id})` : ""}`,
           provider: "mux",
@@ -103,11 +100,13 @@ export async function POST(request: NextRequest) {
         });
 
         // Update status to ready
-        const updatedVideos = await convex.query(api.videos.getUserVideos, { userId });
+        const updatedVideos = await client.query(api.videos.getUserVideos, {
+          userId: ADMIN_LIBRARY_USER_ID,
+        });
         const newVideo = updatedVideos.find((v) => v.assetId === asset.id);
 
         if (newVideo) {
-          await convex.mutation(api.videos.updateVideoStatus, {
+          await client.mutation(api.videos.updateVideoStatus, {
             videoId: newVideo._id,
             status: "ready",
           });
@@ -146,6 +145,9 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (String(error).includes("Unauthorized") || String(error).includes("Not authenticated")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     console.error("[import-mux-assets] Fatal error:", error);
     return NextResponse.json(
       { error: "Internal server error", details: String(error) },

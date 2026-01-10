@@ -1,13 +1,14 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Upload, Film, X } from "lucide-react";
 import * as tus from "tus-js-client";
 import Header from "../components/Header";
+import { ADMIN_LIBRARY_USER_ID } from "@/lib/adminConstants";
 
 export default function LivepeerUploadPage() {
   const { user, isLoaded } = useUser();
@@ -21,6 +22,18 @@ export default function LivepeerUploadPage() {
 
   const createVideo = useMutation(api.videos.createVideo);
   const updateVideoStatus = useMutation(api.videos.updateVideoStatus);
+  const isAdmin = useQuery(
+    api.adminSettings.checkIsAdmin,
+    user?.id ? { clerkId: user.id } : "skip"
+  );
+
+  useEffect(() => {
+    if (isLoaded && !user) {
+      router.push("/");
+    } else if (isLoaded && user && isAdmin === false) {
+      router.push("/");
+    }
+  }, [isLoaded, user, isAdmin, router]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -83,7 +96,8 @@ export default function LivepeerUploadPage() {
       });
 
       const videoId = await createVideo({
-        userId: user.id,
+        userId: ADMIN_LIBRARY_USER_ID,
+        uploadedBy: user.id,
         title,
         description,
         visibility,
@@ -114,12 +128,16 @@ export default function LivepeerUploadPage() {
     }
   };
 
-  if (!isLoaded || !user) {
+  if (!isLoaded || !user || isAdmin === undefined) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <p>Loading...</p>
       </div>
     );
+  }
+
+  if (isAdmin === false) {
+    return null;
   }
 
   return (

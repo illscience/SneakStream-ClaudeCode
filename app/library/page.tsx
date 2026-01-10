@@ -24,8 +24,8 @@ export default function LibraryPage() {
   );
 
   const videos = useQuery(
-    api.videos.getUserVideos,
-    user?.id ? { userId: user.id } : "skip"
+    api.videos.getAdminLibraryVideos,
+    isAdmin ? undefined : "skip"
   );
 
   const updateVideoStatus = useMutation(api.videos.updateVideoStatus);
@@ -52,7 +52,7 @@ export default function LibraryPage() {
     if (!confirmed) return;
 
     try {
-      await playNow({ videoId, clerkId: user.id });
+      await playNow({ videoId });
       showNotification(`Now playing: ${videoTitle}`);
     } catch (error) {
       console.error("Play now error:", error);
@@ -63,7 +63,7 @@ export default function LibraryPage() {
   const handlePlayNext = async (videoId: Id<"videos">, videoTitle: string) => {
     if (!user?.id) return;
     try {
-      await playNext({ videoId, clerkId: user.id });
+      await playNext({ videoId });
       showNotification(`"${videoTitle}" added to queue`);
     } catch (error) {
       console.error("Play next error:", error);
@@ -204,14 +204,13 @@ export default function LibraryPage() {
   };
 
   const syncRecordings = async () => {
-    if (!user?.id) return;
     setSyncing(true);
 
     try {
       const response = await fetch("/api/stream/import-mux-assets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id }),
+        body: JSON.stringify({}),
       });
 
       const result = await response.json();
@@ -478,6 +477,11 @@ export default function LibraryPage() {
                       {video.description && (
                         <p className="text-sm text-zinc-500 mb-3 line-clamp-2">
                           {video.description}
+                        </p>
+                      )}
+                      {(video.uploaderAlias || video.uploadedBy) && (
+                        <p className="text-xs text-zinc-500 mb-3">
+                          Uploaded by: {video.uploaderAlias || video.uploadedBy}
                         </p>
                       )}
 

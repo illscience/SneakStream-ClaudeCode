@@ -33,10 +33,10 @@ export default function MuxGoLivePage() {
   const endStream = useMutation(api.livestream.endStream);
   const updateStreamTitle = useMutation(api.livestream.updateStreamTitle);
   const savedCredentials = useQuery(
-    api.streamCredentials.getOrCreateCredentials,
-    user?.id ? { userId: user.id } : "skip"
+    api.streamCredentials.getSharedCredentials,
+    user?.id ? undefined : "skip"
   );
-  const saveCredentials = useMutation(api.streamCredentials.saveCredentials);
+  const saveCredentials = useMutation(api.streamCredentials.saveSharedCredentials);
 
   // Setup HLS player for preview and live stream
   useEffect(() => {
@@ -260,7 +260,6 @@ export default function MuxGoLivePage() {
 
         // Save credentials for reuse
         await saveCredentials({
-          userId: user.id,
           provider: "mux",
           streamId: streamData.streamId,
           streamKey: streamData.streamKey,
@@ -313,7 +312,7 @@ export default function MuxGoLivePage() {
   };
 
   const handleEndStream = async () => {
-    if (!activeStream) return;
+    if (!activeStream || !user) return;
     setIsLoading(true);
     try {
       console.log("Ending stream with ID:", activeStream.streamId);
@@ -348,31 +347,26 @@ export default function MuxGoLivePage() {
         console.log("Asset data from Mux:", assetData);
       }
 
-      // End stream and save recording
+      // End stream in Convex (mark as ended)
+      await endStream({
+        streamId: activeStream._id,
+        userId: user.id,
+        assetId: assetData.assetId,
+        playbackId: assetData.playbackId,
+        duration: assetData.duration,
+      });
+
+      // Show appropriate message based on what we found
       if (assetData.assetId && assetData.playbackId) {
-        console.log("Saving recording to library...");
-        await endStream({
-          streamId: activeStream._id,
-          assetId: assetData.assetId,
-          playbackId: assetData.playbackId,
-          duration: assetData.duration,
-        });
-        console.log("Recording saved successfully!");
-        alert("Stream ended! Your recording is being saved to MY LIBRARY.");
+        console.log("Recording ready immediately!");
+        alert("Stream ended! Your recording has been saved to MY LIBRARY.");
       } else if (assetData.assetId) {
-        console.warn("Asset created but still processing. Saving placeholder to library...");
-        await endStream({
-          streamId: activeStream._id,
-          assetId: assetData.assetId,
-          duration: assetData.duration,
-        });
-        alert("Stream ended! Recording is processing and will appear in MY LIBRARY shortly.");
+        console.log("Asset created, still processing...");
+        alert("Stream ended! Recording is processing and will appear in MY LIBRARY when ready.");
       } else {
-        console.warn("Asset not ready yet. Recording will be available shortly.");
-        await endStream({
-          streamId: activeStream._id,
-        });
-        alert("Stream ended! Recording is still processing and will appear in MY LIBRARY shortly.");
+        // No asset found during polling - webhook will handle it
+        console.log("Asset not found during polling. Webhook will save it when ready.");
+        alert("Stream ended! Recording will appear in MY LIBRARY once Mux finishes processing (usually within a few minutes).");
       }
     } catch (error) {
       console.error("Failed to end stream:", error);

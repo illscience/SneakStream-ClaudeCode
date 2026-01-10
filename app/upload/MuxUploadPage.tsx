@@ -1,13 +1,14 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import type { Id } from "../../convex/_generated/dataModel";
 import { api } from "../../convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Upload, Film, X } from "lucide-react";
 import Header from "../components/Header";
+import { ADMIN_LIBRARY_USER_ID } from "@/lib/adminConstants";
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -26,10 +27,22 @@ export default function MuxUploadPage() {
 
   const createVideo = useMutation(api.videos.createVideo);
   const updateVideoStatus = useMutation(api.videos.updateVideoStatus);
+  const isAdmin = useQuery(
+    api.adminSettings.checkIsAdmin,
+    user?.id ? { clerkId: user.id } : "skip"
+  );
 
   useEffect(() => () => {
     cancelRef.current = true;
   }, []);
+
+  useEffect(() => {
+    if (isLoaded && !user) {
+      router.push("/");
+    } else if (isLoaded && user && isAdmin === false) {
+      router.push("/");
+    }
+  }, [isLoaded, user, isAdmin, router]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -94,7 +107,8 @@ export default function MuxUploadPage() {
 
       if (!createdVideoId && statusData.assetId) {
         createdVideoId = await createVideo({
-          userId: user!.id,
+          userId: ADMIN_LIBRARY_USER_ID,
+          uploadedBy: user!.id,
           title,
           description,
           visibility,
@@ -164,12 +178,16 @@ export default function MuxUploadPage() {
     }
   };
 
-  if (!isLoaded || !user) {
+  if (!isLoaded || !user || isAdmin === undefined) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <p>Loading...</p>
       </div>
     );
+  }
+
+  if (isAdmin === false) {
+    return null;
   }
 
   return (

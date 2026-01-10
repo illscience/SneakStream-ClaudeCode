@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLiveStream, getAsset, disableLiveStream, listAssets } from "@/lib/mux";
+import { requireAdminFromRoute } from "@/lib/convexServer";
 
 const ASSET_POLL_ATTEMPTS = 6;
 const ASSET_POLL_DELAY_MS = 2000;
@@ -151,6 +152,7 @@ async function fetchRecordingAsset(streamId: string, preferredAssetId?: string) 
 
 export async function POST(request: NextRequest) {
   try {
+    await requireAdminFromRoute();
     const { streamId } = await request.json();
 
     console.log("[stream/end] Received request for streamId:", streamId);
@@ -203,6 +205,9 @@ export async function POST(request: NextRequest) {
       duration,
     });
   } catch (error) {
+    if (String(error).includes("Unauthorized") || String(error).includes("Not authenticated")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     console.error("[stream/end] Stream end error:", error);
     return NextResponse.json(
       { error: "Internal server error", details: String(error) },

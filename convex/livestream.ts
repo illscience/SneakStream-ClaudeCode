@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { ADMIN_LIBRARY_USER_ID } from "./adminSettings";
 
 // Get the current active stream
 export const getActiveStream = query({
@@ -71,6 +72,7 @@ export const startStream = mutation({
     const streamId = await ctx.db.insert("livestreams", {
       userId: args.userId,
       userName: args.userName,
+      startedBy: args.userId,
       title: args.title,
       description: args.description,
       status: "active",
@@ -92,6 +94,7 @@ export const startStream = mutation({
 export const endStream = mutation({
   args: {
     streamId: v.id("livestreams"),
+    userId: v.optional(v.string()),
     assetId: v.optional(v.string()),
     playbackId: v.optional(v.string()),
     duration: v.optional(v.number()),
@@ -115,6 +118,7 @@ export const endStream = mutation({
     await ctx.db.patch(args.streamId, {
       status: "ended",
       endedAt: Date.now(),
+      endedBy: args.userId ?? stream.startedBy ?? stream.userId,
     });
     console.log("[livestream.endStream] marked ended", {
       streamId: args.streamId,
@@ -129,7 +133,8 @@ export const endStream = mutation({
         : undefined;
 
       const videoId = await ctx.db.insert("videos", {
-        userId: stream.userId,
+        userId: ADMIN_LIBRARY_USER_ID,
+        uploadedBy: stream.startedBy || stream.userId,
         title: stream.title,
         description: stream.description,
         provider: "mux",

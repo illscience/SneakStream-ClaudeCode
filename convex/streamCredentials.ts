@@ -1,24 +1,20 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { ADMIN_SHARED_CREDENTIALS_ID } from "./adminSettings";
 
-// Get or create persistent stream credentials for a user
-export const getOrCreateCredentials = query({
-  args: { userId: v.string() },
-  handler: async (ctx, args) => {
-    // Check if user already has credentials
-    const existing = await ctx.db
+// Get shared stream credentials (admin only)
+export const getSharedCredentials = query({
+  handler: async (ctx) => {
+    return await ctx.db
       .query("streamCredentials")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user", (q) => q.eq("userId", ADMIN_SHARED_CREDENTIALS_ID))
       .first();
-
-    return existing;
   },
 });
 
-// Save new stream credentials
-export const saveCredentials = mutation({
+// Save shared stream credentials (admin only)
+export const saveSharedCredentials = mutation({
   args: {
-    userId: v.string(),
     provider: v.string(),
     streamId: v.string(),
     streamKey: v.string(),
@@ -27,14 +23,12 @@ export const saveCredentials = mutation({
     rtmpIngestUrl: v.string(),
   },
   handler: async (ctx, args) => {
-    // Check if credentials already exist
     const existing = await ctx.db
       .query("streamCredentials")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user", (q) => q.eq("userId", ADMIN_SHARED_CREDENTIALS_ID))
       .first();
 
     if (existing) {
-      // Update existing
       await ctx.db.patch(existing._id, {
         provider: args.provider,
         streamId: args.streamId,
@@ -46,9 +40,8 @@ export const saveCredentials = mutation({
       return existing._id;
     }
 
-    // Create new
     return await ctx.db.insert("streamCredentials", {
-      userId: args.userId,
+      userId: ADMIN_SHARED_CREDENTIALS_ID,
       provider: args.provider,
       streamId: args.streamId,
       streamKey: args.streamKey,
@@ -57,5 +50,49 @@ export const saveCredentials = mutation({
       rtmpIngestUrl: args.rtmpIngestUrl,
       createdAt: Date.now(),
     });
+  },
+});
+
+// One-time migration: Convert user credentials to shared credentials
+export const migrateToSharedCredentials = mutation({
+  args: {
+    sourceUserId: v.string(),
+    deleteOldRecord: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const userCreds = await ctx.db
+      .query("streamCredentials")
+      .withIndex("by_user", (q) => q.eq("userId", args.sourceUserId))
+      .first();
+
+    if (!userCreds) {
+      return { migrated: false, reason: "No credentials found for source user" };
+    }
+
+    const existingShared = await ctx.db
+      .query("streamCredentials")
+      .withIndex("by_user", (q) => q.eq("userId", ADMIN_SHARED_CREDENTIALS_ID))
+      .first();
+
+    if (existingShared) {
+      return { migrated: false, reason: "Shared credentials already exist" };
+    }
+
+    await ctx.db.insert("streamCredentials", {
+      userId: ADMIN_SHARED_CREDENTIALS_ID,
+      provider: userCreds.provider,
+      streamId: userCreds.streamId,
+      streamKey: userCreds.streamKey,
+      playbackId: userCreds.playbackId,
+      playbackUrl: userCreds.playbackUrl,
+      rtmpIngestUrl: userCreds.rtmpIngestUrl,
+      createdAt: Date.now(),
+    });
+
+    if (args.deleteOldRecord) {
+      await ctx.db.delete(userCreds._id);
+    }
+
+    return { migrated: true, deletedOld: args.deleteOldRecord ?? false };
   },
 });

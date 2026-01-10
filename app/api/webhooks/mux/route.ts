@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { getAsset as getMuxAsset } from "@/lib/mux";
+import { ADMIN_LIBRARY_USER_ID } from "@/lib/adminConstants";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
@@ -76,14 +77,29 @@ const verifySignature = (payload: string, headerValue: string | null) => {
 async function upsertMuxAsset(event: MuxWebhookEvent) {
   const eventAsset = event.data;
   if (!eventAsset?.id) {
+    console.warn("[mux webhook] upsertMuxAsset: missing asset id, skipping");
     return { ok: false, reason: "Missing asset id" };
   }
+
+  console.log("[mux webhook] upsertMuxAsset: processing asset", {
+    assetId: eventAsset.id,
+    eventType: event.type,
+    liveStreamId: eventAsset.live_stream_id,
+    status: eventAsset.status,
+  });
 
   let resolvedAsset = eventAsset;
 
   if (!resolvedAsset.live_stream_id || !resolvedAsset.status || resolvedAsset.duration === undefined) {
     try {
+      console.log("[mux webhook] Fetching full asset data from Mux API...");
       resolvedAsset = (await getMuxAsset(eventAsset.id)) as typeof resolvedAsset;
+      console.log("[mux webhook] Fetched asset data:", {
+        assetId: eventAsset.id,
+        liveStreamId: resolvedAsset.live_stream_id,
+        status: resolvedAsset.status,
+        duration: resolvedAsset.duration,
+      });
     } catch (error) {
       console.warn("[mux webhook] Failed to fetch full asset data from Mux:", error);
     }
@@ -96,35 +112,75 @@ async function upsertMuxAsset(event: MuxWebhookEvent) {
   const status = resolvedAsset.status === "ready" ? "ready" : "processing";
 
   let userId: string | undefined;
+  let uploadedBy: string | undefined;
   let title = resolvedAsset.passthrough || eventAsset.passthrough || "Stream Recording";
   let description = "Recorded via Mux";
+  let matchedStream = false;
 
+  // Try to find the matching livestream record in Convex
   if (liveStreamId) {
+    console.log("[mux webhook] Looking up livestream in Convex...", { liveStreamId });
     const stream = await convex.query(api.livestream.getStreamByStreamId, {
       streamId: liveStreamId,
     });
 
     if (stream) {
-      userId = stream.userId;
+      console.log("[mux webhook] Found matching livestream", {
+        streamId: stream._id,
+        streamTitle: stream.title,
+        startedBy: stream.startedBy,
+        userId: stream.userId,
+      });
+      matchedStream = true;
+      userId = ADMIN_LIBRARY_USER_ID;
+      uploadedBy = stream.startedBy || stream.userId;
       title = stream.title || title;
       description = stream.description || description;
+    } else {
+      console.log("[mux webhook] No matching livestream found in Convex", { liveStreamId });
     }
   }
 
-  if (!userId) {
-    return { ok: false, reason: "No matching livestream/user for asset" };
+  // CRITICAL FIX: Always save livestream recordings to admin library
+  // even if we can't find the matching Convex stream record
+  if (!userId && liveStreamId) {
+    console.log("[mux webhook] Saving orphan livestream recording to admin library", {
+      assetId: eventAsset.id,
+      liveStreamId,
+      playbackId,
+      status,
+    });
+    userId = ADMIN_LIBRARY_USER_ID;
+    uploadedBy = undefined; // Unknown uploader
+    title = `Livestream Recording ${new Date().toISOString().split('T')[0]}`;
+    description = `Recorded via Mux (stream: ${liveStreamId})`;
   }
 
-  console.log("[mux webhook] Upserting asset:", {
+  // Only skip non-livestream assets without a user context
+  if (!userId) {
+    console.log("[mux webhook] Skipping non-livestream asset without user context", {
+      assetId: eventAsset.id,
+      liveStreamId,
+    });
+    return { ok: false, reason: "No user context for non-livestream asset" };
+  }
+
+  console.log("[mux webhook] Upserting video record", {
     type: event.type,
     assetId: eventAsset.id,
     liveStreamId,
+    playbackId,
     status,
+    userId,
+    uploadedBy,
+    title,
+    matchedStream,
   });
 
   await convex.mutation(api.videos.upsertMuxAsset, {
     assetId: eventAsset.id,
     userId,
+    uploadedBy,
     title,
     description,
     playbackId,
@@ -134,7 +190,13 @@ async function upsertMuxAsset(event: MuxWebhookEvent) {
     liveStreamId,
   });
 
-  return { ok: true };
+  console.log("[mux webhook] Successfully upserted video record", {
+    assetId: eventAsset.id,
+    status,
+    matchedStream,
+  });
+
+  return { ok: true, matchedStream };
 }
 
 export async function POST(request: NextRequest) {

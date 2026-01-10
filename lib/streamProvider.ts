@@ -49,3 +49,43 @@ export function isMuxEnabled(): boolean {
 export function isLivepeerEnabled(): boolean {
   return !isMuxEnabled();
 }
+
+/**
+ * Get dedicated dev stream credentials for testing.
+ * These are only available in development mode when the env vars are set.
+ * Returns null in production or when env vars are not configured.
+ */
+export function getDevStreamCredentials(): {
+  streamId: string;
+  streamKey: string;
+  playbackId: string;
+  playbackUrl: string;
+  rtmpIngestUrl: string;
+} | null {
+  if (process.env.NODE_ENV !== "development") {
+    return null;
+  }
+
+  const streamId = process.env.MUX_DEV_STREAM_ID;
+  const streamKey = process.env.MUX_DEV_STREAM_KEY;
+  const playbackId = process.env.MUX_DEV_PLAYBACK_ID;
+
+  if (!streamId || !streamKey || !playbackId) {
+    return null;
+  }
+
+  return {
+    streamId,
+    streamKey,
+    playbackId,
+    playbackUrl: `https://stream.mux.com/${playbackId}.m3u8`,
+    rtmpIngestUrl: "rtmp://global-live.mux.com:5222/app",
+  };
+}
+
+/**
+ * Check if dev stream mode is available (credentials are configured)
+ */
+export function isDevStreamAvailable(): boolean {
+  return getDevStreamCredentials() !== null;
+}

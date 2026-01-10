@@ -1,25 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getLiveStream, getAsset } from "@/lib/mux";
-import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
-
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+import { requireAdminFromRoute } from "@/lib/convexServer";
+import { ADMIN_LIBRARY_USER_ID } from "@/lib/adminConstants";
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await request.json();
+    const { client, clerkId } = await requireAdminFromRoute();
+    await request.json().catch(() => ({}));
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: "Missing userId" },
-        { status: 400 }
-      );
-    }
-
-    console.log("[sync-recordings] Starting sync for user:", userId);
+    console.log("[sync-recordings] Starting sync for admin:", clerkId);
 
     // Get all ended livestreams for this user
-    const streams = await convex.query(api.livestream.getUserStreams, { userId });
+    const streams = await client.query(api.livestream.getUserStreams, { userId: clerkId });
     console.log(`[sync-recordings] Found ${streams.length} streams for user`);
 
     const syncedVideos = [];
@@ -47,7 +40,9 @@ export async function POST(request: NextRequest) {
           console.log(`[sync-recordings] Checking asset ${assetId}...`);
 
           // Check if this asset already exists in the videos table
-          const existingVideos = await convex.query(api.videos.getUserVideos, { userId });
+          const existingVideos = await client.query(api.videos.getUserVideos, {
+            userId: ADMIN_LIBRARY_USER_ID,
+          });
           const assetExists = existingVideos.some((v) => v.assetId === assetId);
 
           if (assetExists) {
@@ -72,8 +67,9 @@ export async function POST(request: NextRequest) {
             }
 
             // Create video record
-            await convex.mutation(api.videos.createVideo, {
-              userId,
+            await client.mutation(api.videos.createVideo, {
+              userId: ADMIN_LIBRARY_USER_ID,
+              uploadedBy: stream.startedBy || stream.userId || clerkId,
               title: stream.title || "Recorded Stream",
               description: stream.description,
               provider: "mux",
@@ -85,11 +81,13 @@ export async function POST(request: NextRequest) {
             });
 
             // Update status to ready
-            const videos = await convex.query(api.videos.getUserVideos, { userId });
+            const videos = await client.query(api.videos.getUserVideos, {
+              userId: ADMIN_LIBRARY_USER_ID,
+            });
             const newVideo = videos.find((v) => v.assetId === assetId);
 
             if (newVideo) {
-              await convex.mutation(api.videos.updateVideoStatus, {
+              await client.mutation(api.videos.updateVideoStatus, {
                 videoId: newVideo._id,
                 status: "ready",
               });
@@ -130,6 +128,9 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (String(error).includes("Unauthorized") || String(error).includes("Not authenticated")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     console.error("[sync-recordings] Fatal error:", error);
     return NextResponse.json(
       { error: "Internal server error", details: String(error) },

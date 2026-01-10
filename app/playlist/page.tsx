@@ -56,7 +56,7 @@ export default function PlaylistPage() {
     if (!confirmed) return;
 
     try {
-      await playNow({ videoId, clerkId: user.id });
+      await playNow({ videoId });
       showNotification(`Now playing: ${videoTitle}`);
     } catch (error) {
       console.error("Play now error:", error);
@@ -280,4 +280,3 @@ export default function PlaylistPage() {
     </div>
   );
 }
-

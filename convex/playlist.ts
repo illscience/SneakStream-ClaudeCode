@@ -53,10 +53,11 @@ export const getNextInPlaylist = query({
 export const addToPlaylist = mutation({
   args: {
     videoId: v.id("videos"),
-    clerkId: v.string(),
     position: v.optional(v.number()),
+    addedBy: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const addedBy = args.addedBy ?? "unknown";
     // If no position specified, add to end
     let targetPosition = args.position;
     
@@ -86,7 +87,7 @@ export const addToPlaylist = mutation({
 
     return await ctx.db.insert("playlist", {
       videoId: args.videoId,
-      addedBy: args.clerkId,
+      addedBy,
       addedAt: Date.now(),
       position: targetPosition,
       status: "queued",
@@ -98,7 +99,6 @@ export const addToPlaylist = mutation({
 export const playNow = mutation({
   args: {
     videoId: v.id("videos"),
-    clerkId: v.string(),
   },
   handler: async (ctx, args) => {
     // Get the video
@@ -162,9 +162,10 @@ export const playNow = mutation({
 export const playNext = mutation({
   args: {
     videoId: v.id("videos"),
-    clerkId: v.string(),
+    addedBy: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const addedBy = args.addedBy ?? "unknown";
     // Check if video already exists in playlist
     const existingEntry = await ctx.db
       .query("playlist")
@@ -212,7 +213,7 @@ export const playNext = mutation({
 
       await ctx.db.insert("playlist", {
         videoId: args.videoId,
-        addedBy: args.clerkId,
+        addedBy,
         addedAt: Date.now(),
         position: 0,
         status: "queued",
@@ -439,4 +440,3 @@ export const getPlaylistPosition = query({
     return entry?.position;
   },
 });
-

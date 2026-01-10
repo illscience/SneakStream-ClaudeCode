@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteAsset } from "@/lib/mux";
-import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
-
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+import { requireAdminFromRoute } from "@/lib/convexServer";
 
 export async function POST(request: NextRequest) {
   try {
+    const { client } = await requireAdminFromRoute();
     const { videoId } = await request.json();
 
     if (!videoId) {
@@ -20,7 +19,7 @@ export async function POST(request: NextRequest) {
     console.log("[video/delete] Deleting video:", videoId);
 
     // Get video details from database
-    const video = await convex.query(api.videos.getVideo, {
+    const video = await client.query(api.videos.getVideo, {
       videoId: videoId as Id<"videos">
     });
 
@@ -45,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Delete from database
-    await convex.mutation(api.videos.deleteVideo, {
+    await client.mutation(api.videos.deleteVideo, {
       videoId: videoId as Id<"videos">
     });
 
@@ -56,6 +55,9 @@ export async function POST(request: NextRequest) {
       message: "Video deleted successfully",
     });
   } catch (error) {
+    if (String(error).includes("Unauthorized") || String(error).includes("Not authenticated")) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     console.error("[video/delete] Delete error:", error);
     return NextResponse.json(
       { error: "Internal server error", details: String(error) },
