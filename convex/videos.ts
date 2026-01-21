@@ -18,9 +18,11 @@ export const createVideo = mutation({
     thumbnailUrl: v.optional(v.string()),
     duration: v.optional(v.number()),
     visibility: v.string(),
+    price: v.optional(v.number()),
+    playbackPolicy: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { provider, assetId, livepeerAssetId, ...rest } = args;
+    const { provider, assetId, livepeerAssetId, price, playbackPolicy, ...rest } = args;
     const resolvedProvider = provider || (livepeerAssetId ? "livepeer" : "mux");
     const resolvedAssetId = assetId || livepeerAssetId || undefined;
 
@@ -44,6 +46,8 @@ export const createVideo = mutation({
       provider: resolvedProvider,
       status: "processing",
       viewCount: 0,
+      ...(price !== undefined ? { price } : {}),
+      ...(playbackPolicy ? { playbackPolicy } : {}),
     });
   },
 });
@@ -61,6 +65,7 @@ export const upsertMuxAsset = mutation({
     status: v.optional(v.string()),
     visibility: v.optional(v.string()),
     liveStreamId: v.optional(v.string()),
+    linkedLivestreamId: v.optional(v.id("livestreams")), // Convex livestream ID for PPV bundling
   },
   handler: async (ctx, args) => {
     console.log("[videos.upsertMuxAsset] incoming", {
@@ -147,13 +152,22 @@ export const upsertMuxAsset = mutation({
       visibility: args.visibility || "public",
       viewCount: 0,
       heartCount: 0,
+      ...(args.linkedLivestreamId ? { linkedLivestreamId: args.linkedLivestreamId } : {}),
     });
+
+    // If linked to a livestream, update the livestream with recordingVideoId
+    if (args.linkedLivestreamId) {
+      await ctx.db.patch(args.linkedLivestreamId, {
+        recordingVideoId: newVideoId,
+      });
+    }
 
     console.log("[videos.upsertMuxAsset] inserted new video", {
       videoId: newVideoId,
       assetId: args.assetId,
       playbackId: args.playbackId,
       status: args.status || "processing",
+      linkedLivestreamId: args.linkedLivestreamId,
     });
 
     return newVideoId;

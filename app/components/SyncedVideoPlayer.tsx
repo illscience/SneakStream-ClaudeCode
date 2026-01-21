@@ -16,6 +16,7 @@ interface SyncedVideoPlayerProps {
   onMutedChange?: (muted: boolean) => void;
   isLiveStream?: boolean;
   enableSync?: boolean; // When false, plays independently without syncing to global timeline
+  onTokenExpired?: () => void; // Callback when signed URL token expires (403 error)
 }
 
 export default function SyncedVideoPlayer({
@@ -27,6 +28,7 @@ export default function SyncedVideoPlayer({
   onMutedChange,
   isLiveStream = false,
   enableSync = true,
+  onTokenExpired,
 }: SyncedVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
@@ -63,6 +65,16 @@ export default function SyncedVideoPlayer({
       });
       hls.loadSource(playbackUrl);
       hls.attachMedia(video);
+
+      // Handle token expiration (403 errors on signed URLs)
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.response?.code === 403 || data.details === "manifestLoadError") {
+          console.log("[SyncedVideoPlayer] Token expired or access denied, requesting refresh");
+          if (onTokenExpired) {
+            onTokenExpired();
+          }
+        }
+      });
     } else {
       video.src = playbackUrl;
     }
@@ -118,7 +130,7 @@ export default function SyncedVideoPlayer({
       }
       video.pause();
     };
-  }, [playbackUrl, isLiveStream, enableSync, nextInPlaylist, advancePlaylist]);
+  }, [playbackUrl, isLiveStream, enableSync, nextInPlaylist, advancePlaylist, onTokenExpired]);
 
   // Calculate current playback position based on t0 (skip for live streams and independent playback)
   useEffect(() => {

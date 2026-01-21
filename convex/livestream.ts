@@ -132,6 +132,10 @@ export const endStream = mutation({
         ? `https://stream.mux.com/${args.playbackId}.m3u8`
         : undefined;
 
+      // Inherit PPV settings from livestream if applicable
+      const videoVisibility = stream.visibility === "ppv" ? "ppv" : "public";
+      const videoPrice = stream.visibility === "ppv" ? stream.price : undefined;
+
       const videoId = await ctx.db.insert("videos", {
         userId: ADMIN_LIBRARY_USER_ID,
         uploadedBy: stream.startedBy || stream.userId,
@@ -143,10 +147,19 @@ export const endStream = mutation({
         playbackUrl,
         duration: args.duration,
         status: args.playbackId ? "ready" : "processing",
-        visibility: "public",
+        visibility: videoVisibility,
         viewCount: 0,
         heartCount: 0,
+        linkedLivestreamId: args.streamId, // Link recording back to livestream
+        ...(videoPrice !== undefined ? { price: videoPrice } : {}),
+        ...(videoVisibility === "ppv" ? { playbackPolicy: "signed" } : {}),
       });
+
+      // Update livestream with reference to its recording
+      await ctx.db.patch(args.streamId, {
+        recordingVideoId: videoId,
+      });
+
       console.log("[livestream.endStream] inserted video record", {
         videoId,
         assetId: args.assetId,
@@ -154,6 +167,8 @@ export const endStream = mutation({
         playbackUrl,
         title: stream.title,
         status: args.playbackId ? "ready" : "processing",
+        linkedLivestreamId: args.streamId,
+        recordingVideoId: videoId,
       });
     } else {
       console.log("[livestream.endStream] no assetId provided; skipping video insert", {
