@@ -79,6 +79,14 @@ export function LivestreamPPVGate({
 
   // Paywall UI
   return (
+    <>
+      {/* Float animation keyframes */}
+      <style jsx global>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-6px); }
+        }
+      `}</style>
     <div className="relative aspect-video bg-zinc-950 rounded-2xl overflow-hidden">
       {/* Animated gradient border */}
       <div className="absolute inset-0 rounded-2xl p-[2px] overflow-hidden">
@@ -105,35 +113,56 @@ export function LivestreamPPVGate({
         />
 
         {/* Content */}
-        <div className="relative h-full flex flex-col items-center justify-center p-6 sm:p-8 text-center">
+        <div className="relative h-full flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 text-center">
           {/* LIVE Badge */}
-          <div className="absolute top-4 left-4 sm:top-6 sm:left-6">
+          <div className="absolute top-3 left-3 sm:top-5 sm:left-5 z-10">
             <div className="relative">
               <div className="absolute inset-0 bg-red-500 rounded-lg blur-md animate-pulse" />
-              <div className="relative flex items-center gap-1.5 bg-red-600 px-3 py-1.5 rounded-lg">
-                <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                <span className="text-xs font-black tracking-wider text-white">LIVE</span>
+              <div className="relative flex items-center gap-1.5 bg-red-600 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg">
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-white rounded-full animate-pulse" />
+                <span className="text-[10px] sm:text-xs font-black tracking-wider text-white">LIVE</span>
               </div>
             </div>
           </div>
 
-          {/* Lock icon with glow */}
-          <div className="relative mb-4">
-            <div className="absolute inset-0 bg-gradient-to-r from-lime-400 to-fuchsia-500 rounded-full blur-xl opacity-50 animate-pulse" />
-            <div className="relative w-16 h-16 sm:w-20 sm:h-20 bg-zinc-900/80 border border-zinc-700 rounded-full flex items-center justify-center backdrop-blur-sm">
-              <Lock className="w-7 h-7 sm:w-9 sm:h-9 text-zinc-400" />
-            </div>
+          {/* Sneak House Party Logo */}
+          <div className="relative mb-2 sm:mb-4">
+            {/* Multi-layer glow effect matching logo colors */}
+            <div
+              className="absolute inset-0 blur-2xl sm:blur-3xl opacity-60 animate-pulse"
+              style={{
+                background: "radial-gradient(ellipse at center, rgba(255, 100, 50, 0.4) 0%, rgba(180, 50, 200, 0.3) 50%, transparent 70%)",
+              }}
+            />
+            <div
+              className="absolute inset-0 blur-xl opacity-40 animate-pulse"
+              style={{
+                animationDelay: "0.5s",
+                background: "radial-gradient(ellipse at center, rgba(255, 150, 50, 0.5) 0%, transparent 60%)",
+              }}
+            />
+            {/* Logo with subtle float animation */}
+            <img
+              src="/sneak-logo.png"
+              alt="Sneak House Party"
+              className="relative w-32 h-auto sm:w-44 md:w-52 lg:w-60 drop-shadow-2xl"
+              style={{
+                animation: "float 3s ease-in-out infinite",
+                filter: "drop-shadow(0 0 20px rgba(255, 100, 50, 0.3))",
+              }}
+            />
           </div>
 
-          {/* Title */}
-          <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mb-2 max-w-md leading-tight">
-            {title}
-          </h2>
+          {/* Small lock indicator */}
+          <div className="flex items-center gap-1.5 mb-3 sm:mb-4">
+            <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-500" />
+            <span className="text-xs sm:text-sm text-zinc-500 uppercase tracking-wider font-medium">Exclusive Access</span>
+          </div>
 
           {/* Price display */}
-          <div className="relative mb-4">
+          <div className="relative mb-2 sm:mb-3">
             <span
-              className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight"
+              className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight"
               style={{
                 background: "linear-gradient(135deg, #c4ff0e 0%, #fff 50%, #ff00ff 100%)",
                 WebkitBackgroundClip: "text",
@@ -146,8 +175,8 @@ export function LivestreamPPVGate({
           </div>
 
           {/* Value proposition */}
-          <div className="flex items-center gap-2 text-zinc-400 text-sm sm:text-base mb-6">
-            <Sparkles className="w-4 h-4 text-lime-400" />
+          <div className="flex items-center gap-1.5 sm:gap-2 text-zinc-400 text-xs sm:text-sm mb-4 sm:mb-5">
+            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-lime-400" />
             <span>Access this live stream + recording</span>
           </div>
 
@@ -169,7 +198,7 @@ export function LivestreamPPVGate({
                   </div>
 
                   {/* Button content */}
-                  <div className="relative flex items-center justify-center gap-2 px-6 py-4 text-black">
+                  <div className="relative flex items-center justify-center gap-2 px-5 py-3 sm:px-6 sm:py-4 text-black">
                     {isLoading ? (
                       <>
                         <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
@@ -201,7 +230,7 @@ export function LivestreamPPVGate({
                     </div>
 
                     {/* Button inner */}
-                    <div className="relative flex items-center justify-center gap-2 px-6 py-4 bg-zinc-950 rounded-[10px] m-[2px] text-white transition-colors group-hover:bg-zinc-900">
+                    <div className="relative flex items-center justify-center gap-2 px-5 py-3 sm:px-6 sm:py-4 bg-zinc-950 rounded-[10px] m-[2px] text-white transition-colors group-hover:bg-zinc-900">
                       <Play className="w-5 h-5" />
                       <span>Sign In to Purchase</span>
                     </div>
@@ -212,11 +241,12 @@ export function LivestreamPPVGate({
           </div>
 
           {/* Footer text */}
-          <p className="mt-4 text-xs text-zinc-600">
+          <p className="mt-3 sm:mt-4 text-[10px] sm:text-xs text-zinc-600">
             One-time purchase. Watch live and replay anytime.
           </p>
         </div>
       </div>
     </div>
+    </>
   );
 }

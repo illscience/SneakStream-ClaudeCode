@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,7 @@ interface TipModalProps {
   onClose: () => void;
   videoId?: Id<"videos">;
   livestreamId?: Id<"livestreams">;
+  preselectedAmount?: number | null;
 }
 
 const TIP_AMOUNTS = [
@@ -34,13 +35,21 @@ const TIP_EMOJIS = [
   { value: "clap", label: "Clap", emoji: "👏" },
 ];
 
-export function TipModal({ isOpen, onClose, videoId, livestreamId }: TipModalProps) {
+export function TipModal({ isOpen, onClose, videoId, livestreamId, preselectedAmount }: TipModalProps) {
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
   const [customAmount, setCustomAmount] = useState("");
   const [message, setMessage] = useState("");
   const [selectedEmoji, setSelectedEmoji] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Set preselected amount when modal opens
+  useEffect(() => {
+    if (isOpen && preselectedAmount) {
+      setSelectedAmount(preselectedAmount);
+      setCustomAmount("");
+    }
+  }, [isOpen, preselectedAmount]);
 
   const handleCustomAmountChange = (value: string) => {
     // Only allow numbers and decimal point

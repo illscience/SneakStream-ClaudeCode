@@ -7,7 +7,8 @@ import { SignInButton, useUser } from "@clerk/nextjs"
 import { usePaginatedQuery, useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { EMOTE_BY_ID, EMOTES } from "@/lib/emotes"
-import { Heart, Image as ImageIcon, Loader2, MessageSquare, Send, Smile, Trash2 } from "lucide-react"
+import { DollarSign, Heart, Image as ImageIcon, Loader2, MessageSquare, Send, Smile, Trash2 } from "lucide-react"
+import { TipModal } from "@/components/tips"
 
 const GIF_URL_PATTERN =
   /https?:\/\/[^\s]+\.gif(\?[^\s]*)?|https?:\/\/(media\.giphy\.com|giphy\.com|media\.tenor\.com|tenor\.com|imgur\.com|i\.imgur\.com)\/[^\s]+/gi
@@ -58,9 +59,15 @@ const extractGifUrls = (body: string) => {
   return { text, urls }
 }
 
-export default function LiveChat() {
+interface LiveChatProps {
+  livestreamId?: Id<"livestreams">
+}
+
+export default function LiveChat({ livestreamId }: LiveChatProps) {
   const { user } = useUser()
   const [newMessage, setNewMessage] = useState("")
+  const [isTipModalOpen, setIsTipModalOpen] = useState(false)
+  const [selectedTipAmount, setSelectedTipAmount] = useState<number | null>(null)
   const [optimisticMessages, setOptimisticMessages] = useState<any[]>([])
   const [deletedMessageIds, setDeletedMessageIds] = useState<Set<string>>(new Set())
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -521,6 +528,45 @@ export default function LiveChat() {
         </div>
       )}
 
+      {/* Tip Row */}
+      {isSignedIn && (
+        <div className="mb-4 rounded-xl border border-[#c4ff0e]/30 bg-gradient-to-r from-[#c4ff0e]/10 via-zinc-900/80 to-[#ff00ff]/10 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#c4ff0e] text-black">
+                <DollarSign className="h-4 w-4" />
+              </div>
+              <span className="text-sm font-medium text-white">Support DJ Sneak</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {[500, 1000, 2000, 5000].map((amount) => (
+                <button
+                  key={amount}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTipAmount(amount)
+                    setIsTipModalOpen(true)
+                  }}
+                  className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm font-semibold text-white transition-all hover:bg-[#c4ff0e] hover:text-black hover:scale-105"
+                >
+                  ${amount / 100}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedTipAmount(null)
+                  setIsTipModalOpen(true)
+                }}
+                className="rounded-lg bg-[#c4ff0e] px-4 py-1.5 text-sm font-semibold text-black transition-all hover:bg-[#b3e60d] hover:scale-105"
+              >
+                Custom
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-3 bg-zinc-900/50 rounded-xl p-4 border border-zinc-800 touch-pan-y">
         {[...optimisticMessages, ...(messages || [])]
           .filter((message) => !deletedMessageIds.has(message._id))
@@ -529,13 +575,121 @@ export default function LiveChat() {
             const rawBody = message.body ?? ""
             const emoteMatch = rawBody.match(/^:emote:([^\s]+)$/)
             const emote = emoteMatch ? EMOTE_BY_ID[emoteMatch[1]] : undefined
-            const { text, urls: gifUrls } = emote ? { text: "", urls: [] } : extractGifUrls(rawBody)
+
+            // Check for tip message
+            const tipMatch = rawBody.match(/^:tip:(.+)$/)
+            let tipData: { type: string; amount: number; emoji?: string; message?: string } | null = null
+            if (tipMatch) {
+              try {
+                tipData = JSON.parse(tipMatch[1])
+              } catch {
+                tipData = null
+              }
+            }
+
+            const { text, urls: gifUrls } = emote || tipData ? { text: "", urls: [] } : extractGifUrls(rawBody)
             const isGifUpload =
               message.imageMimeType === "image/gif" ||
               message.imageUrl?.toLowerCase().includes(".gif")
             const isOptimistic = typeof message._id === "string" && message._id.startsWith("optimistic-")
             const loveCount = message.loveCount ?? 0
             const recentLovers = message.recentLovers ?? []
+
+            // Render tip celebration message
+            if (tipData) {
+              const emojiMap: Record<string, string> = {
+                fire: "🔥",
+                heart: "❤️",
+                rocket: "🚀",
+                clap: "👏",
+              }
+              return (
+                <div
+                  key={message._id}
+                  className="group relative overflow-hidden rounded-xl border border-[#c4ff0e]/40 bg-gradient-to-r from-[#c4ff0e]/20 via-zinc-900 to-[#ff00ff]/20 p-4"
+                >
+                  {/* Sparkle effect */}
+                  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iMSIgZmlsbD0icmdiYSgxOTYsMjU1LDE0LDAuMykiLz48L3N2Zz4=')] opacity-50" />
+
+                  <div className="relative flex items-start gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#c4ff0e] text-black shadow-lg shadow-[#c4ff0e]/30">
+                      <DollarSign className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-[#c4ff0e]">
+                          {message.userName || "Someone"}
+                        </span>
+                        <span className="text-white">tipped</span>
+                        <span className="rounded-full bg-[#c4ff0e] px-3 py-0.5 text-sm font-bold text-black">
+                          ${(tipData.amount / 100).toFixed(2)}
+                        </span>
+                        {tipData.emoji && emojiMap[tipData.emoji] && (
+                          <span className="text-2xl animate-bounce">{emojiMap[tipData.emoji]}</span>
+                        )}
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              setDeletedMessageIds((prev) => new Set(prev).add(message._id))
+                              deleteMessage({ messageId: message._id }).catch((error) => {
+                                console.error("Failed to delete message:", error)
+                                setDeletedMessageIds((prev) => {
+                                  const newSet = new Set(prev)
+                                  newSet.delete(message._id)
+                                  return newSet
+                                })
+                              })
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-red-500 ml-auto"
+                            title="Delete message"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                      {tipData.message && (
+                        <p className="mt-2 rounded-lg bg-black/30 px-3 py-2 text-sm text-white italic">
+                          "{tipData.message}"
+                        </p>
+                      )}
+                      {/* Love button for tips */}
+                      {!isOptimistic && (
+                        <div className="mt-3 flex items-center gap-2 text-xs text-zinc-500">
+                          <button
+                            onClick={() => handleLove(message._id)}
+                            className={`flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
+                              loveCount > 0 || loveAnimatingId === message._id
+                                ? "bg-red-600 text-white"
+                                : "bg-zinc-900/60 text-zinc-500 hover:text-red-500"
+                            }`}
+                          >
+                            <Heart className={`w-4 h-4 ${loveCount > 0 ? "fill-white" : ""}`} />
+                            <span>{loveCount}</span>
+                          </button>
+                          {recentLovers.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {recentLovers.map((lover: { clerkId: string; alias: string; avatarUrl?: string }) => (
+                                <div
+                                  key={`${message._id}-${lover.clerkId}`}
+                                  className="h-5 w-5 rounded-full border border-zinc-900 bg-zinc-800 flex items-center justify-center overflow-hidden text-[10px]"
+                                  title={lover.alias}
+                                >
+                                  {lover.avatarUrl ? (
+                                    <img src={lover.avatarUrl} alt={lover.alias} className="h-full w-full object-cover" />
+                                  ) : (
+                                    <span className="text-white">{lover.alias.charAt(0).toUpperCase()}</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            }
 
             return (
               <div key={message._id} className="flex gap-3 group">
@@ -665,6 +819,16 @@ export default function LiveChat() {
         </div>
       </div>
 
+      {/* Tip Modal */}
+      <TipModal
+        isOpen={isTipModalOpen}
+        onClose={() => {
+          setIsTipModalOpen(false)
+          setSelectedTipAmount(null)
+        }}
+        livestreamId={livestreamId}
+        preselectedAmount={selectedTipAmount}
+      />
     </div>
   )
 }

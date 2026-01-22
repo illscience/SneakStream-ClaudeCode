@@ -45,6 +45,37 @@ export const completeTip = mutation({
       status: "completed",
     });
 
+    // Get sender info for the celebration message
+    const sender = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", tip.senderId))
+      .first();
+
+    const senderName = sender?.alias ?? "Someone";
+    const senderAvatar = sender?.selectedAvatar ?? sender?.imageUrl;
+
+    // Format the tip amount
+    const amountFormatted = `$${(tip.amount / 100).toFixed(2)}`;
+
+    // Create the celebration message body with special format
+    // Format: :tip:{amount}:{emoji}:{message}
+    const tipData = JSON.stringify({
+      type: "tip",
+      amount: tip.amount,
+      emoji: tip.emoji,
+      message: tip.message,
+    });
+    const messageBody = `:tip:${tipData}`;
+
+    // Post celebration message to chat
+    await ctx.db.insert("messages", {
+      user: tip.senderId,
+      userId: tip.senderId,
+      userName: senderName,
+      avatarUrl: senderAvatar,
+      body: messageBody,
+    });
+
     return tip._id;
   },
 });
