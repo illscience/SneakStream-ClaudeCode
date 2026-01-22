@@ -5,6 +5,7 @@ import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
 import VideoTimer from "./components/VideoTimer";
 import MainNav from "@/components/navigation/MainNav";
 import LiveChat from "./components/LiveChat";
+import { LivestreamPPVGate } from "@/components/ppv/LivestreamPPVGate";
 import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
@@ -101,6 +102,28 @@ export default function Home() {
 
   const renderVideoContent = () => {
     if (activeStream && activeStream.playbackUrl) {
+      // PPV livestream - wrap with paywall
+      if (activeStream.visibility === "ppv") {
+        return (
+          <LivestreamPPVGate
+            livestreamId={activeStream._id}
+            title={activeStream.title}
+            price={500} // $5.00 hardcoded
+          >
+            <SyncedVideoPlayer
+              videoId={activeStream._id}
+              videoTitle={activeStream.title}
+              playbackUrl={activeStream.playbackUrl}
+              className="w-full h-full"
+              isMuted={isMuted}
+              onMutedChange={setIsMuted}
+              isLiveStream={true}
+            />
+          </LivestreamPPVGate>
+        );
+      }
+
+      // Public livestream - no paywall
       return (
         <SyncedVideoPlayer
           videoId={activeStream._id}
@@ -369,7 +392,7 @@ export default function Home() {
         <div className="px-4 lg:px-8 pb-48 pt-4">
           <div className="flex justify-center">
             <div className="max-w-6xl w-full lg:static sticky top-24">
-              <LiveChat />
+              <LiveChat livestreamId={activeStream?._id} />
             </div>
           </div>
         </div>

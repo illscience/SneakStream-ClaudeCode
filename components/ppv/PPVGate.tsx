@@ -30,6 +30,12 @@ export function PPVGate({
     userId ? { userId, videoId } : "skip"
   );
 
+  // Admin bypass - admins can view any content without entitlement
+  const isAdmin = useQuery(
+    api.adminSettings.checkIsAdmin,
+    userId ? { clerkId: userId } : "skip"
+  );
+
   // Show loading state while auth is loading
   if (!isLoaded) {
     return (
@@ -39,8 +45,8 @@ export function PPVGate({
     );
   }
 
-  // If user has entitlement, show the content
-  if (isSignedIn && hasEntitlement) {
+  // If user has entitlement OR is admin, show the content
+  if (isSignedIn && (hasEntitlement || isAdmin)) {
     return <>{children}</>;
   }
 

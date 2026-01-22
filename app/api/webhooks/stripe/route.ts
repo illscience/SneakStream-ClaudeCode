@@ -61,6 +61,13 @@ export async function POST(request: NextRequest) {
           console.log("[stripe webhook] PPV purchase completed", {
             sessionId: session.id,
           });
+        } else if (metadata?.type === "livestream_ppv") {
+          await convex.mutation(api.purchases.completePurchase, {
+            stripeSessionId: session.id,
+          });
+          console.log("[stripe webhook] Livestream PPV purchase completed", {
+            sessionId: session.id,
+          });
         }
         break;
       }
@@ -78,7 +85,7 @@ export async function POST(request: NextRequest) {
           await convex.mutation(api.tips.failTip, {
             stripeSessionId: session.id,
           });
-        } else if (metadata?.type === "ppv") {
+        } else if (metadata?.type === "ppv" || metadata?.type === "livestream_ppv") {
           await convex.mutation(api.purchases.failPurchase, {
             stripeSessionId: session.id,
           });

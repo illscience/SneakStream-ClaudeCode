@@ -175,13 +175,15 @@ export default defineSchema({
   // PPV Purchases
   purchases: defineTable({
     buyerId: v.string(), // Clerk user ID of buyer
-    videoId: v.id("videos"),
+    videoId: v.optional(v.id("videos")), // Optional - for video purchases
+    livestreamId: v.optional(v.id("livestreams")), // Optional - for livestream purchases
     amount: v.number(), // Amount in cents
     stripeSessionId: v.string(),
     status: v.string(), // "pending" | "completed" | "failed"
     createdAt: v.number(),
   })
     .index("by_buyer_video", ["buyerId", "videoId"])
+    .index("by_buyer_livestream", ["buyerId", "livestreamId"])
     .index("by_session", ["stripeSessionId"]),
 
   // Entitlements (derived from purchases or admin grants)

@@ -40,6 +40,14 @@ export const getStreamByStreamId = query({
   },
 });
 
+// Get a livestream by its Convex ID
+export const getLivestream = query({
+  args: { livestreamId: v.id("livestreams") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.livestreamId);
+  },
+});
+
 // Start a new stream (end any existing active streams first)
 export const startStream = mutation({
   args: {

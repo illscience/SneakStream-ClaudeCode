@@ -19,6 +19,8 @@ import {
   DollarSign,
   Globe,
   Lock,
+  AlertCircle,
+  Zap,
 } from "lucide-react";
 
 export default function EntitlementsAdminPage() {
@@ -50,6 +52,9 @@ export default function EntitlementsAdminPage() {
   const [ppvPrice, setPpvPrice] = useState<string>("");
   const [isUpdatingPPV, setIsUpdatingPPV] = useState(false);
 
+  // Active livestream quick toggle state
+  const [isTogglingActive, setIsTogglingActive] = useState(false);
+
   // Admin check
   const isAdmin = useQuery(
     api.adminSettings.checkIsAdmin,
@@ -78,6 +83,9 @@ export default function EntitlementsAdminPage() {
     api.entitlements.getAllLivestreamsForAdmin,
     isAdmin && user?.id ? { clerkId: user.id, limit: 100 } : "skip"
   );
+
+  // Active livestream for quick toggle
+  const activeStream = useQuery(api.livestream.getActiveStream);
 
   // Test bundled entitlement
   const bundledEntitlementResult = useQuery(
@@ -193,6 +201,31 @@ export default function EntitlementsAdminPage() {
     }
   }, [ppvContentId, ppvContentType, videos, livestreams]);
 
+  const handleToggleActiveStream = async (newVisibility: "public" | "ppv") => {
+    if (!user?.id || !activeStream) return;
+
+    setIsTogglingActive(true);
+    try {
+      await updateLivestreamPPV({
+        clerkId: user.id,
+        livestreamId: activeStream._id,
+        visibility: newVisibility,
+        price: newVisibility === "ppv" ? (activeStream.price || 500) : undefined,
+      });
+      showNotification(
+        `Live stream switched to ${newVisibility === "ppv" ? "PROTECTED" : "PUBLIC"}`,
+        "success"
+      );
+    } catch (error) {
+      showNotification(
+        error instanceof Error ? error.message : "Failed to update livestream",
+        "error"
+      );
+    } finally {
+      setIsTogglingActive(false);
+    }
+  };
+
   const handleUpdatePPV = async () => {
     if (!user?.id || !ppvContentId) return;
 
@@ -285,6 +318,72 @@ export default function EntitlementsAdminPage() {
         </div>
 
         <div className="grid gap-6">
+          {/* Active Livestream Quick Toggle */}
+          {activeStream && (
+            <section className="bg-gradient-to-r from-red-950/50 to-zinc-900 border-2 border-red-500/50 rounded-xl p-6 relative overflow-hidden">
+              {/* Pulsing background effect */}
+              <div className="absolute inset-0 bg-red-500/5 animate-pulse" />
+
+              <div className="relative">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                    </span>
+                    <span className="text-xs font-bold text-red-400 uppercase tracking-wider">Live Now</span>
+                  </div>
+                  <AlertCircle className="w-5 h-5 text-yellow-400" />
+                  <span className="text-sm text-yellow-400 font-medium">Quick Access Toggle</span>
+                </div>
+
+                <h2 className="text-xl font-bold text-white mb-1">{activeStream.title}</h2>
+                <p className="text-sm text-zinc-400 mb-4">
+                  Current status: <span className={activeStream.visibility === "ppv" ? "text-yellow-400 font-semibold" : "text-green-400 font-semibold"}>
+                    {activeStream.visibility === "ppv" ? "PROTECTED (PPV)" : "PUBLIC"}
+                  </span>
+                  {activeStream.price && activeStream.visibility === "ppv" && (
+                    <span className="text-zinc-500"> · ${(activeStream.price / 100).toFixed(2)}</span>
+                  )}
+                </p>
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    onClick={() => handleToggleActiveStream("public")}
+                    disabled={isTogglingActive || activeStream.visibility === "public"}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                      activeStream.visibility === "public"
+                        ? "bg-green-500 text-white"
+                        : "bg-zinc-800 text-zinc-300 hover:bg-green-600 hover:text-white"
+                    }`}
+                  >
+                    <Globe className="w-5 h-5" />
+                    Make Public
+                  </button>
+                  <button
+                    onClick={() => handleToggleActiveStream("ppv")}
+                    disabled={isTogglingActive || activeStream.visibility === "ppv"}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-full font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                      activeStream.visibility === "ppv"
+                        ? "bg-yellow-500 text-black"
+                        : "bg-zinc-800 text-zinc-300 hover:bg-yellow-500 hover:text-black"
+                    }`}
+                  >
+                    <Lock className="w-5 h-5" />
+                    Make Protected
+                  </button>
+                </div>
+
+                {isTogglingActive && (
+                  <div className="mt-3 flex items-center gap-2 text-sm text-zinc-400">
+                    <Zap className="w-4 h-4 animate-pulse text-yellow-400" />
+                    Updating visibility...
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
           {/* Grant Entitlement Section */}
           <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">

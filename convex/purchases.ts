@@ -4,11 +4,17 @@ import { mutation, query } from "./_generated/server";
 export const createPurchase = mutation({
   args: {
     buyerId: v.string(),
-    videoId: v.id("videos"),
+    videoId: v.optional(v.id("videos")),
+    livestreamId: v.optional(v.id("livestreams")),
     amount: v.number(),
     stripeSessionId: v.string(),
   },
   handler: async (ctx, args) => {
+    // Must specify at least one content type
+    if (!args.videoId && !args.livestreamId) {
+      throw new Error("Must specify either videoId or livestreamId");
+    }
+
     // Check if purchase already exists for this session
     const existing = await ctx.db
       .query("purchases")
@@ -22,6 +28,7 @@ export const createPurchase = mutation({
     const purchaseId = await ctx.db.insert("purchases", {
       buyerId: args.buyerId,
       videoId: args.videoId,
+      livestreamId: args.livestreamId,
       amount: args.amount,
       stripeSessionId: args.stripeSessionId,
       status: "pending",
@@ -51,21 +58,43 @@ export const completePurchase = mutation({
       status: "completed",
     });
 
-    // Create entitlement for the user
-    const existingEntitlement = await ctx.db
-      .query("entitlements")
-      .withIndex("by_user_video", (q) =>
-        q.eq("userId", purchase.buyerId).eq("videoId", purchase.videoId)
-      )
-      .first();
+    // Create entitlement based on purchase type
+    if (purchase.videoId) {
+      // Video purchase - create video entitlement
+      const existingEntitlement = await ctx.db
+        .query("entitlements")
+        .withIndex("by_user_video", (q) =>
+          q.eq("userId", purchase.buyerId).eq("videoId", purchase.videoId)
+        )
+        .first();
 
-    if (!existingEntitlement) {
-      await ctx.db.insert("entitlements", {
-        userId: purchase.buyerId,
-        videoId: purchase.videoId,
-        grantedAt: Date.now(),
-        grantedBy: "purchase",
-      });
+      if (!existingEntitlement) {
+        await ctx.db.insert("entitlements", {
+          userId: purchase.buyerId,
+          videoId: purchase.videoId,
+          grantedAt: Date.now(),
+          grantedBy: "purchase",
+        });
+      }
+    }
+
+    if (purchase.livestreamId) {
+      // Livestream purchase - create livestream entitlement
+      const existingEntitlement = await ctx.db
+        .query("entitlements")
+        .withIndex("by_user_livestream", (q) =>
+          q.eq("userId", purchase.buyerId).eq("livestreamId", purchase.livestreamId)
+        )
+        .first();
+
+      if (!existingEntitlement) {
+        await ctx.db.insert("entitlements", {
+          userId: purchase.buyerId,
+          livestreamId: purchase.livestreamId,
+          grantedAt: Date.now(),
+          grantedBy: "purchase",
+        });
+      }
     }
 
     return purchase._id;
@@ -122,18 +151,35 @@ export const getUserPurchases = query({
       .order("desc")
       .collect();
 
-    // Fetch video info for each purchase
-    const purchasesWithVideos = await Promise.all(
+    // Fetch content info for each purchase
+    const purchasesWithContent = await Promise.all(
       purchases.map(async (purchase) => {
-        const video = await ctx.db.get(purchase.videoId);
+        let contentTitle = "Unknown Content";
+        let contentThumbnail: string | undefined;
+        let contentType: "video" | "livestream" = "video";
+
+        if (purchase.videoId) {
+          const video = await ctx.db.get(purchase.videoId);
+          contentTitle = video?.title ?? "Unknown Video";
+          contentThumbnail = video?.thumbnailUrl;
+          contentType = "video";
+        } else if (purchase.livestreamId) {
+          const livestream = await ctx.db.get(purchase.livestreamId);
+          contentTitle = livestream?.title ?? "Unknown Livestream";
+          contentType = "livestream";
+        }
+
         return {
           ...purchase,
-          videoTitle: video?.title ?? "Unknown Video",
-          videoThumbnail: video?.thumbnailUrl,
+          videoTitle: contentTitle, // Keep for backwards compatibility
+          videoThumbnail: contentThumbnail,
+          contentTitle,
+          contentThumbnail,
+          contentType,
         };
       })
     );
 
-    return purchasesWithVideos;
+    return purchasesWithContent;
   },
 });

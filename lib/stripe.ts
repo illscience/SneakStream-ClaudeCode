@@ -38,7 +38,14 @@ export interface PPVMetadata {
   amount: number;
 }
 
-export type CheckoutMetadata = TipMetadata | PPVMetadata;
+export interface LivestreamPPVMetadata {
+  type: "livestream_ppv";
+  buyerId: string;
+  livestreamId: string;
+  amount: number;
+}
+
+export type CheckoutMetadata = TipMetadata | PPVMetadata | LivestreamPPVMetadata;
 
 export async function createTipCheckoutSession(params: {
   amount: number;
@@ -120,6 +127,54 @@ export async function createPPVCheckoutSession(params: {
           product_data: {
             name: `PPV: ${params.videoTitle}`,
             description: "One-time access to this video",
+          },
+          unit_amount: params.price,
+        },
+        quantity: 1,
+      },
+    ],
+    metadata: metadata as unknown as Stripe.MetadataParam,
+    success_url: params.successUrl,
+    cancel_url: params.cancelUrl,
+  });
+
+  if (!session.url) {
+    throw new Error("Failed to create checkout session URL");
+  }
+
+  return {
+    sessionId: session.id,
+    url: session.url,
+  };
+}
+
+export async function createLivestreamPPVCheckoutSession(params: {
+  livestreamId: string;
+  livestreamTitle: string;
+  price: number;
+  buyerId: string;
+  successUrl: string;
+  cancelUrl: string;
+}): Promise<{ sessionId: string; url: string }> {
+  const stripe = getStripeClient();
+
+  const metadata: LivestreamPPVMetadata = {
+    type: "livestream_ppv",
+    buyerId: params.buyerId,
+    livestreamId: params.livestreamId,
+    amount: params.price,
+  };
+
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    payment_method_types: ["card"],
+    line_items: [
+      {
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: `Live Stream: ${params.livestreamTitle}`,
+            description: "Access to this live stream + future recording",
           },
           unit_amount: params.price,
         },
