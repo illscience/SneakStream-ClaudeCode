@@ -16,6 +16,9 @@ import {
   CheckCircle,
   XCircle,
   Link2,
+  DollarSign,
+  Globe,
+  Lock,
 } from "lucide-react";
 
 export default function EntitlementsAdminPage() {
@@ -39,6 +42,13 @@ export default function EntitlementsAdminPage() {
   const [testUserId, setTestUserId] = useState("");
   const [testVideoId, setTestVideoId] = useState("");
   const [testResult, setTestResult] = useState<boolean | null>(null);
+
+  // PPV management state
+  const [ppvContentType, setPpvContentType] = useState<"video" | "livestream">("video");
+  const [ppvContentId, setPpvContentId] = useState<string | null>(null);
+  const [ppvVisibility, setPpvVisibility] = useState<string>("public");
+  const [ppvPrice, setPpvPrice] = useState<string>("");
+  const [isUpdatingPPV, setIsUpdatingPPV] = useState(false);
 
   // Admin check
   const isAdmin = useQuery(
@@ -80,6 +90,8 @@ export default function EntitlementsAdminPage() {
   // Mutations
   const grantEntitlement = useMutation(api.entitlements.adminGrantEntitlement);
   const revokeEntitlement = useMutation(api.entitlements.adminRevokeEntitlement);
+  const updateVideoPPV = useMutation(api.entitlements.adminUpdateVideoPPV);
+  const updateLivestreamPPV = useMutation(api.entitlements.adminUpdateLivestreamPPV);
 
   // Redirect if not admin
   useEffect(() => {
@@ -163,6 +175,63 @@ export default function EntitlementsAdminPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  // Update selected content's current visibility when selection changes
+  useEffect(() => {
+    if (!ppvContentId) {
+      setPpvVisibility("public");
+      setPpvPrice("");
+      return;
+    }
+
+    const list = ppvContentType === "video" ? videos : livestreams;
+    const item = list?.find((i) => i._id === ppvContentId);
+    if (item) {
+      setPpvVisibility(item.visibility || "public");
+      setPpvPrice(item.price ? String(item.price / 100) : "");
+    }
+  }, [ppvContentId, ppvContentType, videos, livestreams]);
+
+  const handleUpdatePPV = async () => {
+    if (!user?.id || !ppvContentId) return;
+
+    const priceInCents = ppvVisibility === "ppv" ? Math.round(parseFloat(ppvPrice || "0") * 100) : undefined;
+
+    if (ppvVisibility === "ppv" && (!priceInCents || priceInCents <= 0)) {
+      showNotification("Please enter a valid price for PPV content", "error");
+      return;
+    }
+
+    setIsUpdatingPPV(true);
+    try {
+      if (ppvContentType === "video") {
+        await updateVideoPPV({
+          clerkId: user.id,
+          videoId: ppvContentId as Id<"videos">,
+          visibility: ppvVisibility,
+          price: priceInCents,
+        });
+      } else {
+        await updateLivestreamPPV({
+          clerkId: user.id,
+          livestreamId: ppvContentId as Id<"livestreams">,
+          visibility: ppvVisibility,
+          price: priceInCents,
+        });
+      }
+      showNotification(
+        `${ppvContentType === "video" ? "Video" : "Livestream"} updated to ${ppvVisibility.toUpperCase()}`,
+        "success"
+      );
+    } catch (error) {
+      showNotification(
+        error instanceof Error ? error.message : "Failed to update PPV settings",
+        "error"
+      );
+    } finally {
+      setIsUpdatingPPV(false);
+    }
   };
 
   // Loading state
@@ -342,6 +411,137 @@ export default function EntitlementsAdminPage() {
             >
               <Plus className="w-4 h-4" />
               {isGranting ? "Granting..." : "Grant Entitlement"}
+            </button>
+          </section>
+
+          {/* PPV Management Section */}
+          <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-yellow-400" />
+              Manage PPV Settings
+            </h2>
+            <p className="text-sm text-zinc-500 mb-4">
+              Toggle content between Public and Pay-Per-View. PPV content requires an entitlement to access.
+            </p>
+
+            <div className="grid md:grid-cols-4 gap-4">
+              {/* Content Type */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                  Content Type
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setPpvContentType("video");
+                      setPpvContentId(null);
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      ppvContentType === "video"
+                        ? "bg-yellow-400 text-black"
+                        : "bg-zinc-800 text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    <Video className="w-4 h-4" />
+                    Video
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPpvContentType("livestream");
+                      setPpvContentId(null);
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      ppvContentType === "livestream"
+                        ? "bg-yellow-400 text-black"
+                        : "bg-zinc-800 text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    <Radio className="w-4 h-4" />
+                    Live
+                  </button>
+                </div>
+              </div>
+
+              {/* Content Selection */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                  Select Content
+                </label>
+                <select
+                  value={ppvContentId || ""}
+                  onChange={(e) => setPpvContentId(e.target.value || null)}
+                  className="w-full rounded-lg border border-zinc-800 bg-zinc-950 py-2.5 px-4 text-sm text-white focus:border-yellow-400 focus:outline-none"
+                >
+                  <option value="">Select {ppvContentType}...</option>
+                  {(ppvContentType === "video" ? videos : livestreams)?.map((item) => (
+                    <option key={item._id} value={item._id}>
+                      {item.title}
+                      {item.visibility === "ppv" ? " [PPV]" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Visibility Toggle */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                  Visibility
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPpvVisibility("public")}
+                    disabled={!ppvContentId}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                      ppvVisibility === "public"
+                        ? "bg-green-500 text-white"
+                        : "bg-zinc-800 text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    <Globe className="w-4 h-4" />
+                    Public
+                  </button>
+                  <button
+                    onClick={() => setPpvVisibility("ppv")}
+                    disabled={!ppvContentId}
+                    className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                      ppvVisibility === "ppv"
+                        ? "bg-yellow-500 text-black"
+                        : "bg-zinc-800 text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    <Lock className="w-4 h-4" />
+                    PPV
+                  </button>
+                </div>
+              </div>
+
+              {/* Price Input */}
+              <div>
+                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                  Price (USD)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={ppvPrice}
+                    onChange={(e) => setPpvPrice(e.target.value)}
+                    disabled={!ppvContentId || ppvVisibility !== "ppv"}
+                    placeholder="9.99"
+                    className="w-full rounded-lg border border-zinc-800 bg-zinc-950 py-2.5 pl-8 pr-4 text-sm text-white focus:border-yellow-400 focus:outline-none disabled:opacity-50"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={handleUpdatePPV}
+              disabled={!ppvContentId || isUpdatingPPV}
+              className="mt-4 flex items-center gap-2 bg-yellow-400 text-black px-6 py-2.5 rounded-full font-semibold hover:bg-yellow-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isUpdatingPPV ? "Updating..." : "Update Settings"}
             </button>
           </section>
 

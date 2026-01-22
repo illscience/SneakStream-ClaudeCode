@@ -6,6 +6,9 @@ const isPublicRoute = createRouteMatcher([
   '/api/nightclub/(.*)',
   '/api/generate-polaroid',
   '/api/webhooks/mux',
+  '/api/webhooks/stripe',
+  '/tip/success',
+  '/tip/cancel',
 ])
 
 export default clerkMiddleware(async (auth, req) => {

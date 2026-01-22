@@ -68,7 +68,7 @@ export const startStream = mutation({
       });
     }
 
-    // Create new stream
+    // Create new stream (default to PPV)
     const streamId = await ctx.db.insert("livestreams", {
       userId: args.userId,
       userName: args.userName,
@@ -84,6 +84,8 @@ export const startStream = mutation({
       playbackId: args.playbackId,
       playbackUrl: args.playbackUrl,
       rtmpIngestUrl: args.rtmpIngestUrl,
+      visibility: "ppv", // Livestreams default to PPV
+      price: 999, // Default price $9.99
     });
 
     return streamId;
@@ -127,14 +129,11 @@ export const endStream = mutation({
     });
 
     // Save recording to library (even if still processing).
+    // Recordings are always PUBLIC - only the live stream itself is PPV
     if (args.assetId) {
       const playbackUrl = args.playbackId
         ? `https://stream.mux.com/${args.playbackId}.m3u8`
         : undefined;
-
-      // Inherit PPV settings from livestream if applicable
-      const videoVisibility = stream.visibility === "ppv" ? "ppv" : "public";
-      const videoPrice = stream.visibility === "ppv" ? stream.price : undefined;
 
       const videoId = await ctx.db.insert("videos", {
         userId: ADMIN_LIBRARY_USER_ID,
@@ -147,12 +146,10 @@ export const endStream = mutation({
         playbackUrl,
         duration: args.duration,
         status: args.playbackId ? "ready" : "processing",
-        visibility: videoVisibility,
+        visibility: "public", // Recordings are always public
         viewCount: 0,
         heartCount: 0,
         linkedLivestreamId: args.streamId, // Link recording back to livestream
-        ...(videoPrice !== undefined ? { price: videoPrice } : {}),
-        ...(videoVisibility === "ppv" ? { playbackPolicy: "signed" } : {}),
       });
 
       // Update livestream with reference to its recording

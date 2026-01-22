@@ -505,3 +505,74 @@ export const adminRevokeEntitlement = mutation({
     return true;
   },
 });
+
+// Admin update video PPV settings
+export const adminUpdateVideoPPV = mutation({
+  args: {
+    clerkId: v.string(),
+    videoId: v.id("videos"),
+    visibility: v.string(), // "public" | "ppv" | "private" | "followers"
+    price: v.optional(v.number()), // Price in cents (required if visibility is "ppv")
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, args.clerkId);
+
+    const video = await ctx.db.get(args.videoId);
+    if (!video) {
+      throw new Error("Video not found");
+    }
+
+    const updates: Record<string, unknown> = {
+      visibility: args.visibility,
+    };
+
+    if (args.visibility === "ppv") {
+      if (!args.price || args.price <= 0) {
+        throw new Error("Price is required for PPV videos");
+      }
+      updates.price = args.price;
+      updates.playbackPolicy = "signed";
+    } else {
+      // Clear PPV-specific fields when switching to non-PPV
+      updates.price = undefined;
+      updates.playbackPolicy = "public";
+    }
+
+    await ctx.db.patch(args.videoId, updates);
+    return true;
+  },
+});
+
+// Admin update livestream PPV settings
+export const adminUpdateLivestreamPPV = mutation({
+  args: {
+    clerkId: v.string(),
+    livestreamId: v.id("livestreams"),
+    visibility: v.string(), // "public" | "ppv"
+    price: v.optional(v.number()), // Price in cents (required if visibility is "ppv")
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, args.clerkId);
+
+    const livestream = await ctx.db.get(args.livestreamId);
+    if (!livestream) {
+      throw new Error("Livestream not found");
+    }
+
+    const updates: Record<string, unknown> = {
+      visibility: args.visibility,
+    };
+
+    if (args.visibility === "ppv") {
+      if (!args.price || args.price <= 0) {
+        throw new Error("Price is required for PPV livestreams");
+      }
+      updates.price = args.price;
+    } else {
+      updates.price = undefined;
+    }
+
+    await ctx.db.patch(args.livestreamId, updates);
+    return true;
+  },
+});
