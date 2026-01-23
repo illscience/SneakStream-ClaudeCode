@@ -538,30 +538,28 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
               </div>
               <span className="text-sm font-medium text-white">Support DJ Sneak</span>
             </div>
-            <div className="flex items-center gap-2">
-              {[500, 1000, 2000, 5000].map((amount) => (
-                <button
-                  key={amount}
-                  type="button"
-                  onClick={() => {
-                    setSelectedTipAmount(amount)
-                    setIsTipModalOpen(true)
-                  }}
-                  className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm font-semibold text-white transition-all hover:bg-[#c4ff0e] hover:text-black hover:scale-105"
-                >
-                  ${amount / 100}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedTipAmount(null)
-                  setIsTipModalOpen(true)
-                }}
-                className="rounded-lg bg-[#c4ff0e] px-4 py-1.5 text-sm font-semibold text-black transition-all hover:bg-[#b3e60d] hover:scale-105"
-              >
-                Custom
-              </button>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {[500, 1000, 2000, 5000].map((amount, index) => {
+                const colors = [
+                  "from-lime-500 to-emerald-500",
+                  "from-cyan-500 to-blue-500",
+                  "from-fuchsia-500 to-purple-500",
+                  "from-orange-500 to-red-500",
+                ]
+                return (
+                  <button
+                    key={amount}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTipAmount(amount)
+                      setIsTipModalOpen(true)
+                    }}
+                    className={`rounded-lg bg-gradient-to-r ${colors[index]} px-2.5 sm:px-3 py-1.5 text-sm font-bold text-white shadow-lg transition-all hover:scale-110 hover:shadow-xl`}
+                  >
+                    ${amount / 100}
+                  </button>
+                )
+              })}
             </div>
           </div>
         </div>

@@ -149,7 +149,7 @@ export function TipModal({ isOpen, onClose, videoId, livestreamId, preselectedAm
                     setSelectedAmount(amount.value);
                     setCustomAmount("");
                   }}
-                  className="w-full"
+                  className={`w-full ${selectedAmount === amount.value ? "bg-[#c4ff0e] text-black font-bold hover:bg-[#b3e60d]" : ""}`}
                 >
                   {amount.label}
                 </Button>
@@ -227,6 +227,7 @@ export function TipModal({ isOpen, onClose, videoId, livestreamId, preselectedAm
           <Button
             onClick={handleSubmit}
             disabled={!isValidAmount || isLoading}
+            className="bg-[#c4ff0e] text-black font-bold hover:bg-[#b3e60d]"
           >
             {isLoading
               ? "Processing..."

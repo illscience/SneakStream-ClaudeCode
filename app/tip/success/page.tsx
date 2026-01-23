@@ -41,7 +41,10 @@ function TipSuccessContent() {
             </div>
           )}
 
-          <Button onClick={() => router.push("/")} className="w-full">
+          <Button
+            onClick={() => router.push("/")}
+            className="w-full bg-[#c4ff0e] text-black font-bold hover:bg-[#b3e60d]"
+          >
             Return Home
           </Button>
         </div>
