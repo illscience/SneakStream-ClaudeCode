@@ -108,7 +108,7 @@ export default function Home() {
           <LivestreamPPVGate
             livestreamId={activeStream._id}
             title={activeStream.title}
-            price={500} // $5.00 hardcoded
+            price={activeStream.price ?? 999}
           >
             <SyncedVideoPlayer
               videoId={activeStream._id}
