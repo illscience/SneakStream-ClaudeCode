@@ -207,7 +207,11 @@ export default function Home() {
             {/* Mobile - Video Only */}
             {!isDesktop && (
               <div className="lg:hidden space-y-3">
-                <div className="relative w-full aspect-video overflow-hidden rounded-2xl bg-zinc-900">
+                <div className={`relative w-full rounded-2xl bg-zinc-900 ${
+                  activeStream?.visibility === "ppv"
+                    ? ""  // PPV splash: let content determine height
+                    : "aspect-video overflow-hidden"  // Video: maintain 16:9 ratio
+                }`}>
                   {renderVideoContent()}
                 </div>
 
