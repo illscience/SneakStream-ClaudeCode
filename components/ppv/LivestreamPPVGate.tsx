@@ -64,7 +64,7 @@ export function LivestreamPPVGate({
   // Loading state
   if (!isLoaded) {
     return (
-      <div className="relative aspect-video bg-zinc-900 rounded-2xl overflow-hidden flex items-center justify-center">
+      <div className="relative min-h-[420px] sm:min-h-0 sm:aspect-video bg-zinc-900 rounded-2xl overflow-hidden flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-lime-400 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -87,7 +87,7 @@ export function LivestreamPPVGate({
           50% { transform: translateY(-6px); }
         }
       `}</style>
-    <div className="relative aspect-video bg-zinc-950 rounded-2xl overflow-hidden">
+    <div className="relative min-h-[420px] sm:min-h-0 sm:aspect-video bg-zinc-950 rounded-2xl overflow-hidden">
       {/* Animated gradient border */}
       <div className="absolute inset-0 rounded-2xl p-[2px] overflow-hidden">
         <div

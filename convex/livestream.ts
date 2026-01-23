@@ -93,7 +93,7 @@ export const startStream = mutation({
       playbackUrl: args.playbackUrl,
       rtmpIngestUrl: args.rtmpIngestUrl,
       visibility: "ppv", // Livestreams default to PPV
-      price: 999, // Default price $9.99
+      price: 500, // Default price $5.00
     });
 
     return streamId;
@@ -207,6 +207,19 @@ export const updateStreamTitle = mutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.streamId, {
       title: args.title,
+    });
+  },
+});
+
+// Update stream price (in cents)
+export const updateStreamPrice = mutation({
+  args: {
+    streamId: v.id("livestreams"),
+    price: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.streamId, {
+      price: args.price,
     });
   },
 });
