@@ -62,6 +62,14 @@ export const EMOTES: Emote[] = [
   { id: "image54.png", src: "/emotes/image54.png", alt: "Emote 54" },
   { id: "image55.png", src: "/emotes/image55.png", alt: "Emote 55" },
   { id: "image56.png", src: "/emotes/image56.png", alt: "Emote 56" },
+  { id: "image57.png", src: "/emotes/image57.png", alt: "Emote 57" },
+  { id: "image58.png", src: "/emotes/image58.png", alt: "Emote 58" },
+  { id: "image59.png", src: "/emotes/image59.png", alt: "Emote 59" },
+  { id: "image60.png", src: "/emotes/image60.png", alt: "Emote 60" },
+  { id: "image61.png", src: "/emotes/image61.png", alt: "Emote 61" },
+  { id: "image62.png", src: "/emotes/image62.png", alt: "Emote 62" },
+  { id: "image63.png", src: "/emotes/image63.png", alt: "Emote 63" },
+  { id: "image64.png", src: "/emotes/image64.png", alt: "Emote 64" },
 ];
 
 export const EMOTE_BY_ID = Object.fromEntries(
