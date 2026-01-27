@@ -331,9 +331,7 @@ export default function Home() {
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="flex-1 min-w-0">
-                          <Link href={`/watch/${defaultVideo._id}`} className="hover:text-lime-400 transition-colors">
-                            <h4 className="font-bold truncate">{defaultVideo.title}</h4>
-                          </Link>
+                          <h4 className="font-bold truncate">{defaultVideo.title}</h4>
                           {defaultVideo.description && (
                             <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1">{defaultVideo.description}</p>
                           )}
