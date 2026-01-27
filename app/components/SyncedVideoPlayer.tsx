@@ -184,6 +184,37 @@ export default function SyncedVideoPlayer({
     return () => video.removeEventListener('volumechange', handleVolumeChange);
   }, [onMutedChange]);
 
+  // Handle unexpected pauses (e.g., when app is backgrounded on mobile)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    let userInitiatedPause = false;
+
+    // Track user-initiated pauses via Media Session
+    navigator.mediaSession?.setActionHandler("pause", () => {
+      userInitiatedPause = true;
+      video.pause();
+      // Reset after a short delay
+      setTimeout(() => {
+        userInitiatedPause = false;
+      }, 1000);
+    });
+
+    const handlePause = () => {
+      // If page is visible and pause wasn't user-initiated, try to resume
+      if (document.visibilityState === "visible" && !userInitiatedPause && !video.ended) {
+        console.log("[SyncedVideoPlayer] Unexpected pause detected, attempting to resume...");
+        video.play().catch((err) => {
+          console.log("[SyncedVideoPlayer] Resume after unexpected pause failed:", err.message);
+        });
+      }
+    };
+
+    video.addEventListener("pause", handlePause);
+    return () => video.removeEventListener("pause", handlePause);
+  }, []);
+
   // Prevent user from pausing or seeking (only for synced playback)
   useEffect(() => {
     if (!videoRef.current || !enableSync) return;
@@ -228,8 +259,10 @@ export default function SyncedVideoPlayer({
     const video = videoRef.current;
     if (!video) return;
 
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (document.visibilityState === "visible" && video.paused) {
+        console.log("[SyncedVideoPlayer] Page visible, attempting to resume playback...");
+
         // Re-sync position when coming back from background (only for synced playback)
         if (enableSync && defaultVideo && defaultVideo.startTime !== undefined) {
           const startTime = defaultVideo.startTime;
@@ -240,12 +273,19 @@ export default function SyncedVideoPlayer({
           video.currentTime = correctPosition;
         }
 
-        // Attempt to resume playback
-        const playPromise = video.play();
-        if (playPromise) {
-          playPromise.catch((error) => {
-            console.log("Auto-play on visibility change blocked:", error);
-          });
+        // Retry playback with exponential backoff
+        const maxRetries = 3;
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+          try {
+            await video.play();
+            console.log("[SyncedVideoPlayer] Playback resumed successfully");
+            return;
+          } catch (error) {
+            console.log(`[SyncedVideoPlayer] Resume attempt ${attempt + 1} failed:`, error);
+            if (attempt < maxRetries - 1) {
+              await new Promise((resolve) => setTimeout(resolve, 100 * Math.pow(2, attempt)));
+            }
+          }
         }
       }
     };
@@ -279,6 +319,68 @@ export default function SyncedVideoPlayer({
       navigator.mediaSession.setActionHandler("pause", null);
     };
   }, [videoTitle]);
+
+  // Use Web Locks API to prevent page suspension during playback
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !("locks" in navigator)) return;
+
+    let lockHeld = false;
+    let abortController: AbortController | null = null;
+
+    const acquireLock = async () => {
+      if (lockHeld || video.paused || video.muted) return;
+
+      abortController = new AbortController();
+      try {
+        await navigator.locks.request(
+          `audio-playback-${videoId}`,
+          { signal: abortController.signal },
+          async () => {
+            lockHeld = true;
+            // Hold the lock until playback stops
+            return new Promise<void>((resolve) => {
+              const checkPlayback = () => {
+                if (video.paused || video.muted) {
+                  lockHeld = false;
+                  resolve();
+                } else {
+                  setTimeout(checkPlayback, 1000);
+                }
+              };
+              checkPlayback();
+            });
+          }
+        );
+      } catch {
+        // Lock was aborted or failed - that's okay
+      }
+    };
+
+    const releaseLock = () => {
+      if (abortController) {
+        abortController.abort();
+        abortController = null;
+      }
+      lockHeld = false;
+    };
+
+    const handleVolumeChange = () => {
+      if (video.muted) releaseLock();
+      else acquireLock();
+    };
+
+    video.addEventListener("play", acquireLock);
+    video.addEventListener("pause", releaseLock);
+    video.addEventListener("volumechange", handleVolumeChange);
+
+    return () => {
+      releaseLock();
+      video.removeEventListener("play", acquireLock);
+      video.removeEventListener("pause", releaseLock);
+      video.removeEventListener("volumechange", handleVolumeChange);
+    };
+  }, [videoId]);
 
   const toggleFullscreen = () => {
     const video = videoRef.current;
