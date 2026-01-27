@@ -81,6 +81,7 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const hasSyncedUserRef = useRef(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Chat functionality
   const { results: messages, status, loadMore } = usePaginatedQuery(
@@ -277,6 +278,8 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
         URL.revokeObjectURL(imagePreview)
       }
       setImagePreview(null)
+      // Blur textarea to reset mobile viewport zoom
+      textareaRef.current?.blur()
     } catch (error) {
       console.error("Failed to send message:", error)
       setOptimisticMessages((prev) => prev.filter((m) => m._id !== optimisticId))
@@ -411,6 +414,7 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
           <div className="flex-1 flex flex-col gap-2">
             <div className="relative">
               <textarea
+                ref={textareaRef}
                 value={newMessage}
                 onChange={(e) => {
                   setNewMessage(e.target.value)
@@ -423,7 +427,7 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
                 }}
                 onPaste={handlePaste}
                 placeholder="Type a message or paste an image..."
-                className="w-full bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#c4ff0e] border border-zinc-800 min-h-[44px] resize-none"
+                className="w-full bg-zinc-900 text-white text-base md:text-sm rounded-lg px-3 py-2 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#c4ff0e] border border-zinc-800 min-h-[44px] resize-none"
                 rows={2}
               />
               {showMentionPopup && (
