@@ -33,7 +33,7 @@ export function PPVGate({
   // Admin bypass - admins can view any content without entitlement
   const isAdmin = useQuery(
     api.adminSettings.checkIsAdmin,
-    userId ? { clerkId: userId } : "skip"
+    userId ? {} : "skip"
   );
 
   // Show loading state while auth is loading

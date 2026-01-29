@@ -39,7 +39,7 @@ export default function MainNav() {
   // Check if current user is admin
   const isAdmin = useQuery(
     api.adminSettings.checkIsAdmin,
-    user?.id ? { clerkId: user.id } : "skip"
+    user?.id ? {} : "skip"
   );
 
   // Check if current user is the one streaming

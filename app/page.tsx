@@ -54,7 +54,7 @@ export default function Home() {
   const unfollowUser = useMutation(api.follows.unfollowUser);
   const isFollowing = useQuery(
     api.follows.isFollowing,
-    user?.id && streamerId ? { followerId: user.id, followingId: streamerId } : "skip"
+    user?.id && streamerId ? { followingId: streamerId } : "skip"
   );
   const followerCount = useQuery(
     api.users.getFollowerCount,
@@ -169,12 +169,10 @@ export default function Home() {
 
     if (isFollowing) {
       await unfollowUser({
-        followerId: user.id,
         followingId: streamerId,
       });
     } else {
       await followUser({
-        followerId: user.id,
         followingId: streamerId,
       });
     }

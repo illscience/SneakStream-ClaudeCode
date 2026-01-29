@@ -73,10 +73,6 @@ export default function ChatWindow() {
       }
 
       await sendMessage({
-        user: displayName,
-        userId: user?.id,
-        userName: displayName,
-        avatarUrl: user?.imageUrl,
         body: newMessage.trim(),
         imageStorageId: uploadedStorageId,
         imageMimeType: uploadedMimeType || imageFile?.type,

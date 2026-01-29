@@ -1,7 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireAdmin } from "./adminSettings";
 
-// Update the playback state (called by the server/admin)
+// Update the playback state (admin only)
 export const updatePlaybackState = mutation({
   args: {
     videoId: v.id("videos"),
@@ -9,6 +10,8 @@ export const updatePlaybackState = mutation({
     isPlaying: v.boolean(),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can control playback state
+    await requireAdmin(ctx);
     // Get existing playback state
     const existingState = await ctx.db
       .query("playbackState")
@@ -55,12 +58,15 @@ export const getPlaybackState = query({
   },
 });
 
-// Initialize playback state when a video is set as default
+// Initialize playback state when a video is set as default (admin only)
 export const initializePlaybackState = mutation({
   args: {
     videoId: v.id("videos"),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can initialize playback state
+    await requireAdmin(ctx);
+
     const existingState = await ctx.db
       .query("playbackState")
       .first();

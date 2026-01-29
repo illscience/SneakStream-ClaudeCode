@@ -1,19 +1,34 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
+import { getAuthenticatedUser } from "./adminSettings";
 
 export const createTip = mutation({
   args: {
-    senderId: v.string(),
     amount: v.number(),
     message: v.optional(v.string()),
     emoji: v.optional(v.string()),
     videoId: v.optional(v.id("videos")),
     livestreamId: v.optional(v.id("livestreams")),
     stripeSessionId: v.string(),
+    // Optional: passed from authenticated API routes
+    senderId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Get sender ID from auth, or use server-provided ID
+    // Server-provided ID is trusted because API routes authenticate via Clerk
+    let senderId: string;
+    const authUser = await ctx.auth.getUserIdentity();
+    if (authUser) {
+      senderId = authUser.subject;
+    } else if (args.senderId) {
+      // Server-side call from authenticated API route
+      senderId = args.senderId;
+    } else {
+      throw new Error("Not authenticated");
+    }
+
     const tipId = await ctx.db.insert("tips", {
-      senderId: args.senderId,
+      senderId,
       amount: args.amount,
       message: args.message,
       emoji: args.emoji,
@@ -27,6 +42,7 @@ export const createTip = mutation({
   },
 });
 
+// Called from Stripe webhook handler - security via session ID lookup
 export const completeTip = mutation({
   args: {
     stripeSessionId: v.string(),
@@ -80,6 +96,7 @@ export const completeTip = mutation({
   },
 });
 
+// Called from Stripe webhook handler - security via session ID lookup
 export const failTip = mutation({
   args: {
     stripeSessionId: v.string(),

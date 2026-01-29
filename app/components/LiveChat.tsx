@@ -107,7 +107,7 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
   const userSelectedAvatar = convexUser?.selectedAvatar || null
   const isAdmin = useQuery(
     api.adminSettings.checkIsAdmin,
-    user?.id ? { clerkId: user.id } : "skip"
+    user?.id ? {} : "skip"
   )
   const resolvedAvatar = userSelectedAvatar || user?.imageUrl || undefined
   const isSignedIn = Boolean(user?.id)
@@ -135,7 +135,7 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
     setLoveAnimatingId(messageId)
     setTimeout(() => setLoveAnimatingId(null), 300)
     try {
-      await loveMessage({ messageId: messageId as Id<"messages">, clerkId: user.id })
+      await loveMessage({ messageId: messageId as Id<"messages"> })
     } catch (error) {
       console.error("Failed to love message:", error)
     }
@@ -162,10 +162,6 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
 
     try {
       await sendMessage({
-        user: user.id,
-        userId: user.id,
-        userName: displayName,
-        avatarUrl: resolvedAvatar,
         body: `:emote:${emote.id}`,
       })
       setOptimisticMessages((prev) => prev.filter((m) => m._id !== optimisticId))
@@ -264,10 +260,6 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
       }
 
       await sendMessage({
-        user: user.id,
-        userId: user.id,
-        userName: displayName,
-        avatarUrl: resolvedAvatar,
         body: messageText || "",
         imageStorageId: uploadedStorageId,
         imageMimeType: uploadedMimeType || imageFile?.type,
@@ -339,7 +331,6 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
     hasSyncedUserRef.current = true
     const fallbackAlias = user.username || user.firstName || "User"
     upsertUser({
-      clerkId: user.id,
       alias: fallbackAlias,
       email: user.primaryEmailAddress?.emailAddress,
       imageUrl: user.imageUrl,

@@ -21,10 +21,9 @@ export default function LivepeerUploadPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const createVideo = useMutation(api.videos.createVideo);
-  const updateVideoStatus = useMutation(api.videos.updateVideoStatus);
   const isAdmin = useQuery(
     api.adminSettings.checkIsAdmin,
-    user?.id ? { clerkId: user.id } : "skip"
+    user?.id ? {} : "skip"
   );
 
   useEffect(() => {
@@ -96,23 +95,12 @@ export default function LivepeerUploadPage() {
       });
 
       const videoId = await createVideo({
-        userId: ADMIN_LIBRARY_USER_ID,
-        uploadedBy: user.id,
         title,
         description,
         visibility,
         provider: "livepeer",
         assetId: livepeerAsset.id,
-        uploadId: undefined,
         playbackId: livepeerAsset.playbackId || undefined,
-        playbackUrl: undefined,
-      });
-
-      setUploadProgress(90);
-
-      await updateVideoStatus({
-        videoId,
-        status: "processing",
       });
 
       setUploadProgress(100);

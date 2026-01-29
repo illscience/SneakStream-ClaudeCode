@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { requireAdmin } from "./adminSettings";
 
 // Get all events, sorted by searchedAt (newest first)
 export const getAllEvents = query({
@@ -34,7 +35,7 @@ export const getEventsByArtists = query({
   },
 });
 
-// Add a new event (or update if duplicate)
+// Add a new event (or update if duplicate) - called from events/search API route
 export const addEvent = mutation({
   args: {
     artist: v.string(),
@@ -117,8 +118,8 @@ export const addEvent = mutation({
   },
 });
 
-// Bulk add events
-export const addEvents = mutation({
+// INTERNAL: Bulk add events - called from API route
+export const addEvents = internalMutation({
   args: {
     events: v.array(
       v.object({
@@ -215,20 +216,26 @@ export const addEvents = mutation({
   },
 });
 
-// Delete a specific event
+// Delete a specific event (admin only)
 export const deleteEvent = mutation({
   args: {
     eventId: v.id("events"),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can delete events
+    await requireAdmin(ctx);
+
     await ctx.db.delete(args.eventId);
     return { success: true };
   },
 });
 
-// Delete all events
+// Delete all events (admin only)
 export const deleteAllEvents = mutation({
   handler: async (ctx) => {
+    // SECURITY: Only admins can delete all events
+    await requireAdmin(ctx);
+
     const allEvents = await ctx.db.query("events").collect();
 
     for (const event of allEvents) {
@@ -239,9 +246,12 @@ export const deleteAllEvents = mutation({
   },
 });
 
-// Delete old events (older than 90 days)
+// Delete old events (older than 90 days) - admin only
 export const cleanupOldEvents = mutation({
   handler: async (ctx) => {
+    // SECURITY: Only admins can run cleanup operations
+    await requireAdmin(ctx);
+
     const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
 
     const oldEvents = await ctx.db

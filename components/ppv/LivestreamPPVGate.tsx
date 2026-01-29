@@ -32,7 +32,7 @@ export function LivestreamPPVGate({
   // Admin bypass - admins can view any stream without entitlement
   const isAdmin = useQuery(
     api.adminSettings.checkIsAdmin,
-    userId ? { clerkId: userId } : "skip"
+    userId ? {} : "skip"
   );
 
   const handlePurchase = async () => {

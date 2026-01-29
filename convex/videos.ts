@@ -1,12 +1,10 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
-import { ADMIN_LIBRARY_USER_ID } from "./adminSettings";
+import { ADMIN_LIBRARY_USER_ID, requireAdmin, getAuthenticatedUser, getOptionalAuthenticatedUser } from "./adminSettings";
 
-// Create a new video entry
+// Create a new video entry (admin only)
 export const createVideo = mutation({
   args: {
-    userId: v.string(),
-    uploadedBy: v.optional(v.string()),
     title: v.string(),
     description: v.optional(v.string()),
     assetId: v.optional(v.string()),
@@ -22,9 +20,11 @@ export const createVideo = mutation({
     playbackPolicy: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { provider, assetId, livepeerAssetId, price, playbackPolicy, ...rest } = args;
-    const resolvedProvider = provider || (livepeerAssetId ? "livepeer" : "mux");
-    const resolvedAssetId = assetId || livepeerAssetId || undefined;
+    // SECURITY: Only admins can create videos
+    const uploadedBy = await requireAdmin(ctx);
+
+    const resolvedProvider = args.provider || (args.livepeerAssetId ? "livepeer" : "mux");
+    const resolvedAssetId = args.assetId || args.livepeerAssetId || undefined;
 
     if (resolvedAssetId) {
       const existing = await ctx.db
@@ -39,20 +39,29 @@ export const createVideo = mutation({
     }
 
     return await ctx.db.insert("videos", {
-      ...rest,
+      userId: ADMIN_LIBRARY_USER_ID,
+      uploadedBy,
+      title: args.title,
+      description: args.description,
       assetId: resolvedAssetId,
-      uploadedBy: args.uploadedBy,
-      ...(livepeerAssetId ? { livepeerAssetId } : {}),
+      ...(args.livepeerAssetId ? { livepeerAssetId: args.livepeerAssetId } : {}),
+      uploadId: args.uploadId,
       provider: resolvedProvider,
+      playbackId: args.playbackId,
+      playbackUrl: args.playbackUrl,
+      thumbnailUrl: args.thumbnailUrl,
+      duration: args.duration,
+      visibility: args.visibility,
       status: "processing",
       viewCount: 0,
-      ...(price !== undefined ? { price } : {}),
-      ...(playbackPolicy ? { playbackPolicy } : {}),
+      ...(args.price !== undefined ? { price: args.price } : {}),
+      ...(args.playbackPolicy ? { playbackPolicy: args.playbackPolicy } : {}),
     });
   },
 });
 
-// Upsert a Mux asset into the videos collection
+// INTERNAL: Upsert a Mux asset into the videos collection (called by webhook)
+// Called from Mux webhook - security via webhook signature verification
 export const upsertMuxAsset = mutation({
   args: {
     assetId: v.string(),
@@ -174,7 +183,25 @@ export const upsertMuxAsset = mutation({
   },
 });
 
-// Update video status
+// INTERNAL: Update video status (called by webhook)
+export const updateVideoStatusInternal = internalMutation({
+  args: {
+    videoId: v.id("videos"),
+    status: v.string(),
+    playbackId: v.optional(v.string()),
+    playbackUrl: v.optional(v.string()),
+    thumbnailUrl: v.optional(v.string()),
+    duration: v.optional(v.number()),
+    progress: v.optional(v.number()),
+    assetId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { videoId, ...updates } = args;
+    await ctx.db.patch(videoId, updates);
+  },
+});
+
+// Update video status (admin only)
 export const updateVideoStatus = mutation({
   args: {
     videoId: v.id("videos"),
@@ -187,6 +214,8 @@ export const updateVideoStatus = mutation({
     assetId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can update video status
+    await requireAdmin(ctx);
     const { videoId, ...updates } = args;
     await ctx.db.patch(videoId, updates);
   },
@@ -237,13 +266,16 @@ export const getAdminLibraryVideos = query({
   },
 });
 
-// One-time migration: Move admin's videos to shared library
+// One-time migration: Move admin's videos to shared library (admin only)
 export const migrateVideosToSharedLibrary = mutation({
   args: {
     sourceUserId: v.string(),
     batchSize: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can run migrations
+    await requireAdmin(ctx);
+
     const batchSize = args.batchSize ?? 50;
     const videos = await ctx.db
       .query("videos")
@@ -295,14 +327,19 @@ export const getPublicVideos = query({
 
 // Get videos from followed users
 export const getFollowingVideos = query({
-  args: { userId: v.string(), limit: v.optional(v.number()) },
+  args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
+    const userId = await getOptionalAuthenticatedUser(ctx);
+    if (!userId) {
+      return [];
+    }
+
     const limit = args.limit || 20;
 
     // Get list of users being followed
     const follows = await ctx.db
       .query("follows")
-      .withIndex("by_follower", (q) => q.eq("followerId", args.userId))
+      .withIndex("by_follower", (q) => q.eq("followerId", userId))
       .collect();
 
     const followingIds = follows.map((f) => f.followingId);
@@ -349,15 +386,18 @@ export const incrementHeartCount = mutation({
   },
 });
 
-// Delete video
+// Delete video (admin only)
 export const deleteVideo = mutation({
   args: { videoId: v.id("videos") },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can delete videos
+    await requireAdmin(ctx);
+
     await ctx.db.delete(args.videoId);
   },
 });
 
-// Update video details
+// Update video details (admin only)
 export const updateVideo = mutation({
   args: {
     videoId: v.id("videos"),
@@ -366,15 +406,21 @@ export const updateVideo = mutation({
     visibility: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can update videos
+    await requireAdmin(ctx);
+
     const { videoId, ...updates } = args;
     await ctx.db.patch(videoId, updates);
   },
 });
 
-// Set a video as the default video to play when no live stream is active
+// Set a video as the default video to play when no live stream is active (admin only)
 export const setDefaultVideo = mutation({
   args: { videoId: v.id("videos") },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can set default video
+    await requireAdmin(ctx);
+
     // First, unset any existing default video
     const currentDefault = await ctx.db
       .query("videos")
@@ -413,10 +459,13 @@ export const setDefaultVideo = mutation({
   },
 });
 
-// Unset the default video
+// Unset the default video (admin only)
 export const unsetDefaultVideo = mutation({
   args: { videoId: v.id("videos") },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can unset default video
+    await requireAdmin(ctx);
+
     await ctx.db.patch(args.videoId, { isDefault: false });
   },
 });

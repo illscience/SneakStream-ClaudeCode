@@ -17,7 +17,7 @@ export default function GoLivePage() {
   // Check if user is admin
   const isAdmin = useQuery(
     api.adminSettings.checkIsAdmin,
-    user?.id ? { clerkId: user.id } : "skip"
+    user?.id ? {} : "skip"
   );
 
   // Redirect if not admin

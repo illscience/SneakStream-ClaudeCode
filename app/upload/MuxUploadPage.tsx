@@ -30,7 +30,7 @@ export default function MuxUploadPage() {
   const updateVideoStatus = useMutation(api.videos.updateVideoStatus);
   const isAdmin = useQuery(
     api.adminSettings.checkIsAdmin,
-    user?.id ? { clerkId: user.id } : "skip"
+    user?.id ? {} : "skip"
   );
 
   useEffect(() => () => {
@@ -109,8 +109,6 @@ export default function MuxUploadPage() {
       if (!createdVideoId && statusData.assetId) {
         const priceInCents = visibility === "ppv" && price ? Math.round(parseFloat(price) * 100) : undefined;
         createdVideoId = await createVideo({
-          userId: ADMIN_LIBRARY_USER_ID,
-          uploadedBy: user!.id,
           title,
           description,
           visibility,

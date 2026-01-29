@@ -1,15 +1,30 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
+import { getAuthenticatedUser } from "./adminSettings";
 
 export const createPurchase = mutation({
   args: {
-    buyerId: v.string(),
     videoId: v.optional(v.id("videos")),
     livestreamId: v.optional(v.id("livestreams")),
     amount: v.number(),
     stripeSessionId: v.string(),
+    // Optional: passed from authenticated API routes
+    buyerId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Get buyer ID from auth, or use server-provided ID
+    // Server-provided ID is trusted because API routes authenticate via Clerk
+    let buyerId: string;
+    const authUser = await ctx.auth.getUserIdentity();
+    if (authUser) {
+      buyerId = authUser.subject;
+    } else if (args.buyerId) {
+      // Server-side call from authenticated API route
+      buyerId = args.buyerId;
+    } else {
+      throw new Error("Not authenticated");
+    }
+
     // Must specify at least one content type
     if (!args.videoId && !args.livestreamId) {
       throw new Error("Must specify either videoId or livestreamId");
@@ -26,7 +41,7 @@ export const createPurchase = mutation({
     }
 
     const purchaseId = await ctx.db.insert("purchases", {
-      buyerId: args.buyerId,
+      buyerId,
       videoId: args.videoId,
       livestreamId: args.livestreamId,
       amount: args.amount,
@@ -39,6 +54,7 @@ export const createPurchase = mutation({
   },
 });
 
+// Called from Stripe webhook handler - security via session ID lookup
 export const completePurchase = mutation({
   args: {
     stripeSessionId: v.string(),
@@ -101,6 +117,7 @@ export const completePurchase = mutation({
   },
 });
 
+// Called from Stripe webhook handler - security via session ID lookup
 export const failPurchase = mutation({
   args: {
     stripeSessionId: v.string(),

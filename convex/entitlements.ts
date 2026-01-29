@@ -298,11 +298,9 @@ export const getLivestreamEntitlements = query({
 
 // Get all entitlements with user and content info (admin only)
 export const getAllEntitlements = query({
-  args: {
-    clerkId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.clerkId);
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
 
     const entitlements = await ctx.db.query("entitlements").order("desc").collect();
 
@@ -347,11 +345,9 @@ export const getAllEntitlements = query({
 
 // Get all PPV videos for admin dropdown (admin only)
 export const getPPVVideos = query({
-  args: {
-    clerkId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.clerkId);
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
 
     // Get all videos that are PPV or have signed playback
     const allVideos = await ctx.db.query("videos").order("desc").collect();
@@ -370,11 +366,9 @@ export const getPPVVideos = query({
 
 // Get all PPV livestreams for admin dropdown (admin only)
 export const getPPVLivestreams = query({
-  args: {
-    clerkId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.clerkId);
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
 
     const allLivestreams = await ctx.db.query("livestreams").order("desc").collect();
 
@@ -394,11 +388,10 @@ export const getPPVLivestreams = query({
 // Get all videos for admin (for testing bundled entitlements)
 export const getAllVideosForAdmin = query({
   args: {
-    clerkId: v.string(),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.clerkId);
+    await requireAdmin(ctx);
 
     const limit = args.limit ?? 50;
     const videos = await ctx.db.query("videos").order("desc").take(limit);
@@ -417,11 +410,10 @@ export const getAllVideosForAdmin = query({
 // Get all livestreams for admin
 export const getAllLivestreamsForAdmin = query({
   args: {
-    clerkId: v.string(),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.clerkId);
+    await requireAdmin(ctx);
 
     const limit = args.limit ?? 50;
     const livestreams = await ctx.db.query("livestreams").order("desc").take(limit);
@@ -440,13 +432,12 @@ export const getAllLivestreamsForAdmin = query({
 // Admin grant entitlement (with admin check)
 export const adminGrantEntitlement = mutation({
   args: {
-    clerkId: v.string(), // Admin's clerkId
     targetUserId: v.string(), // User to grant entitlement to
     videoId: v.optional(v.id("videos")),
     livestreamId: v.optional(v.id("livestreams")),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.clerkId);
+    const adminClerkId = await requireAdmin(ctx);
 
     if (!args.videoId && !args.livestreamId) {
       throw new Error("Must specify either videoId or livestreamId");
@@ -482,7 +473,7 @@ export const adminGrantEntitlement = mutation({
       videoId: args.videoId,
       livestreamId: args.livestreamId,
       grantedAt: Date.now(),
-      grantedBy: args.clerkId,
+      grantedBy: adminClerkId,
     });
   },
 });
@@ -490,11 +481,10 @@ export const adminGrantEntitlement = mutation({
 // Admin revoke entitlement
 export const adminRevokeEntitlement = mutation({
   args: {
-    clerkId: v.string(),
     entitlementId: v.id("entitlements"),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.clerkId);
+    await requireAdmin(ctx);
 
     const entitlement = await ctx.db.get(args.entitlementId);
     if (!entitlement) {
@@ -509,13 +499,12 @@ export const adminRevokeEntitlement = mutation({
 // Admin update video PPV settings
 export const adminUpdateVideoPPV = mutation({
   args: {
-    clerkId: v.string(),
     videoId: v.id("videos"),
     visibility: v.string(), // "public" | "ppv" | "private" | "followers"
     price: v.optional(v.number()), // Price in cents (required if visibility is "ppv")
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.clerkId);
+    await requireAdmin(ctx);
 
     const video = await ctx.db.get(args.videoId);
     if (!video) {
@@ -546,13 +535,12 @@ export const adminUpdateVideoPPV = mutation({
 // Admin update livestream PPV settings
 export const adminUpdateLivestreamPPV = mutation({
   args: {
-    clerkId: v.string(),
     livestreamId: v.id("livestreams"),
     visibility: v.string(), // "public" | "ppv"
     price: v.optional(v.number()), // Price in cents (required if visibility is "ppv")
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.clerkId);
+    await requireAdmin(ctx);
 
     const livestream = await ctx.db.get(args.livestreamId);
     if (!livestream) {

@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireAdmin, getAuthenticatedUser } from "./adminSettings";
 
 // Get the current playlist ordered by position
 export const getPlaylist = query({
@@ -49,15 +50,15 @@ export const getNextInPlaylist = query({
   },
 });
 
-// Add a video to the playlist
+// Add a video to the playlist (admin only)
 export const addToPlaylist = mutation({
   args: {
     videoId: v.id("videos"),
     position: v.optional(v.number()),
-    addedBy: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const addedBy = args.addedBy ?? "unknown";
+    // SECURITY: Only admins can modify the playlist
+    const addedBy = await requireAdmin(ctx);
     // If no position specified, add to end
     let targetPosition = args.position;
     
@@ -95,12 +96,15 @@ export const addToPlaylist = mutation({
   },
 });
 
-// Play a video immediately (switches all viewers now)
+// Play a video immediately (switches all viewers now) - admin only
 export const playNow = mutation({
   args: {
     videoId: v.id("videos"),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can control playback
+    await requireAdmin(ctx);
+
     // Get the video
     const video = await ctx.db.get(args.videoId);
     if (!video || video.status !== "ready") {
@@ -158,14 +162,14 @@ export const playNow = mutation({
   },
 });
 
-// Queue video to play next (position 0)
+// Queue video to play next (position 0) - admin only
 export const playNext = mutation({
   args: {
     videoId: v.id("videos"),
-    addedBy: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const addedBy = args.addedBy ?? "unknown";
+    // SECURITY: Only admins can control the playlist
+    const addedBy = await requireAdmin(ctx);
     // Check if video already exists in playlist
     const existingEntry = await ctx.db
       .query("playlist")
@@ -222,12 +226,15 @@ export const playNext = mutation({
   },
 });
 
-// Remove a video from the playlist
+// Remove a video from the playlist (admin only)
 export const removeFromPlaylist = mutation({
   args: {
     playlistId: v.id("playlist"),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can modify the playlist
+    await requireAdmin(ctx);
+
     const entry = await ctx.db.get(args.playlistId);
     if (!entry) return;
 
@@ -249,13 +256,16 @@ export const removeFromPlaylist = mutation({
   },
 });
 
-// Reorder a playlist entry
+// Reorder a playlist entry (admin only)
 export const reorderPlaylist = mutation({
   args: {
     playlistId: v.id("playlist"),
     newPosition: v.number(),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can reorder the playlist
+    await requireAdmin(ctx);
+
     const entry = await ctx.db.get(args.playlistId);
     if (!entry) return;
 
@@ -299,10 +309,13 @@ export const reorderPlaylist = mutation({
   },
 });
 
-// Advance to the next video in playlist (called when current video ends)
+// Advance to the next video in playlist (admin only - called when current video ends)
 export const advancePlaylist = mutation({
   args: {},
   handler: async (ctx) => {
+    // SECURITY: Only admins can advance the playlist
+    await requireAdmin(ctx);
+
     // Get the next queued video
     const nextEntry = await ctx.db
       .query("playlist")

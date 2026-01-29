@@ -47,8 +47,6 @@ export default function LivepeerGoLivePage() {
       const streamData = await streamResponse.json();
 
       await startStream({
-        userId: user.id,
-        userName: user.fullName || user.username || "Anonymous",
         title: streamTitle || "Live Stream",
         description: streamDescription,
         provider: "livepeer",
@@ -72,7 +70,7 @@ export default function LivepeerGoLivePage() {
     if (!activeStream) return;
     setIsLoading(true);
     try {
-      await endStream({ streamId: activeStream._id, userId: user?.id });
+      await endStream({ streamId: activeStream._id });
     } catch (error) {
       console.error("Failed to end stream:", error);
     }

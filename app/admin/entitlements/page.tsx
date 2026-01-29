@@ -58,30 +58,30 @@ export default function EntitlementsAdminPage() {
   // Admin check
   const isAdmin = useQuery(
     api.adminSettings.checkIsAdmin,
-    user?.id ? { clerkId: user.id } : "skip"
+    user?.id ? {} : "skip"
   );
 
   // Data queries
   const entitlements = useQuery(
     api.entitlements.getAllEntitlements,
-    isAdmin && user?.id ? { clerkId: user.id } : "skip"
+    isAdmin && user?.id ? {} : "skip"
   );
 
   const searchResults = useQuery(
     api.adminSettings.searchUsersForAdmin,
     isAdmin && user?.id && userSearchTerm.trim().length > 0
-      ? { clerkId: user.id, searchTerm: userSearchTerm }
+      ? { searchTerm: userSearchTerm }
       : "skip"
   );
 
   const videos = useQuery(
     api.entitlements.getAllVideosForAdmin,
-    isAdmin && user?.id ? { clerkId: user.id, limit: 100 } : "skip"
+    isAdmin && user?.id ? { limit: 100 } : "skip"
   );
 
   const livestreams = useQuery(
     api.entitlements.getAllLivestreamsForAdmin,
-    isAdmin && user?.id ? { clerkId: user.id, limit: 100 } : "skip"
+    isAdmin && user?.id ? { limit: 100 } : "skip"
   );
 
   // Active livestream for quick toggle
@@ -134,7 +134,6 @@ export default function EntitlementsAdminPage() {
     setIsGranting(true);
     try {
       await grantEntitlement({
-        clerkId: user.id,
         targetUserId: selectedUserId,
         ...(contentType === "video"
           ? { videoId: selectedContentId as Id<"videos"> }
@@ -161,7 +160,6 @@ export default function EntitlementsAdminPage() {
     setIsRevoking(entitlementId);
     try {
       await revokeEntitlement({
-        clerkId: user.id,
         entitlementId,
       });
       showNotification("Entitlement revoked", "success");
@@ -207,7 +205,6 @@ export default function EntitlementsAdminPage() {
     setIsTogglingActive(true);
     try {
       await updateLivestreamPPV({
-        clerkId: user.id,
         livestreamId: activeStream._id,
         visibility: newVisibility,
         price: newVisibility === "ppv" ? (activeStream.price || 500) : undefined,
@@ -240,14 +237,12 @@ export default function EntitlementsAdminPage() {
     try {
       if (ppvContentType === "video") {
         await updateVideoPPV({
-          clerkId: user.id,
           videoId: ppvContentId as Id<"videos">,
           visibility: ppvVisibility,
           price: priceInCents,
         });
       } else {
         await updateLivestreamPPV({
-          clerkId: user.id,
           livestreamId: ppvContentId as Id<"livestreams">,
           visibility: ppvVisibility,
           price: priceInCents,

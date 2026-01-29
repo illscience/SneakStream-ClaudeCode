@@ -20,7 +20,7 @@ export default function LibraryPage() {
   const [notification, setNotification] = useState<string | null>(null);
   const isAdmin = useQuery(
     api.adminSettings.checkIsAdmin,
-    user?.id ? { clerkId: user.id } : "skip"
+    user?.id ? {} : "skip"
   );
 
   const videos = useQuery(
