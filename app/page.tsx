@@ -5,6 +5,7 @@ import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
 import VideoTimer from "./components/VideoTimer";
 import MainNav from "@/components/navigation/MainNav";
 import LiveChat from "./components/LiveChat";
+import { LivestreamPPVGate } from "@/components/ppv/LivestreamPPVGate";
 import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
@@ -53,7 +54,7 @@ export default function Home() {
   const unfollowUser = useMutation(api.follows.unfollowUser);
   const isFollowing = useQuery(
     api.follows.isFollowing,
-    user?.id && streamerId ? { followerId: user.id, followingId: streamerId } : "skip"
+    user?.id && streamerId ? { followingId: streamerId } : "skip"
   );
   const followerCount = useQuery(
     api.users.getFollowerCount,
@@ -101,6 +102,28 @@ export default function Home() {
 
   const renderVideoContent = () => {
     if (activeStream && activeStream.playbackUrl) {
+      // PPV livestream - wrap with paywall
+      if (activeStream.visibility === "ppv") {
+        return (
+          <LivestreamPPVGate
+            livestreamId={activeStream._id}
+            title={activeStream.title}
+            price={activeStream.price ?? 999}
+          >
+            <SyncedVideoPlayer
+              videoId={activeStream._id}
+              videoTitle={activeStream.title}
+              playbackUrl={activeStream.playbackUrl}
+              className="w-full h-full"
+              isMuted={isMuted}
+              onMutedChange={setIsMuted}
+              isLiveStream={true}
+            />
+          </LivestreamPPVGate>
+        );
+      }
+
+      // Public livestream - no paywall
       return (
         <SyncedVideoPlayer
           videoId={activeStream._id}
@@ -146,12 +169,10 @@ export default function Home() {
 
     if (isFollowing) {
       await unfollowUser({
-        followerId: user.id,
         followingId: streamerId,
       });
     } else {
       await followUser({
-        followerId: user.id,
         followingId: streamerId,
       });
     }
@@ -184,7 +205,11 @@ export default function Home() {
             {/* Mobile - Video Only */}
             {!isDesktop && (
               <div className="lg:hidden space-y-3">
-                <div className="relative w-full aspect-video overflow-hidden rounded-2xl bg-zinc-900">
+                <div className={`relative w-full rounded-2xl bg-zinc-900 ${
+                  activeStream?.visibility === "ppv"
+                    ? ""  // PPV splash: let content determine height
+                    : "aspect-video overflow-hidden"  // Video: maintain 16:9 ratio
+                }`}>
                   {renderVideoContent()}
                 </div>
 
@@ -304,9 +329,7 @@ export default function Home() {
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="flex-1 min-w-0">
-                          <Link href={`/watch/${defaultVideo._id}`} className="hover:text-lime-400 transition-colors">
-                            <h4 className="font-bold truncate">{defaultVideo.title}</h4>
-                          </Link>
+                          <h4 className="font-bold truncate">{defaultVideo.title}</h4>
                           {defaultVideo.description && (
                             <p className="text-xs text-zinc-400 mt-0.5 line-clamp-1">{defaultVideo.description}</p>
                           )}
@@ -369,7 +392,7 @@ export default function Home() {
         <div className="px-4 lg:px-8 pb-48 pt-4">
           <div className="flex justify-center">
             <div className="max-w-6xl w-full lg:static sticky top-24">
-              <LiveChat />
+              <LiveChat livestreamId={activeStream?._id} />
             </div>
           </div>
         </div>

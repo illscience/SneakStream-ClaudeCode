@@ -12,7 +12,7 @@ export default function VideoFeed({ limit }: { limit?: number }) {
   // Get videos from users the current user follows
   const followingVideos = useQuery(
     api.videos.getFollowingVideos,
-    user?.id ? { userId: user.id, limit: limit || 10 } : "skip"
+    user?.id ? { limit: limit || 10 } : "skip"
   );
 
   // Get public videos if not signed in or as fallback

@@ -15,12 +15,15 @@ import type {
 } from "convex/server";
 import type * as adminSettings from "../adminSettings.js";
 import type * as chat from "../chat.js";
+import type * as entitlements from "../entitlements.js";
 import type * as events from "../events.js";
 import type * as follows from "../follows.js";
 import type * as livestream from "../livestream.js";
 import type * as playbackState from "../playbackState.js";
 import type * as playlist from "../playlist.js";
+import type * as purchases from "../purchases.js";
 import type * as streamCredentials from "../streamCredentials.js";
+import type * as tips from "../tips.js";
 import type * as users from "../users.js";
 import type * as videos from "../videos.js";
 
@@ -35,12 +38,15 @@ import type * as videos from "../videos.js";
 declare const fullApi: ApiFromModules<{
   adminSettings: typeof adminSettings;
   chat: typeof chat;
+  entitlements: typeof entitlements;
   events: typeof events;
   follows: typeof follows;
   livestream: typeof livestream;
   playbackState: typeof playbackState;
   playlist: typeof playlist;
+  purchases: typeof purchases;
   streamCredentials: typeof streamCredentials;
+  tips: typeof tips;
   users: typeof users;
   videos: typeof videos;
 }>;

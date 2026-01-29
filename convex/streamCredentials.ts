@@ -1,10 +1,14 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { ADMIN_SHARED_CREDENTIALS_ID } from "./adminSettings";
+import { ADMIN_SHARED_CREDENTIALS_ID, requireAdmin } from "./adminSettings";
 
 // Get shared stream credentials (admin only)
 export const getSharedCredentials = query({
+  args: {},
   handler: async (ctx) => {
+    // SECURITY: Only admins can access stream credentials (RTMP keys, etc.)
+    await requireAdmin(ctx);
+
     return await ctx.db
       .query("streamCredentials")
       .withIndex("by_user", (q) => q.eq("userId", ADMIN_SHARED_CREDENTIALS_ID))
@@ -23,6 +27,9 @@ export const saveSharedCredentials = mutation({
     rtmpIngestUrl: v.string(),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can modify stream credentials
+    await requireAdmin(ctx);
+
     const existing = await ctx.db
       .query("streamCredentials")
       .withIndex("by_user", (q) => q.eq("userId", ADMIN_SHARED_CREDENTIALS_ID))
@@ -60,6 +67,9 @@ export const migrateToSharedCredentials = mutation({
     deleteOldRecord: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can run migrations
+    await requireAdmin(ctx);
+
     const userCreds = await ctx.db
       .query("streamCredentials")
       .withIndex("by_user", (q) => q.eq("userId", args.sourceUserId))

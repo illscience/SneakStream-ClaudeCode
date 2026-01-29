@@ -85,10 +85,8 @@ export async function POST(request: NextRequest) {
           title = `Stream Recording`;
         }
 
-        // Create video record
+        // Create video record (requires admin auth)
         await client.mutation(api.videos.createVideo, {
-          userId: ADMIN_LIBRARY_USER_ID,
-          uploadedBy: clerkId,
           title,
           description: `Imported from Mux${asset.live_stream_id ? ` (Stream ID: ${asset.live_stream_id})` : ""}`,
           provider: "mux",

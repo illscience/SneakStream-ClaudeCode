@@ -284,8 +284,6 @@ export default function MuxGoLivePage() {
     setIsLoading(true);
     try {
       await startStream({
-        userId: user.id,
-        userName: user.fullName || user.username || "DJ SNEAK",
         title: "DJ SNEAK Live",
         description: "Live DJ set",
         provider: "mux",
@@ -350,7 +348,6 @@ export default function MuxGoLivePage() {
       // End stream in Convex (mark as ended)
       await endStream({
         streamId: activeStream._id,
-        userId: user.id,
         assetId: assetData.assetId,
         playbackId: assetData.playbackId,
         duration: assetData.duration,

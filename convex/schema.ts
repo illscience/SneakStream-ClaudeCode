@@ -56,17 +56,21 @@ export default defineSchema({
     duration: v.optional(v.number()), // Duration in seconds
     status: v.string(), // "uploading", "processing", "ready", "failed"
     progress: v.optional(v.number()), // Processing progress (0-1)
-    visibility: v.string(), // "public", "private", "followers"
+    visibility: v.string(), // "public", "private", "followers", "ppv"
     viewCount: v.optional(v.number()),
     heartCount: v.optional(v.number()),
     isDefault: v.optional(v.boolean()), // Whether this is the default video to play
     startTime: v.optional(v.number()), // Timestamp (t0) when this video became default
+    price: v.optional(v.number()), // Price in cents for PPV videos
+    playbackPolicy: v.optional(v.string()), // "public" | "signed"
+    linkedLivestreamId: v.optional(v.id("livestreams")), // Link to source livestream for recordings
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"])
     .index("by_visibility", ["visibility"])
     .index("by_isDefault", ["isDefault"])
-    .index("by_assetId", ["assetId"]),
+    .index("by_assetId", ["assetId"])
+    .index("by_linkedLivestream", ["linkedLivestreamId"]),
 
   events: defineTable({
     artist: v.string(),
@@ -100,6 +104,10 @@ export default defineSchema({
     playbackId: v.optional(v.string()),
     playbackUrl: v.optional(v.string()),
     rtmpIngestUrl: v.optional(v.string()),
+    // PPV fields
+    visibility: v.optional(v.string()), // "public" | "ppv"
+    price: v.optional(v.number()), // Price in cents for PPV livestreams
+    recordingVideoId: v.optional(v.id("videos")), // Link to the recording after stream ends
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"])
@@ -146,4 +154,48 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_position", ["position"])
     .index("by_status_and_position", ["status", "position"]),
+
+  // Tips (all tips go to platform/DJ Sneak - single recipient)
+  tips: defineTable({
+    senderId: v.string(), // Clerk user ID of tipper
+    amount: v.number(), // Amount in cents
+    message: v.optional(v.string()),
+    emoji: v.optional(v.string()), // "fire", "heart", "rocket"
+    videoId: v.optional(v.id("videos")),
+    livestreamId: v.optional(v.id("livestreams")),
+    stripeSessionId: v.string(),
+    status: v.string(), // "pending" | "completed" | "failed"
+    createdAt: v.number(),
+  })
+    .index("by_livestream", ["livestreamId"])
+    .index("by_video", ["videoId"])
+    .index("by_status_created", ["status", "createdAt"])
+    .index("by_session", ["stripeSessionId"]),
+
+  // PPV Purchases
+  purchases: defineTable({
+    buyerId: v.string(), // Clerk user ID of buyer
+    videoId: v.optional(v.id("videos")), // Optional - for video purchases
+    livestreamId: v.optional(v.id("livestreams")), // Optional - for livestream purchases
+    amount: v.number(), // Amount in cents
+    stripeSessionId: v.string(),
+    status: v.string(), // "pending" | "completed" | "failed"
+    createdAt: v.number(),
+  })
+    .index("by_buyer_video", ["buyerId", "videoId"])
+    .index("by_buyer_livestream", ["buyerId", "livestreamId"])
+    .index("by_session", ["stripeSessionId"]),
+
+  // Entitlements (derived from purchases or admin grants)
+  entitlements: defineTable({
+    userId: v.string(), // Clerk user ID
+    // Content reference (one of these will be set)
+    videoId: v.optional(v.id("videos")),
+    livestreamId: v.optional(v.id("livestreams")),
+    grantedAt: v.number(),
+    grantedBy: v.string(), // "purchase" | admin clerkId
+  })
+    .index("by_user_video", ["userId", "videoId"])
+    .index("by_user_livestream", ["userId", "livestreamId"])
+    .index("by_user", ["userId"]),
 });

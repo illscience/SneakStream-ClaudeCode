@@ -116,6 +116,7 @@ async function upsertMuxAsset(event: MuxWebhookEvent) {
   let title = resolvedAsset.passthrough || eventAsset.passthrough || "Stream Recording";
   let description = "Recorded via Mux";
   let matchedStream = false;
+  let linkedLivestreamId: string | undefined;
 
   // Try to find the matching livestream record in Convex
   if (liveStreamId) {
@@ -136,6 +137,7 @@ async function upsertMuxAsset(event: MuxWebhookEvent) {
       uploadedBy = stream.startedBy || stream.userId;
       title = stream.title || title;
       description = stream.description || description;
+      linkedLivestreamId = stream._id; // Link recording to livestream for PPV bundling
     } else {
       console.log("[mux webhook] No matching livestream found in Convex", { liveStreamId });
     }
@@ -169,6 +171,7 @@ async function upsertMuxAsset(event: MuxWebhookEvent) {
     type: event.type,
     assetId: eventAsset.id,
     liveStreamId,
+    linkedLivestreamId,
     playbackId,
     status,
     userId,
@@ -188,6 +191,8 @@ async function upsertMuxAsset(event: MuxWebhookEvent) {
     status,
     visibility: "public",
     liveStreamId,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    linkedLivestreamId: linkedLivestreamId as any, // Convex ID passed through HTTP client
   });
 
   console.log("[mux webhook] Successfully upserted video record", {

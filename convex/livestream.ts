@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { ADMIN_LIBRARY_USER_ID } from "./adminSettings";
+import { ADMIN_LIBRARY_USER_ID, requireAdmin, getAuthenticatedUser } from "./adminSettings";
 
 // Get the current active stream
 export const getActiveStream = query({
@@ -40,11 +40,18 @@ export const getStreamByStreamId = query({
   },
 });
 
+// Get a livestream by its Convex ID
+export const getLivestream = query({
+  args: { livestreamId: v.id("livestreams") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.livestreamId);
+  },
+});
+
 // Start a new stream (end any existing active streams first)
+// Admin only - only admins can start streams
 export const startStream = mutation({
   args: {
-    userId: v.string(),
-    userName: v.string(),
     title: v.string(),
     description: v.optional(v.string()),
     provider: v.optional(v.string()),
@@ -55,6 +62,16 @@ export const startStream = mutation({
     rtmpIngestUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can start streams
+    const userId = await requireAdmin(ctx);
+
+    // Look up user info for userName
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", userId))
+      .first();
+    const userName = user?.alias ?? "Admin";
+
     // First, end any existing active streams
     const existingActiveStreams = await ctx.db
       .query("livestreams")
@@ -68,11 +85,11 @@ export const startStream = mutation({
       });
     }
 
-    // Create new stream
-    const streamId = await ctx.db.insert("livestreams", {
-      userId: args.userId,
-      userName: args.userName,
-      startedBy: args.userId,
+    // Create new stream (default to PPV)
+    const newStreamId = await ctx.db.insert("livestreams", {
+      userId,
+      userName,
+      startedBy: userId,
       title: args.title,
       description: args.description,
       status: "active",
@@ -84,22 +101,27 @@ export const startStream = mutation({
       playbackId: args.playbackId,
       playbackUrl: args.playbackUrl,
       rtmpIngestUrl: args.rtmpIngestUrl,
+      visibility: "ppv", // Livestreams default to PPV
+      price: 500, // Default price $5.00
     });
 
-    return streamId;
+    return newStreamId;
   },
 });
 
 // End a stream and optionally save recording to library
+// Admin only - only admins can end streams
 export const endStream = mutation({
   args: {
     streamId: v.id("livestreams"),
-    userId: v.optional(v.string()),
     assetId: v.optional(v.string()),
     playbackId: v.optional(v.string()),
     duration: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Only admins can end streams
+    const userId = await requireAdmin(ctx);
+
     console.log("[livestream.endStream] called", {
       streamId: args.streamId,
       assetId: args.assetId,
@@ -118,7 +140,7 @@ export const endStream = mutation({
     await ctx.db.patch(args.streamId, {
       status: "ended",
       endedAt: Date.now(),
-      endedBy: args.userId ?? stream.startedBy ?? stream.userId,
+      endedBy: userId,
     });
     console.log("[livestream.endStream] marked ended", {
       streamId: args.streamId,
@@ -127,6 +149,7 @@ export const endStream = mutation({
     });
 
     // Save recording to library (even if still processing).
+    // Recordings are always PUBLIC - only the live stream itself is PPV
     if (args.assetId) {
       const playbackUrl = args.playbackId
         ? `https://stream.mux.com/${args.playbackId}.m3u8`
@@ -143,10 +166,17 @@ export const endStream = mutation({
         playbackUrl,
         duration: args.duration,
         status: args.playbackId ? "ready" : "processing",
-        visibility: "public",
+        visibility: "public", // Recordings are always public
         viewCount: 0,
         heartCount: 0,
+        linkedLivestreamId: args.streamId, // Link recording back to livestream
       });
+
+      // Update livestream with reference to its recording
+      await ctx.db.patch(args.streamId, {
+        recordingVideoId: videoId,
+      });
+
       console.log("[livestream.endStream] inserted video record", {
         videoId,
         assetId: args.assetId,
@@ -154,6 +184,8 @@ export const endStream = mutation({
         playbackUrl,
         title: stream.title,
         status: args.playbackId ? "ready" : "processing",
+        linkedLivestreamId: args.streamId,
+        recordingVideoId: videoId,
       });
     } else {
       console.log("[livestream.endStream] no assetId provided; skipping video insert", {
@@ -165,28 +197,47 @@ export const endStream = mutation({
   },
 });
 
-// Update viewer count
+// Update viewer count (admin only)
 export const updateViewerCount = mutation({
   args: {
     streamId: v.id("livestreams"),
     viewerCount: v.number(),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
     await ctx.db.patch(args.streamId, {
       viewerCount: args.viewerCount,
     });
   },
 });
 
-// Update stream title
+// Update stream title (admin only)
 export const updateStreamTitle = mutation({
   args: {
     streamId: v.id("livestreams"),
     title: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
     await ctx.db.patch(args.streamId, {
       title: args.title,
+    });
+  },
+});
+
+// Update stream price (admin only, in cents)
+export const updateStreamPrice = mutation({
+  args: {
+    streamId: v.id("livestreams"),
+    price: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    await ctx.db.patch(args.streamId, {
+      price: args.price,
     });
   },
 });

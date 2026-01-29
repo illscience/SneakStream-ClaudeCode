@@ -20,6 +20,7 @@ export default function MuxUploadPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState("public");
+  const [price, setPrice] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -29,7 +30,7 @@ export default function MuxUploadPage() {
   const updateVideoStatus = useMutation(api.videos.updateVideoStatus);
   const isAdmin = useQuery(
     api.adminSettings.checkIsAdmin,
-    user?.id ? { clerkId: user.id } : "skip"
+    user?.id ? {} : "skip"
   );
 
   useEffect(() => () => {
@@ -106,9 +107,8 @@ export default function MuxUploadPage() {
       const statusData = await statusResponse.json();
 
       if (!createdVideoId && statusData.assetId) {
+        const priceInCents = visibility === "ppv" && price ? Math.round(parseFloat(price) * 100) : undefined;
         createdVideoId = await createVideo({
-          userId: ADMIN_LIBRARY_USER_ID,
-          uploadedBy: user!.id,
           title,
           description,
           visibility,
@@ -118,6 +118,8 @@ export default function MuxUploadPage() {
           playbackId: statusData.playbackId || undefined,
           playbackUrl: statusData.playbackUrl || undefined,
           duration: statusData.duration || undefined,
+          price: priceInCents,
+          playbackPolicy: visibility === "ppv" ? "signed" : "public",
         });
       }
 
@@ -140,6 +142,14 @@ export default function MuxUploadPage() {
     if (!user || !file || !title.trim()) {
       alert("Please fill in all fields");
       return;
+    }
+
+    if (visibility === "ppv") {
+      const priceNum = parseFloat(price);
+      if (isNaN(priceNum) || priceNum < 1) {
+        alert("Please enter a valid price (minimum $1.00)");
+        return;
+      }
     }
 
     try {
@@ -282,12 +292,33 @@ export default function MuxUploadPage() {
               <option value="public">Public</option>
               <option value="followers">Followers</option>
               <option value="private">Private</option>
+              <option value="ppv">Pay-Per-View</option>
             </select>
           </div>
 
+          {visibility === "ppv" && (
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">Price (USD) *</label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400">$</span>
+                <input
+                  type="text"
+                  value={price}
+                  onChange={(event) => {
+                    const value = event.target.value.replace(/[^0-9.]/g, "");
+                    setPrice(value);
+                  }}
+                  placeholder="9.99"
+                  className="w-full bg-zinc-800 text-white px-4 py-3 pl-8 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime-400"
+                />
+              </div>
+              <p className="text-xs text-zinc-500 mt-1">Minimum price: $1.00</p>
+            </div>
+          )}
+
           <button
             onClick={handleUpload}
-            disabled={!file || !title || uploading}
+            disabled={!file || !title || uploading || (visibility === "ppv" && (!price || parseFloat(price) < 1))}
             className="w-full py-4 bg-lime-400 text-black rounded-lg font-bold hover:bg-lime-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {uploading ? "Uploading..." : "Upload to Mux"}

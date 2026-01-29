@@ -82,7 +82,6 @@ export default function ProfilePage() {
     });
     try {
       await upsertUser({
-        clerkId: user.id,
         alias: trimmedAlias,
         email: user.primaryEmailAddress?.emailAddress,
         imageUrl: user.imageUrl,
@@ -133,7 +132,6 @@ export default function ProfilePage() {
       }
       const { storageId } = await uploadRes.json();
       const result = await updateAvatar({
-        clerkId: user.id,
         avatarStorageId: storageId,
       });
       if (result?.imageUrl) {

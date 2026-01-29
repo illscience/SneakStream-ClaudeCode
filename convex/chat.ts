@@ -1,45 +1,43 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
+import { getAuthenticatedUser, requireAdmin } from "./adminSettings";
 
 export const sendMessage = mutation({
   args: {
-    user: v.optional(v.string()),
-    userId: v.optional(v.string()),
-    userName: v.optional(v.string()),
-    avatarUrl: v.optional(v.string()),
     body: v.string(),
     imageStorageId: v.optional(v.id("_storage")),
     imageMimeType: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Get authenticated user from JWT
+    const clerkId = await getAuthenticatedUser(ctx);
+
+    // Look up user details from database
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
+      .first();
+
     await ctx.db.insert("messages", {
-      user: args.user,
-      userId: args.userId,
-      userName: args.userName,
-      avatarUrl: args.avatarUrl,
+      user: user?.alias,
+      userId: clerkId,
+      userName: user?.alias ?? "User",
+      avatarUrl: user?.selectedAvatar ?? user?.imageUrl,
       body: args.body,
       imageStorageId: args.imageStorageId,
       imageMimeType: args.imageMimeType,
     });
 
-    const clerkId = args.userId;
-    if (clerkId) {
-      const existingUser = await ctx.db
-        .query("users")
-        .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
-        .first();
-
-      if (!existingUser) {
-        const alias = args.userName || args.user || "User";
-        await ctx.db.insert("users", {
-          clerkId,
-          alias,
-          email: undefined,
-          imageUrl: args.avatarUrl,
-          selectedAvatar: args.avatarUrl,
-        });
-      }
+    // Create user record if it doesn't exist
+    if (!user) {
+      await ctx.db.insert("users", {
+        clerkId,
+        alias: "User",
+        email: undefined,
+        imageUrl: undefined,
+        selectedAvatar: undefined,
+      });
     }
   },
 });
@@ -155,9 +153,11 @@ export const getMessageLoves = query({
 export const loveMessage = mutation({
   args: {
     messageId: v.id("messages"),
-    clerkId: v.string(),
   },
   handler: async (ctx, args) => {
+    // Get authenticated user from JWT
+    const clerkId = await getAuthenticatedUser(ctx);
+
     const message = await ctx.db.get(args.messageId);
     if (!message) {
       throw new Error("Message not found");
@@ -165,7 +165,7 @@ export const loveMessage = mutation({
 
     await ctx.db.insert("messageLoves", {
       messageId: args.messageId,
-      clerkId: args.clerkId,
+      clerkId,
       createdAt: Date.now(),
     });
   },
@@ -176,6 +176,9 @@ export const deleteMessage = mutation({
     messageId: v.id("messages"),
   },
   handler: async (ctx, args) => {
+    // Only admins can delete messages
+    await requireAdmin(ctx);
+
     const message = await ctx.db.get(args.messageId);
     if (!message) return;
 
@@ -190,6 +193,9 @@ export const deleteMessage = mutation({
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
+    // Require authentication to upload files
+    await getAuthenticatedUser(ctx);
+
     const uploadUrl = await ctx.storage.generateUploadUrl();
     return { uploadUrl };
   },

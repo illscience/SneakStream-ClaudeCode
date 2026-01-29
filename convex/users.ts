@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
+import { getAuthenticatedUser, requireAdmin } from "./adminSettings";
 
 const DJ_SNEAK_USER: Doc<"users"> = {
   _id: "dj-sneak" as Id<"users">,
@@ -14,16 +15,18 @@ const DJ_SNEAK_USER: Doc<"users"> = {
 // Create or update user profile
 export const upsertUser = mutation({
   args: {
-    clerkId: v.string(),
     alias: v.string(),
     email: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Get the user's clerkId from JWT - users can only update their own profile
+    const clerkId = await getAuthenticatedUser(ctx);
+
     const normalizedEmail = args.email?.toLowerCase();
     const existingUser = await ctx.db
       .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
       .first();
 
     if (existingUser) {
@@ -35,8 +38,10 @@ export const upsertUser = mutation({
       return existingUser._id;
     } else {
       return await ctx.db.insert("users", {
-        ...args,
+        clerkId,
+        alias: args.alias,
         email: normalizedEmail,
+        imageUrl: args.imageUrl,
       });
     }
   },
@@ -133,11 +138,13 @@ export const getFollowingCount = query({
 // Update user's selected avatar
 export const updateSelectedAvatar = mutation({
   args: {
-    clerkId: v.string(),
     avatarUrl: v.optional(v.string()),
     avatarStorageId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
+    // SECURITY: Get the user's clerkId from JWT - users can only update their own avatar
+    const clerkId = await getAuthenticatedUser(ctx);
+
     let imageUrl: string | undefined = args.avatarUrl ?? undefined;
 
     if (args.avatarStorageId) {
@@ -147,13 +154,13 @@ export const updateSelectedAvatar = mutation({
 
     const user = await ctx.db
       .query("users")
-      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.clerkId))
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
       .first();
 
     if (!user) {
       const newUserId = await ctx.db.insert("users", {
-        clerkId: args.clerkId,
-        alias: args.clerkId,
+        clerkId,
+        alias: "User",
         email: undefined,
         imageUrl: imageUrl ?? undefined,
         selectedAvatar: imageUrl ?? undefined,
@@ -173,6 +180,9 @@ export const updateSelectedAvatar = mutation({
 export const generateAvatarUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
+    // SECURITY: Require authentication to generate upload URL
+    await getAuthenticatedUser(ctx);
+
     const uploadUrl = await ctx.storage.generateUploadUrl();
     return { uploadUrl };
   },
@@ -211,9 +221,13 @@ export const searchUsersByAlias = query({
   },
 });
 
+// Admin-only migration: backfill users from messages
 export const backfillUsersFromMessages = mutation({
   args: {},
   handler: async (ctx) => {
+    // SECURITY: Only admins can run migrations
+    await requireAdmin(ctx);
+
     const messages = await ctx.db.query("messages").collect();
     const seen = new Set<string>();
     let created = 0;

@@ -7,6 +7,31 @@ export const SEED_ADMIN_EMAIL = "sneakthedj@gmail.com";
 
 type AuthCtx = QueryCtx | MutationCtx;
 
+/**
+ * Gets the authenticated user's Clerk ID from the JWT token.
+ * Throws an error if not authenticated.
+ */
+export async function getAuthenticatedUser(ctx: AuthCtx): Promise<string> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    throw new Error("Not authenticated");
+  }
+  // The 'subject' claim contains the Clerk user ID
+  return identity.subject;
+}
+
+/**
+ * Gets the authenticated user's Clerk ID, or null if not authenticated.
+ * Use this for optional authentication scenarios.
+ */
+export async function getOptionalAuthenticatedUser(ctx: AuthCtx): Promise<string | null> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    return null;
+  }
+  return identity.subject;
+}
+
 async function isAdmin(ctx: AuthCtx, clerkId: string): Promise<boolean> {
   const user = await ctx.db
     .query("users")
@@ -16,11 +41,12 @@ async function isAdmin(ctx: AuthCtx, clerkId: string): Promise<boolean> {
   return user?.isAdmin === true;
 }
 
-// TODO: Reinstate ctx.auth-based admin checks once Convex auth is configured.
-export async function requireAdmin(ctx: AuthCtx, clerkId: string): Promise<string> {
-  if (!clerkId) {
-    throw new Error("Not authenticated");
-  }
+/**
+ * Verifies the user is authenticated and is an admin.
+ * Returns the authenticated user's Clerk ID.
+ */
+export async function requireAdmin(ctx: AuthCtx): Promise<string> {
+  const clerkId = await getAuthenticatedUser(ctx);
   if (!(await isAdmin(ctx, clerkId))) {
     throw new Error("Unauthorized: Admin access required");
   }
@@ -44,12 +70,11 @@ export const getSetting = query({
 // Update a setting (admin only)
 export const updateSetting = mutation({
   args: {
-    clerkId: v.string(),
     key: v.string(),
     value: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const clerkId = await requireAdmin(ctx, args.clerkId);
+    const clerkId = await requireAdmin(ctx);
 
     const existing = await ctx.db
       .query("adminSettings")
@@ -75,21 +100,21 @@ export const updateSetting = mutation({
 
 // Check if current user is admin
 export const checkIsAdmin = query({
-  args: {
-    clerkId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await isAdmin(ctx, args.clerkId);
+  args: {},
+  handler: async (ctx) => {
+    const clerkId = await getOptionalAuthenticatedUser(ctx);
+    if (!clerkId) {
+      return false;
+    }
+    return await isAdmin(ctx, clerkId);
   },
 });
 
 // List all admins
 export const getAdmins = query({
-  args: {
-    clerkId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.clerkId);
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
 
     const admins = await ctx.db
       .query("users")
@@ -109,11 +134,10 @@ export const getAdmins = query({
 // Search users for admin management (simple, server-filtered)
 export const searchUsersForAdmin = query({
   args: {
-    clerkId: v.string(),
     searchTerm: v.string(),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.clerkId);
+    await requireAdmin(ctx);
 
     const term = args.searchTerm.trim().toLowerCase();
     const users = await ctx.db.query("users").collect();
@@ -139,12 +163,11 @@ export const searchUsersForAdmin = query({
 // Update admin status for a user
 export const setAdminStatus = mutation({
   args: {
-    clerkId: v.string(),
     targetClerkId: v.string(),
     isAdmin: v.boolean(),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, args.clerkId);
+    await requireAdmin(ctx);
 
     const targetUser = await ctx.db
       .query("users")
@@ -171,11 +194,19 @@ export const setAdminStatus = mutation({
 });
 
 // One-time migration: seed initial admin by email if no admins exist
+// Protected by requiring a secret and only works when no admins exist
 export const seedInitialAdmin = mutation({
   args: {
     email: v.optional(v.string()),
+    secret: v.string(),
   },
   handler: async (ctx, args) => {
+    // Verify the secret matches the environment variable
+    const expectedSecret = process.env.SEED_ADMIN_SECRET;
+    if (!expectedSecret || args.secret !== expectedSecret) {
+      throw new Error("Invalid seed secret");
+    }
+
     const existingAdmin = await ctx.db
       .query("users")
       .withIndex("by_isAdmin", (q) => q.eq("isAdmin", true))

@@ -17,18 +17,18 @@ export default function AdminPage() {
 
   const isAdmin = useQuery(
     api.adminSettings.checkIsAdmin,
-    user?.id ? { clerkId: user.id } : "skip"
+    user?.id ? {} : "skip"
   );
 
   const admins = useQuery(
     api.adminSettings.getAdmins,
-    isAdmin && user?.id ? { clerkId: user.id } : "skip"
+    isAdmin && user?.id ? {} : "skip"
   );
 
   const searchResults = useQuery(
     api.adminSettings.searchUsersForAdmin,
     isAdmin && user?.id && searchTerm.trim().length > 0
-      ? { clerkId: user.id, searchTerm }
+      ? { searchTerm }
       : "skip"
   );
 
@@ -56,7 +56,7 @@ export default function AdminPage() {
       if (!user?.id) {
         throw new Error("Not authenticated");
       }
-      await setAdminStatus({ clerkId: user.id, targetClerkId, isAdmin: nextIsAdmin });
+      await setAdminStatus({ targetClerkId, isAdmin: nextIsAdmin });
       showNotification(nextIsAdmin ? "Admin access granted" : "Admin access revoked");
     } catch (error) {
       console.error("Admin update error:", error);
