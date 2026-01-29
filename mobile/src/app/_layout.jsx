@@ -2,40 +2,15 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
+import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/clerk-expo";
+import { tokenCache } from "@clerk/clerk-expo/token-cache";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
-import * as SecureStore from "expo-secure-store";
 import { convex } from "@/lib/convex";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 SplashScreen.preventAutoHideAsync();
 
 const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
-
-// Token cache for Clerk using SecureStore
-const tokenCache = {
-  async getToken(key) {
-    try {
-      return await SecureStore.getItemAsync(key);
-    } catch {
-      return null;
-    }
-  },
-  async saveToken(key, value) {
-    try {
-      await SecureStore.setItemAsync(key, value);
-    } catch {
-      // Handle error silently
-    }
-  },
-  async clearToken(key) {
-    try {
-      await SecureStore.deleteItemAsync(key);
-    } catch {
-      // Handle error silently
-    }
-  },
-};
 
 function ConvexClerkProvider({ children }) {
   return (
@@ -54,15 +29,13 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }} initialRouteName="index">
       <Stack.Screen name="index" />
+      <Stack.Screen name="sign-in" options={{ presentation: "modal" }} />
       <Stack.Screen name="+not-found" />
     </Stack>
   );
 }
 
 export default function RootLayout() {
-  console.log("RootLayout rendering...");
-  console.log("CLERK_PUBLISHABLE_KEY:", CLERK_PUBLISHABLE_KEY ? "SET" : "MISSING");
-
   if (!CLERK_PUBLISHABLE_KEY) {
     console.warn("Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY");
   }
@@ -74,9 +47,11 @@ export default function RootLayout() {
           publishableKey={CLERK_PUBLISHABLE_KEY || ""}
           tokenCache={tokenCache}
         >
-          <ConvexClerkProvider>
-            <RootLayoutNav />
-          </ConvexClerkProvider>
+          <ClerkLoaded>
+            <ConvexClerkProvider>
+              <RootLayoutNav />
+            </ConvexClerkProvider>
+          </ClerkLoaded>
         </ClerkProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>

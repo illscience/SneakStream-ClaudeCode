@@ -24,13 +24,15 @@ import {
 } from "lucide-react-native";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, usePaginatedQuery } from "convex/react";
-import { useUser, useAuth } from "@clerk/clerk-expo";
+import { useUser, useAuth, SignedIn, SignedOut } from "@clerk/clerk-expo";
 import { api } from "convex/_generated/api";
 import { useVideoPlayer, VideoView } from "expo-video";
 import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedView";
+import { useRouter } from "expo-router";
 
 export default function Index() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { user } = useUser();
   const { isSignedIn } = useAuth();
   const [chatMessage, setChatMessage] = useState("");
@@ -85,25 +87,6 @@ export default function Index() {
     ? { uri: currentVideo.playbackUrl, contentType: 'hls' }
     : null;
 
-  // Debug logging
-  useEffect(() => {
-    console.log("=== VIDEO DEBUG ===");
-    console.log("PlaybackState startTime:", playbackState?.startTime);
-    console.log("DefaultVideo startTime:", defaultVideo?.startTime);
-    console.log("Current Video:", currentVideo?.title, "duration:", currentVideo?.duration);
-    console.log("Video Source:", videoSource?.uri ? "SET" : "NULL");
-    console.log("==================");
-  }, [playbackState, defaultVideo, currentVideo, videoSource]);
-
-  // Debug image URLs
-  useEffect(() => {
-    console.log("=== IMAGE DEBUG ===");
-    console.log("User imageUrl:", user?.imageUrl);
-    if (messages && messages.length > 0) {
-      console.log("First message avatarUrl:", messages[0]?.avatarUrl);
-    }
-    console.log("==================");
-  }, [user?.imageUrl, messages]);
 
   const player = useVideoPlayer(videoSource, (player) => {
     player.loop = true;
@@ -140,14 +123,6 @@ export default function Index() {
       // Calculate position with looping (same as web)
       const syncedPosition = duration > 0 ? elapsedSeconds % duration : elapsedSeconds;
 
-      console.log("=== SYNC DEBUG ===");
-      console.log("Global startTime:", globalStartTime);
-      console.log("Now:", now);
-      console.log("Elapsed seconds:", elapsedSeconds);
-      console.log("Duration:", duration);
-      console.log("Synced position:", syncedPosition);
-      console.log("==================");
-
       if (syncedPosition >= 0 && syncedPosition < duration) {
         player.currentTime = syncedPosition;
         setHasSyncedPlayback(true);
@@ -174,8 +149,6 @@ export default function Index() {
         const syncedPosition = videoDurationForSync > 0
           ? elapsedSeconds % videoDurationForSync
           : elapsedSeconds;
-
-        console.log("App became active, re-syncing to position:", syncedPosition);
 
         if (syncedPosition >= 0 && syncedPosition < videoDurationForSync) {
           player.currentTime = syncedPosition;
@@ -480,7 +453,7 @@ export default function Index() {
           </View>
 
           {/* User Avatar / Sign In */}
-          {isSignedIn && user ? (
+          <SignedIn>
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
               <Text style={{ color: "#999", fontSize: 14, marginRight: 12 }}>Your avatar:</Text>
               <View
@@ -493,21 +466,22 @@ export default function Index() {
                   overflow: "hidden",
                 }}
               >
-                {user.imageUrl ? (
+                {user?.imageUrl ? (
                   <Image source={{ uri: user.imageUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
                 ) : (
                   <View style={{ width: "100%", height: "100%", justifyContent: "center", alignItems: "center" }}>
                     <Text style={{ color: "#fff", fontWeight: "700" }}>
-                      {(user.firstName || user.username || "U")[0].toUpperCase()}
+                      {(user?.firstName || user?.username || "U")[0].toUpperCase()}
                     </Text>
                   </View>
                 )}
               </View>
               <Text style={{ color: "#9ACD32", fontSize: 16, fontWeight: "600" }}>
-                {user.firstName || user.username || "You"}
+                {user?.firstName || user?.username || "You"}
               </Text>
             </View>
-          ) : (
+          </SignedIn>
+          <SignedOut>
             <TouchableOpacity
               style={{
                 flexDirection: "row",
@@ -519,14 +493,15 @@ export default function Index() {
                 marginBottom: 16,
                 alignSelf: "flex-start",
               }}
+              onPress={() => router.push("/sign-in")}
             >
               <LogIn size={20} color="#000" />
               <Text style={{ color: "#000", fontWeight: "700", marginLeft: 8 }}>Sign in to chat</Text>
             </TouchableOpacity>
-          )}
+          </SignedOut>
 
           {/* Chat Input */}
-          {isSignedIn && (
+          <SignedIn>
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 24 }}>
               <TouchableOpacity
                 style={{
@@ -591,7 +566,7 @@ export default function Index() {
                 <Send size={20} color={chatMessage.trim() && !isSending ? "#000" : "#666"} />
               </TouchableOpacity>
             </View>
-          )}
+          </SignedIn>
 
           {/* Chat Messages */}
           {messagesStatus === "LoadingFirstPage" ? (
