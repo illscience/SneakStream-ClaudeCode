@@ -6,7 +6,8 @@ import { api } from "../../convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import MainNav from "@/components/navigation/MainNav";
-import { Search, ShieldCheck, ShieldOff, Disc3, Play, Square, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { Search, ShieldCheck, ShieldOff, Disc3, Play, Square, Loader2, Clock, DollarSign, CheckCircle, ExternalLink, AlertCircle } from "lucide-react";
 
 export default function AdminPage() {
   const { user, isLoaded } = useUser();
@@ -46,6 +47,10 @@ export default function AdminPage() {
   );
   const openBidding = useMutation(api.bidding.openBidding);
   const closeBidding = useMutation(api.bidding.closeBidding);
+  const allCratePurchases = useQuery(
+    api.bidding.getAllCratePurchases,
+    isAdmin ? {} : "skip"
+  );
 
   const adminIds = useMemo(() => new Set(admins?.map((admin) => admin.clerkId)), [admins]);
 
@@ -238,6 +243,136 @@ export default function AdminPage() {
                 <p className="text-xs text-zinc-500">
                   Bidding also auto-opens every 5 minutes during live streams.
                 </p>
+              </div>
+            )}
+          </section>
+
+          {/* Crate Purchases */}
+          <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Disc3 className="h-5 w-5 text-[#ff00ff]" />
+              <h2 className="text-lg font-semibold">All Crate Purchases</h2>
+              {allCratePurchases && allCratePurchases.length > 0 && (
+                <span className="ml-auto text-xs px-2 py-1 rounded-full bg-[#ff00ff]/20 text-[#ff00ff]">
+                  {allCratePurchases.length} total
+                </span>
+              )}
+            </div>
+
+            {!allCratePurchases || allCratePurchases.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-zinc-800 flex items-center justify-center">
+                  <Disc3 className="h-6 w-6 text-zinc-600" />
+                </div>
+                <p className="text-zinc-500">No crate purchases yet</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {allCratePurchases.map((item) => {
+                  const purchaseDate = new Date(item.purchasedAt);
+                  const dateFormatted = purchaseDate.toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  });
+                  const timeFormatted = purchaseDate.toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                    second: "2-digit",
+                    hour12: true,
+                  });
+
+                  return (
+                    <div
+                      key={item._id}
+                      className="flex items-center gap-4 p-4 bg-zinc-800/50 rounded-xl border border-zinc-700/50"
+                    >
+                      {/* User avatar */}
+                      <div className="flex-shrink-0">
+                        {item.ownerAvatarUrl ? (
+                          <img
+                            src={item.ownerAvatarUrl}
+                            alt={item.ownerAlias}
+                            className="w-10 h-10 rounded-full object-cover border-2 border-[#ff00ff]/40"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-zinc-700 flex items-center justify-center text-sm font-bold">
+                            {item.ownerAlias[0]?.toUpperCase()}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* User and track info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-white truncate">
+                            {item.ownerAlias}
+                          </h4>
+                          {item.ownerEmail && (
+                            <span className="text-xs text-zinc-500 truncate">
+                              ({item.ownerEmail})
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-zinc-400 truncate">
+                          {item.livestreamTitle}
+                        </p>
+                      </div>
+
+                      {/* Amount and status */}
+                      <div className="flex-shrink-0 text-right">
+                        <div className="flex items-center gap-1 text-[#c4ff0e] font-bold">
+                          <DollarSign className="w-4 h-4" />
+                          {(item.purchaseAmount / 100).toFixed(0)}
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-green-400">
+                          <CheckCircle className="w-3 h-3" />
+                          Paid
+                        </div>
+                      </div>
+
+                      {/* Timestamp */}
+                      <div className="flex-shrink-0 text-right text-xs text-zinc-500">
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {dateFormatted}
+                        </div>
+                        <div>{timeFormatted}</div>
+                      </div>
+
+                      {/* Link to watch at timestamp (conditional based on recording status) */}
+                      {item.livestreamStatus === "active" ? (
+                        <div
+                          className="flex-shrink-0 rounded-lg bg-zinc-700/50 px-3 py-2 text-xs font-medium text-zinc-500 cursor-not-allowed"
+                          title="Video will be available when livestream ends"
+                        >
+                          <Clock className="w-4 h-4" />
+                        </div>
+                      ) : item.recordingStatus === "processing" ? (
+                        <div
+                          className="flex-shrink-0 rounded-lg bg-zinc-700/50 px-3 py-2 text-xs font-medium text-zinc-500 cursor-not-allowed"
+                          title="Recording is processing"
+                        >
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        </div>
+                      ) : item.recordingVideoId && item.recordingStatus === "ready" ? (
+                        <Link
+                          href={`/watch/${item.recordingVideoId}?t=${item.videoTimestamp}`}
+                          className="flex-shrink-0 rounded-lg bg-[#ff00ff]/10 px-3 py-2 text-xs font-medium text-[#ff00ff] hover:bg-[#ff00ff]/20 transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </Link>
+                      ) : (
+                        <div
+                          className="flex-shrink-0 rounded-lg bg-zinc-700/50 px-3 py-2 text-xs font-medium text-zinc-500 cursor-not-allowed"
+                          title="Recording unavailable"
+                        >
+                          <AlertCircle className="w-4 h-4" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>

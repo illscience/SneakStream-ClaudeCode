@@ -9,7 +9,6 @@ import SyncedVideoPlayer from "../../components/SyncedVideoPlayer";
 import { Eye, Calendar, Globe, Lock, Users, DollarSign } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { PPVGate } from "@/components/ppv";
-import { TipButton } from "@/components/tips";
 
 export default function MuxWatchPage({
   params,
@@ -36,6 +35,10 @@ export default function MuxWatchPage({
 
   // Show purchase success message
   const justPurchased = searchParams.get("purchased") === "true";
+
+  // Parse timestamp from URL for deep linking (e.g., from crate items)
+  const tParam = searchParams.get("t");
+  const initialSeekTime = tParam ? parseInt(tParam, 10) : undefined;
 
   // Fetch signed URL for PPV or signed playback policy videos
   const fetchSignedUrl = useCallback(async (forceRefresh = false) => {
@@ -155,6 +158,8 @@ export default function MuxWatchPage({
                     className="w-full h-full"
                     enableSync={false}
                     onTokenExpired={handleTokenExpired}
+                    initialSeekTime={initialSeekTime}
+                    isMuted={false}
                   />
                 </div>
               ) : urlLoading ? (
@@ -176,6 +181,8 @@ export default function MuxWatchPage({
                 className="w-full h-full"
                 enableSync={false}
                 onTokenExpired={handleTokenExpired}
+                initialSeekTime={initialSeekTime}
+                isMuted={false}
               />
             </div>
           ) : (
@@ -239,11 +246,6 @@ export default function MuxWatchPage({
           </div>
 
           <div className="space-y-6">
-            <div className="bg-zinc-900 rounded-2xl p-6 border border-zinc-800">
-              <h3 className="text-sm font-medium text-zinc-400 mb-4">Support DJ Sneak</h3>
-              <TipButton videoId={video._id} className="w-full" />
-            </div>
-
             <div className="bg-zinc-900 rounded-2xl p-6 border border-zinc-800">
               <h3 className="text-sm font-medium text-zinc-400 mb-2">Playback info</h3>
               <div className="text-xs text-zinc-500 space-y-1 break-all">

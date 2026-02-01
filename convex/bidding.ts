@@ -281,10 +281,26 @@ export const getUserCrate = query({
     const itemsWithDetails = await Promise.all(
       crateItems.map(async (item) => {
         const livestream = await ctx.db.get(item.livestreamId);
+
+        // Determine recording status
+        let recordingVideoId: Id<"videos"> | undefined;
+        let recordingStatus: "processing" | "ready" | undefined;
+
+        if (livestream?.recordingVideoId) {
+          const recording = await ctx.db.get(livestream.recordingVideoId);
+          if (recording) {
+            recordingVideoId = recording._id;
+            recordingStatus = recording.status === "ready" ? "ready" : "processing";
+          }
+        }
+
         return {
           ...item,
           livestreamTitle: livestream?.title ?? "Unknown Stream",
           livestreamStartedAt: livestream?.startedAt,
+          livestreamStatus: (livestream?.status ?? "ended") as "active" | "ended",
+          recordingVideoId,
+          recordingStatus,
         };
       })
     );
@@ -555,6 +571,70 @@ export const autoOpenBidding = internalMutation({
         });
       }
     }
+  },
+});
+
+// Get all crate purchases (admin only)
+export const getAllCratePurchases = query({
+  args: {},
+  handler: async (ctx) => {
+    // Verify admin
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return [];
+    }
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+    if (!user?.isAdmin) {
+      return [];
+    }
+
+    // Get all crate items, ordered by most recent first
+    const crateItems = await ctx.db
+      .query("crate")
+      .order("desc")
+      .collect();
+
+    // Fetch user and livestream info for each crate item
+    const itemsWithDetails = await Promise.all(
+      crateItems.map(async (item) => {
+        const owner = await ctx.db
+          .query("users")
+          .withIndex("by_clerk_id", (q) => q.eq("clerkId", item.ownerId))
+          .first();
+        const livestream = await ctx.db.get(item.livestreamId);
+
+        // Determine recording status
+        let recordingVideoId: Id<"videos"> | undefined;
+        let recordingStatus: "processing" | "ready" | undefined;
+
+        if (livestream?.recordingVideoId) {
+          const recording = await ctx.db.get(livestream.recordingVideoId);
+          if (recording) {
+            recordingVideoId = recording._id;
+            recordingStatus = recording.status === "ready" ? "ready" : "processing";
+          }
+        }
+
+        return {
+          ...item,
+          ownerAlias: owner?.alias ?? "Unknown User",
+          ownerEmail: owner?.email,
+          ownerAvatarUrl: owner?.selectedAvatar ?? owner?.imageUrl,
+          livestreamTitle: livestream?.title ?? "Unknown Stream",
+          livestreamStartedAt: livestream?.startedAt,
+          livestreamStatus: (livestream?.status ?? "ended") as "active" | "ended",
+          recordingVideoId,
+          recordingStatus,
+          // All items in crate have been paid (they're only added after successful payment)
+          paymentStatus: "completed" as const,
+        };
+      })
+    );
+
+    return itemsWithDetails;
   },
 });
 

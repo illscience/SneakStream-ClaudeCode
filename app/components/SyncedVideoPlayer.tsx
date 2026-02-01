@@ -17,6 +17,7 @@ interface SyncedVideoPlayerProps {
   isLiveStream?: boolean;
   enableSync?: boolean; // When false, plays independently without syncing to global timeline
   onTokenExpired?: () => void; // Callback when signed URL token expires (403 error)
+  initialSeekTime?: number; // Seconds to seek to on load (VOD only, when enableSync=false)
 }
 
 export default function SyncedVideoPlayer({
@@ -29,10 +30,12 @@ export default function SyncedVideoPlayer({
   isLiveStream = false,
   enableSync = true,
   onTokenExpired,
+  initialSeekTime,
 }: SyncedVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hasAppliedInitialSeek, setHasAppliedInitialSeek] = useState(false);
 
   // Get the video with startTime (t0) - only for synced, non-live streams
   const defaultVideo = useQuery(
@@ -163,6 +166,36 @@ export default function SyncedVideoPlayer({
     setHasInitialized(false);
   }, [playbackUrl, videoId, enableSync, isLiveStream]);
 
+  // Handle initial seek for VOD playback (when enableSync=false)
+  useEffect(() => {
+    if (isLiveStream || enableSync || !initialSeekTime || hasAppliedInitialSeek) return;
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    const applySeek = () => {
+      if (video.duration && initialSeekTime < video.duration) {
+        video.currentTime = initialSeekTime;
+        setHasAppliedInitialSeek(true);
+      }
+    };
+
+    if (video.readyState >= 1) {
+      applySeek();
+    } else {
+      video.addEventListener("loadedmetadata", applySeek, { once: true });
+    }
+
+    return () => {
+      video.removeEventListener("loadedmetadata", applySeek);
+    };
+  }, [initialSeekTime, isLiveStream, enableSync, hasAppliedInitialSeek]);
+
+  // Reset initial seek state when video changes
+  useEffect(() => {
+    setHasAppliedInitialSeek(false);
+  }, [videoId, playbackUrl]);
+
   // Set initial volume and muted state
   useEffect(() => {
     if (videoRef.current) {
@@ -185,7 +218,10 @@ export default function SyncedVideoPlayer({
   }, [onMutedChange]);
 
   // Handle unexpected pauses (e.g., when app is backgrounded on mobile)
+  // Only for synced playback - VOD users should have full pause control
   useEffect(() => {
+    if (!enableSync) return; // Skip for VOD playback
+
     const video = videoRef.current;
     if (!video) return;
 
@@ -213,7 +249,7 @@ export default function SyncedVideoPlayer({
 
     video.addEventListener("pause", handlePause);
     return () => video.removeEventListener("pause", handlePause);
-  }, []);
+  }, [enableSync]);
 
   // Prevent user from pausing or seeking (only for synced playback)
   useEffect(() => {
@@ -255,7 +291,10 @@ export default function SyncedVideoPlayer({
   }, []);
 
   // Resume playback when page becomes visible (e.g., after unlocking phone)
+  // Only for synced playback - VOD users control their own pause state
   useEffect(() => {
+    if (!enableSync) return; // Skip for VOD playback
+
     const video = videoRef.current;
     if (!video) return;
 
@@ -263,8 +302,8 @@ export default function SyncedVideoPlayer({
       if (document.visibilityState === "visible" && video.paused) {
         console.log("[SyncedVideoPlayer] Page visible, attempting to resume playback...");
 
-        // Re-sync position when coming back from background (only for synced playback)
-        if (enableSync && defaultVideo && defaultVideo.startTime !== undefined) {
+        // Re-sync position when coming back from background
+        if (defaultVideo && defaultVideo.startTime !== undefined) {
           const startTime = defaultVideo.startTime;
           const duration = defaultVideo.duration || 0;
           const now = Date.now();
@@ -393,6 +432,9 @@ export default function SyncedVideoPlayer({
     }
   };
 
+  // Show native controls for VOD playback (non-synced, non-live)
+  const showNativeControls = !enableSync && !isLiveStream;
+
   return (
     <div className={`relative ${className}`}>
       <video
@@ -402,15 +444,19 @@ export default function SyncedVideoPlayer({
         playsInline
         webkit-playsinline="true"
         x-webkit-airplay="allow"
+        controls={showNativeControls}
       />
-      <button
-        type="button"
-        onClick={toggleFullscreen}
-        className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
-        aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-      >
-        <Maximize2 className="h-4 w-4" />
-      </button>
+      {/* Only show custom fullscreen button when native controls are hidden */}
+      {!showNativeControls && (
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
+          aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+        >
+          <Maximize2 className="h-4 w-4" />
+        </button>
+      )}
     </div>
   );
 }
