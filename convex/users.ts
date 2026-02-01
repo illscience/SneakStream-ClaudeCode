@@ -1,7 +1,25 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { getAuthenticatedUser, requireAdmin } from "./adminSettings";
+
+// Internal mutation to make a user admin by email (for CLI use)
+export const makeAdminByEmail = internalMutation({
+  args: {
+    email: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const users = await ctx.db.query("users").collect();
+    const user = users.find(u => u.email?.toLowerCase() === args.email.toLowerCase());
+
+    if (!user) {
+      throw new Error(`User not found with email: ${args.email}`);
+    }
+
+    await ctx.db.patch(user._id, { isAdmin: true });
+    return { success: true, alias: user.alias, clerkId: user.clerkId };
+  },
+});
 
 const DJ_SNEAK_USER: Doc<"users"> = {
   _id: "dj-sneak" as Id<"users">,
@@ -44,6 +62,20 @@ export const upsertUser = mutation({
         imageUrl: args.imageUrl,
       });
     }
+  },
+});
+
+// Get current authenticated user
+export const getCurrentUser = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return null;
+
+    return await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
   },
 });
 

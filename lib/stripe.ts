@@ -45,7 +45,14 @@ export interface LivestreamPPVMetadata {
   amount: number;
 }
 
-export type CheckoutMetadata = TipMetadata | PPVMetadata | LivestreamPPVMetadata;
+export interface BidMetadata {
+  type: "bid";
+  bidderId: string;
+  sessionId: string;
+  amount: number;
+}
+
+export type CheckoutMetadata = TipMetadata | PPVMetadata | LivestreamPPVMetadata | BidMetadata;
 
 export async function createTipCheckoutSession(params: {
   amount: number;
@@ -177,6 +184,53 @@ export async function createLivestreamPPVCheckoutSession(params: {
             description: "Access to this live stream + future recording",
           },
           unit_amount: params.price,
+        },
+        quantity: 1,
+      },
+    ],
+    metadata: metadata as unknown as Stripe.MetadataParam,
+    success_url: params.successUrl,
+    cancel_url: params.cancelUrl,
+  });
+
+  if (!session.url) {
+    throw new Error("Failed to create checkout session URL");
+  }
+
+  return {
+    sessionId: session.id,
+    url: session.url,
+  };
+}
+
+export async function createBidCheckoutSession(params: {
+  sessionId: string;
+  amount: number;
+  bidderId: string;
+  successUrl: string;
+  cancelUrl: string;
+}): Promise<{ sessionId: string; url: string }> {
+  const stripe = getStripeClient();
+
+  const metadata: BidMetadata = {
+    type: "bid",
+    bidderId: params.bidderId,
+    sessionId: params.sessionId,
+    amount: params.amount,
+  };
+
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    payment_method_types: ["card"],
+    line_items: [
+      {
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: "Track Crate Purchase",
+            description: "Add this track moment to your crate collection",
+          },
+          unit_amount: params.amount,
         },
         quantity: 1,
       },

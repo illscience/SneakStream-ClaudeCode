@@ -392,11 +392,12 @@ export default function Home() {
         <div className="px-4 lg:px-8 pb-48 pt-4">
           <div className="flex justify-center">
             <div className="max-w-6xl w-full lg:static sticky top-24">
-              <LiveChat livestreamId={activeStream?._id} />
+              <LiveChat livestreamId={activeStream?._id} streamStartedAt={activeStream?.startedAt} />
             </div>
           </div>
         </div>
       </main>
+
 
       {/* Audio Player Controls */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-gradient-to-b from-zinc-900 to-black">

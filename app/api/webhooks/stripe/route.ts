@@ -68,6 +68,17 @@ export async function POST(request: NextRequest) {
           console.log("[stripe webhook] Livestream PPV purchase completed", {
             sessionId: session.id,
           });
+        } else if (metadata?.type === "bid") {
+          const bidMetadata = metadata as { type: "bid"; bidderId: string; sessionId: string; amount: number };
+          await convex.mutation(api.bidding.completeCratePurchase, {
+            stripeSessionId: session.id,
+            sessionId: bidMetadata.sessionId as any,
+            bidderId: bidMetadata.bidderId,
+            amount: bidMetadata.amount,
+          });
+          console.log("[stripe webhook] Crate purchase completed", {
+            sessionId: session.id,
+          });
         }
         break;
       }
@@ -88,6 +99,13 @@ export async function POST(request: NextRequest) {
         } else if (metadata?.type === "ppv" || metadata?.type === "livestream_ppv") {
           await convex.mutation(api.purchases.failPurchase, {
             stripeSessionId: session.id,
+          });
+        } else if (metadata?.type === "bid") {
+          await convex.mutation(api.bidding.failCratePurchase, {
+            stripeSessionId: session.id,
+          });
+          console.log("[stripe webhook] Crate purchase failed/expired", {
+            sessionId: session.id,
           });
         }
         break;

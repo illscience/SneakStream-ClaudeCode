@@ -6,7 +6,7 @@ import { api } from "../../convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import MainNav from "@/components/navigation/MainNav";
-import { Search, ShieldCheck, ShieldOff } from "lucide-react";
+import { Search, ShieldCheck, ShieldOff, Disc3, Play, Square, Loader2 } from "lucide-react";
 
 export default function AdminPage() {
   const { user, isLoaded } = useUser();
@@ -14,6 +14,7 @@ export default function AdminPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [notification, setNotification] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isBiddingUpdating, setIsBiddingUpdating] = useState(false);
 
   const isAdmin = useQuery(
     api.adminSettings.checkIsAdmin,
@@ -34,6 +35,18 @@ export default function AdminPage() {
 
   const setAdminStatus = useMutation(api.adminSettings.setAdminStatus);
 
+  // Bidding controls
+  const activeStream = useQuery(
+    api.livestream.getActiveStream,
+    isAdmin ? {} : "skip"
+  );
+  const currentBiddingSession = useQuery(
+    api.bidding.getCurrentSession,
+    isAdmin && activeStream?._id ? { livestreamId: activeStream._id } : "skip"
+  );
+  const openBidding = useMutation(api.bidding.openBidding);
+  const closeBidding = useMutation(api.bidding.closeBidding);
+
   const adminIds = useMemo(() => new Set(admins?.map((admin) => admin.clerkId)), [admins]);
 
   // Redirect if not admin
@@ -48,6 +61,35 @@ export default function AdminPage() {
   const showNotification = (message: string) => {
     setNotification(message);
     setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handleOpenBidding = async () => {
+    if (!activeStream) return;
+    setIsBiddingUpdating(true);
+    try {
+      const videoTimestamp = Math.floor((Date.now() - activeStream.startedAt) / 1000);
+      await openBidding({ livestreamId: activeStream._id, videoTimestamp });
+      showNotification("Bidding opened!");
+    } catch (error) {
+      console.error("Open bidding error:", error);
+      alert(error instanceof Error ? error.message : "Failed to open bidding");
+    } finally {
+      setIsBiddingUpdating(false);
+    }
+  };
+
+  const handleCloseBidding = async () => {
+    if (!currentBiddingSession) return;
+    setIsBiddingUpdating(true);
+    try {
+      await closeBidding({ sessionId: currentBiddingSession._id });
+      showNotification("Bidding closed");
+    } catch (error) {
+      console.error("Close bidding error:", error);
+      alert(error instanceof Error ? error.message : "Failed to close bidding");
+    } finally {
+      setIsBiddingUpdating(false);
+    }
   };
 
   const handleAdminToggle = async (targetClerkId: string, nextIsAdmin: boolean) => {
@@ -106,6 +148,100 @@ export default function AdminPage() {
         </div>
 
         <div className="grid gap-6">
+          {/* Bidding Controls */}
+          <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Disc3 className="h-5 w-5 text-[#ff00ff]" />
+              <h2 className="text-lg font-semibold">Track Crate Bidding</h2>
+            </div>
+
+            {!activeStream ? (
+              <div className="text-center py-8">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-zinc-800 flex items-center justify-center">
+                  <Disc3 className="h-6 w-6 text-zinc-600" />
+                </div>
+                <p className="text-zinc-500">No active livestream</p>
+                <p className="text-xs text-zinc-600 mt-1">Start a livestream to enable bidding controls</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Stream info */}
+                <div className="flex items-center gap-3 px-4 py-3 rounded-lg bg-zinc-800/50 border border-zinc-700/50">
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                  <span className="font-medium">{activeStream.title}</span>
+                  <span className="ml-auto text-xs text-zinc-500">LIVE</span>
+                </div>
+
+                {/* Current session status */}
+                {currentBiddingSession ? (
+                  <div className="px-4 py-3 rounded-lg bg-[#ff00ff]/10 border border-[#ff00ff]/30">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-[#ff00ff]">Bidding Active</span>
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-[#ff00ff]/20 text-[#ff00ff]">
+                        {currentBiddingSession.status}
+                      </span>
+                    </div>
+                    {currentBiddingSession.holder && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-zinc-400">Holder:</span>
+                        <span className="font-medium">{currentBiddingSession.holder.alias}</span>
+                        <span className="text-[#c4ff0e]">
+                          ${(currentBiddingSession.currentBid!.amount / 100).toFixed(0)}
+                        </span>
+                      </div>
+                    )}
+                    {!currentBiddingSession.holder && (
+                      <p className="text-sm text-zinc-400">Waiting for first bid...</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="px-4 py-3 rounded-lg bg-zinc-800/50 border border-dashed border-zinc-700">
+                    <p className="text-sm text-zinc-400">No active bidding session</p>
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="flex gap-3">
+                  {!currentBiddingSession ? (
+                    <button
+                      onClick={handleOpenBidding}
+                      disabled={isBiddingUpdating}
+                      className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-[#c4ff0e] px-4 py-3 font-semibold text-black hover:bg-[#b3e60d] transition-colors disabled:opacity-50"
+                    >
+                      {isBiddingUpdating ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Play className="h-4 w-4" />
+                          Open Bidding
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleCloseBidding}
+                      disabled={isBiddingUpdating}
+                      className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-red-500/60 px-4 py-3 font-semibold text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-50"
+                    >
+                      {isBiddingUpdating ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Square className="h-4 w-4" />
+                          Close Bidding
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-xs text-zinc-500">
+                  Bidding also auto-opens every 5 minutes during live streams.
+                </p>
+              </div>
+            )}
+          </section>
+
           <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
             <h2 className="text-lg font-semibold mb-4">Current Admins</h2>
             {!admins || admins.length === 0 ? (

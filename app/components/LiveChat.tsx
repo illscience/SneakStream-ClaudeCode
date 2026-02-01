@@ -7,8 +7,9 @@ import { SignInButton, useUser } from "@clerk/nextjs"
 import { usePaginatedQuery, useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { EMOTE_BY_ID, EMOTES } from "@/lib/emotes"
-import { DollarSign, Heart, Image as ImageIcon, Loader2, MessageSquare, Send, Smile, Trash2 } from "lucide-react"
+import { DollarSign, Disc3, Heart, Image as ImageIcon, Loader2, MessageSquare, Send, Smile, Trash2 } from "lucide-react"
 import { TipModal } from "@/components/tips"
+import { AuctionPanel } from "@/components/bidding"
 
 const GIF_URL_PATTERN =
   /https?:\/\/[^\s]+\.gif(\?[^\s]*)?|https?:\/\/(media\.giphy\.com|giphy\.com|media\.tenor\.com|tenor\.com|imgur\.com|i\.imgur\.com)\/[^\s]+/gi
@@ -61,9 +62,10 @@ const extractGifUrls = (body: string) => {
 
 interface LiveChatProps {
   livestreamId?: Id<"livestreams">
+  streamStartedAt?: number
 }
 
-export default function LiveChat({ livestreamId }: LiveChatProps) {
+export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProps) {
   const { user } = useUser()
   const [newMessage, setNewMessage] = useState("")
   const [isTipModalOpen, setIsTipModalOpen] = useState(false)
@@ -560,6 +562,9 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
         </div>
       )}
 
+      {/* Auction Panel - only during active livestream */}
+      {livestreamId && <AuctionPanel livestreamId={livestreamId} streamStartedAt={streamStartedAt} />}
+
       <div className="space-y-3 bg-zinc-900/50 rounded-xl p-4 border border-zinc-800 touch-pan-y">
         {[...optimisticMessages, ...(messages || [])]
           .filter((message) => !deletedMessageIds.has(message._id))
@@ -580,7 +585,29 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
               }
             }
 
-            const { text, urls: gifUrls } = emote || tipData ? { text: "", urls: [] } : extractGifUrls(rawBody)
+            // Check for crate purchase message
+            const crateMatch = rawBody.match(/^:crate_purchase:(.+)$/)
+            let crateData: { type: string; amount: number } | null = null
+            if (crateMatch) {
+              try {
+                crateData = JSON.parse(crateMatch[1])
+              } catch {
+                crateData = null
+              }
+            }
+
+            // Check for auction message (bid, outbid, won)
+            const auctionMatch = rawBody.match(/^:auction:(.+)$/)
+            let auctionData: { type: string; amount: number; outbidUserId?: string } | null = null
+            if (auctionMatch) {
+              try {
+                auctionData = JSON.parse(auctionMatch[1])
+              } catch {
+                auctionData = null
+              }
+            }
+
+            const { text, urls: gifUrls } = emote || tipData || crateData || auctionData ? { text: "", urls: [] } : extractGifUrls(rawBody)
             const isGifUpload =
               message.imageMimeType === "image/gif" ||
               message.imageUrl?.toLowerCase().includes(".gif")
@@ -678,6 +705,131 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
                           )}
                         </div>
                       )}
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+
+            // Render crate purchase celebration message
+            if (crateData) {
+              return (
+                <div
+                  key={message._id}
+                  className="group relative overflow-hidden rounded-xl border border-[#ff00ff]/40 bg-gradient-to-r from-[#ff00ff]/20 via-zinc-900 to-[#c4ff0e]/20 p-4"
+                >
+                  {/* Sparkle effect */}
+                  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMCwyNTUsMC4zKSIvPjwvc3ZnPg==')] opacity-50" />
+
+                  <div className="relative flex items-start gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#ff00ff] text-white shadow-lg shadow-[#ff00ff]/30">
+                      <Disc3 className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-[#ff00ff]">
+                          {message.userName || "Someone"}
+                        </span>
+                        <span className="text-white">added a track to their crate!</span>
+                        <span className="rounded-full bg-[#ff00ff] px-3 py-0.5 text-sm font-bold text-white">
+                          ${(crateData.amount / 100).toFixed(0)}
+                        </span>
+                        <span className="text-2xl animate-bounce">💿</span>
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              setDeletedMessageIds((prev) => new Set(prev).add(message._id))
+                              deleteMessage({ messageId: message._id }).catch((error) => {
+                                console.error("Failed to delete message:", error)
+                                setDeletedMessageIds((prev) => {
+                                  const newSet = new Set(prev)
+                                  newSet.delete(message._id)
+                                  return newSet
+                                })
+                              })
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-red-500 ml-auto"
+                            title="Delete message"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                      {/* Love button for crate purchases */}
+                      {!isOptimistic && (
+                        <div className="mt-3 flex items-center gap-2 text-xs text-zinc-500">
+                          <button
+                            onClick={() => handleLove(message._id)}
+                            className={`flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
+                              loveCount > 0 || loveAnimatingId === message._id
+                                ? "bg-red-600 text-white"
+                                : "bg-zinc-900/60 text-zinc-500 hover:text-red-500"
+                            }`}
+                          >
+                            <Heart className={`w-4 h-4 ${loveCount > 0 ? "fill-white" : ""}`} />
+                            <span>{loveCount}</span>
+                          </button>
+                          {recentLovers.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {recentLovers.map((lover: { clerkId: string; alias: string; avatarUrl?: string }) => (
+                                <div
+                                  key={`${message._id}-${lover.clerkId}`}
+                                  className="h-5 w-5 rounded-full border border-zinc-900 bg-zinc-800 flex items-center justify-center overflow-hidden text-[10px]"
+                                  title={lover.alias}
+                                >
+                                  {lover.avatarUrl ? (
+                                    <img src={lover.avatarUrl} alt={lover.alias} className="h-full w-full object-cover" />
+                                  ) : (
+                                    <span className="text-white">{lover.alias.charAt(0).toUpperCase()}</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+
+            // Render auction message (bid, outbid, won)
+            if (auctionData) {
+              const isWon = auctionData.type === "auction_won"
+              const isOutbid = auctionData.type === "outbid"
+              return (
+                <div
+                  key={message._id}
+                  className={`group relative overflow-hidden rounded-xl border p-3 ${
+                    isWon
+                      ? "border-[#c4ff0e]/40 bg-gradient-to-r from-[#c4ff0e]/20 via-zinc-900 to-[#ff00ff]/20"
+                      : "border-[#ff00ff]/30 bg-gradient-to-r from-[#ff00ff]/10 via-zinc-900/80 to-[#c4ff0e]/10"
+                  }`}
+                >
+                  <div className="relative flex items-center gap-3">
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                      isWon ? "bg-[#c4ff0e] text-black" : "bg-[#ff00ff] text-white"
+                    }`}>
+                      {isWon ? "🏆" : "🔨"}
+                    </div>
+                    <div className="flex-1 flex items-center gap-2 flex-wrap">
+                      <span className={`font-bold ${isWon ? "text-[#c4ff0e]" : "text-[#ff00ff]"}`}>
+                        {message.userName || "Someone"}
+                      </span>
+                      <span className="text-white text-sm">
+                        {isWon
+                          ? "won the auction!"
+                          : isOutbid
+                          ? "outbid with"
+                          : "placed a bid of"}
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 text-sm font-bold ${
+                        isWon ? "bg-[#c4ff0e] text-black" : "bg-[#ff00ff] text-white"
+                      }`}>
+                        ${(auctionData.amount / 100).toFixed(0)}
+                      </span>
+                      {isWon && <span className="text-xl">🎉</span>}
                     </div>
                   </div>
                 </div>

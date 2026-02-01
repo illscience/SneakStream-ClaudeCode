@@ -8,6 +8,7 @@ import type { ChangeEvent } from "react";
 import { Users, UserPlus, Heart, Music, Loader2 } from "lucide-react";
 import MainNav from "@/components/navigation/MainNav";
 import EditableAlias from "../../components/ui/editable-alias";
+import { CrateSection } from "@/components/bidding";
 
 export default function ProfilePage() {
   const { user, isLoaded } = useUser();
@@ -271,6 +272,12 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* Crate Section - Temporarily disabled for debugging
+        <div className="mb-6">
+          <CrateSection />
+        </div>
+        */}
 
         {/* Tabs-style sections */}
         <div className="grid grid-cols-2 gap-6 mb-8">

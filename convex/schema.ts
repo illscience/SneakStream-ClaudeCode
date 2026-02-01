@@ -198,4 +198,40 @@ export default defineSchema({
     .index("by_user_video", ["userId", "videoId"])
     .index("by_user_livestream", ["userId", "livestreamId"])
     .index("by_user", ["userId"]),
+
+  // Active bidding session (one per livestream at a time)
+  biddingSessions: defineTable({
+    livestreamId: v.id("livestreams"),
+    videoTimestamp: v.number(), // Livestream timestamp when bidding opened
+    openedAt: v.number(), // When bidding window opened
+    status: v.string(), // "open" | "payment_pending" | "sold" | "expired"
+    biddingEndsAt: v.optional(v.number()), // Countdown end - auto-set on first bid, reset on each outbid
+    sealingEndsAt: v.optional(v.number()), // DEPRECATED - kept for legacy data
+    paymentDeadline: v.optional(v.number()), // Payment window end after winning
+  })
+    .index("by_livestream", ["livestreamId"])
+    .index("by_status", ["status"]),
+
+  // Bid history
+  bids: defineTable({
+    sessionId: v.id("biddingSessions"),
+    bidderId: v.string(), // Clerk user ID
+    amount: v.number(), // Cents
+    createdAt: v.number(),
+    status: v.string(), // "active" | "outbid" | "won" | "expired"
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_session_status", ["sessionId", "status"]),
+
+  // User's crate (purchased track moments)
+  crate: defineTable({
+    ownerId: v.string(), // Clerk user ID
+    livestreamId: v.id("livestreams"),
+    videoTimestamp: v.number(), // Where in the stream this track was
+    purchaseAmount: v.number(), // Final price paid
+    stripeSessionId: v.string(),
+    purchasedAt: v.number(),
+  })
+    .index("by_owner", ["ownerId"])
+    .index("by_session", ["stripeSessionId"]),
 });
