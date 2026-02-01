@@ -273,11 +273,10 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Crate Section - Temporarily disabled for debugging
+        {/* Crate Section */}
         <div className="mb-6">
           <CrateSection />
         </div>
-        */}
 
         {/* Tabs-style sections */}
         <div className="grid grid-cols-2 gap-6 mb-8">
