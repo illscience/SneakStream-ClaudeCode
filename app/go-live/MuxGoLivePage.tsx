@@ -216,24 +216,27 @@ export default function MuxGoLivePage() {
       let streamData;
 
       // Check if user has saved credentials
-      if (savedCredentials) {
-        if (savedCredentials.provider === "mux") {
-          try {
-            const enableResponse = await fetch("/api/stream/enable", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ streamId: savedCredentials.streamId }),
-            });
+      let credentialsValid = false;
+      if (savedCredentials && savedCredentials.provider === "mux") {
+        try {
+          const enableResponse = await fetch("/api/stream/enable", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ streamId: savedCredentials.streamId }),
+          });
 
-            if (!enableResponse.ok) {
-              const error = await enableResponse.json();
-              console.warn("Failed to enable Mux live stream:", error);
-            }
-          } catch (error) {
-            console.warn("Failed to enable Mux live stream:", error);
+          if (enableResponse.ok) {
+            credentialsValid = true;
+          } else {
+            const error = await enableResponse.json();
+            console.warn("Failed to enable Mux live stream, will create new one:", error);
           }
+        } catch (error) {
+          console.warn("Failed to enable Mux live stream, will create new one:", error);
         }
+      }
 
+      if (credentialsValid && savedCredentials) {
         // Reuse existing stream
         streamData = {
           streamId: savedCredentials.streamId,
