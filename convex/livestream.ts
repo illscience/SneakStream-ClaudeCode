@@ -197,14 +197,15 @@ export const endStream = mutation({
   },
 });
 
-// Update viewer count (admin only)
+// Update viewer count (any authenticated user can trigger this)
 export const updateViewerCount = mutation({
   args: {
     streamId: v.id("livestreams"),
     viewerCount: v.number(),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    // Only require authentication, not admin - this is called when users watch streams
+    await getAuthenticatedUser(ctx);
 
     await ctx.db.patch(args.streamId, {
       viewerCount: args.viewerCount,

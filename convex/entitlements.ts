@@ -292,6 +292,21 @@ export const getLivestreamEntitlements = query({
   },
 });
 
+// Get count of entitlements for a livestream (used as approximate viewer count)
+export const getLivestreamEntitlementCount = query({
+  args: {
+    livestreamId: v.id("livestreams"),
+  },
+  handler: async (ctx, args) => {
+    const entitlements = await ctx.db
+      .query("entitlements")
+      .filter((q) => q.eq(q.field("livestreamId"), args.livestreamId))
+      .collect();
+
+    return entitlements.length;
+  },
+});
+
 // ============================================
 // Admin Dashboard Queries
 // ============================================

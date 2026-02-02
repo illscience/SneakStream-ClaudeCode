@@ -28,20 +28,16 @@ export const openBidding = mutation({
       }
     }
 
-    // Check if there's already an active session for this livestream
+    // Check if there's already an open bidding session for this livestream
+    // Note: payment_pending sessions are allowed - winners can pay while new auctions run
     const existingSession = await ctx.db
       .query("biddingSessions")
       .withIndex("by_livestream", (q) => q.eq("livestreamId", args.livestreamId))
-      .filter((q) =>
-        q.or(
-          q.eq(q.field("status"), "open"),
-          q.eq(q.field("status"), "payment_pending")
-        )
-      )
+      .filter((q) => q.eq(q.field("status"), "open"))
       .first();
 
     if (existingSession) {
-      throw new Error("There is already an active bidding session for this livestream");
+      throw new Error("There is already an open bidding session for this livestream");
     }
 
     const sessionId = await ctx.db.insert("biddingSessions", {
@@ -193,38 +189,80 @@ export const getCurrentSession = query({
     livestreamId: v.id("livestreams"),
   },
   handler: async (ctx, args) => {
+    // Get current user (if authenticated)
+    const identity = await ctx.auth.getUserIdentity();
+    const currentUserId = identity?.subject;
+
+    // Check for admin status
+    let isAdmin = false;
+    if (currentUserId) {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", currentUserId))
+        .first();
+      isAdmin = user?.isAdmin ?? false;
+    }
+
+    // First, check if the current user has a pending payment (won but not paid)
+    // This takes priority over any new open bidding sessions
+    if (currentUserId) {
+      const paymentPendingSessions = await ctx.db
+        .query("biddingSessions")
+        .withIndex("by_livestream", (q) => q.eq("livestreamId", args.livestreamId))
+        .filter((q) => q.eq(q.field("status"), "payment_pending"))
+        .collect();
+
+      for (const pendingSession of paymentPendingSessions) {
+        const wonBid = await ctx.db
+          .query("bids")
+          .withIndex("by_session_status", (q) =>
+            q.eq("sessionId", pendingSession._id).eq("status", "won")
+          )
+          .first();
+
+        // If this user won this session, show it so they can pay
+        if (wonBid && wonBid.bidderId === currentUserId) {
+          const holderUser = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", wonBid.bidderId))
+            .first();
+
+          return {
+            ...pendingSession,
+            currentBid: {
+              amount: wonBid.amount,
+              bidderId: wonBid.bidderId,
+            },
+            holder: {
+              clerkId: wonBid.bidderId,
+              alias: holderUser?.alias ?? "Anonymous",
+              avatarUrl: holderUser?.selectedAvatar ?? holderUser?.imageUrl,
+            },
+            nextBidAmount: wonBid.amount + BID_INCREMENT,
+          };
+        }
+      }
+    }
+
+    // No pending payment for this user, look for open bidding session
     const session = await ctx.db
       .query("biddingSessions")
       .withIndex("by_livestream", (q) => q.eq("livestreamId", args.livestreamId))
-      .filter((q) =>
-        q.or(
-          q.eq(q.field("status"), "open"),
-          q.eq(q.field("status"), "payment_pending")
-        )
-      )
+      .filter((q) => q.eq(q.field("status"), "open"))
       .first();
 
     if (!session) {
+      // No open session - admins will see "Open Bid" button
       return null;
     }
 
-    // Get current highest bid - check for "active" (during bidding) or "won" (payment pending)
-    let currentBid = await ctx.db
+    // Get current highest bid for open session
+    const currentBid = await ctx.db
       .query("bids")
       .withIndex("by_session_status", (q) =>
         q.eq("sessionId", session._id).eq("status", "active")
       )
       .first();
-
-    // If no active bid and session is payment_pending, look for the won bid
-    if (!currentBid && session.status === "payment_pending") {
-      currentBid = await ctx.db
-        .query("bids")
-        .withIndex("by_session_status", (q) =>
-          q.eq("sessionId", session._id).eq("status", "won")
-        )
-        .first();
-    }
 
     let holder = null;
     if (currentBid) {
@@ -251,6 +289,46 @@ export const getCurrentSession = query({
       nextBidAmount: currentBid
         ? currentBid.amount + BID_INCREMENT
         : INITIAL_BID_AMOUNT,
+    };
+  },
+});
+
+// Get session for payment verification (used by API route)
+export const getSessionForPayment = query({
+  args: {
+    sessionId: v.id("biddingSessions"),
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const session = await ctx.db.get(args.sessionId);
+
+    if (!session) {
+      return null;
+    }
+
+    if (session.status !== "payment_pending") {
+      return { error: "Session is not in payment pending state" };
+    }
+
+    // Get the winning bid
+    const wonBid = await ctx.db
+      .query("bids")
+      .withIndex("by_session_status", (q) =>
+        q.eq("sessionId", args.sessionId).eq("status", "won")
+      )
+      .first();
+
+    if (!wonBid || wonBid.bidderId !== args.userId) {
+      return { error: "You are not the winner of this bid" };
+    }
+
+    return {
+      _id: session._id,
+      livestreamId: session.livestreamId,
+      currentBid: {
+        amount: wonBid.amount,
+        bidderId: wonBid.bidderId,
+      },
     };
   },
 });
@@ -475,6 +553,68 @@ export const getSessionByStripeId = query({
       .first();
 
     return crate;
+  },
+});
+
+// Check and process bidding expiry for a specific session (called by client when countdown hits 0)
+export const processBiddingExpiry = mutation({
+  args: {
+    sessionId: v.id("biddingSessions"),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const session = await ctx.db.get(args.sessionId);
+
+    if (!session || session.status !== "open") {
+      return { processed: false, reason: "Session not open" };
+    }
+
+    // Only process if countdown has started and expired
+    if (!session.biddingEndsAt || now < session.biddingEndsAt) {
+      return { processed: false, reason: "Countdown not expired" };
+    }
+
+    // Get winning bid
+    const winningBid = await ctx.db
+      .query("bids")
+      .withIndex("by_session_status", (q) =>
+        q.eq("sessionId", args.sessionId).eq("status", "active")
+      )
+      .first();
+
+    if (winningBid) {
+      await ctx.db.patch(winningBid._id, { status: "won" });
+      await ctx.db.patch(args.sessionId, {
+        status: "payment_pending",
+      });
+
+      // Post chat message for auction win
+      const winnerUser = await ctx.db
+        .query("users")
+        .withIndex("by_clerk_id", (q) => q.eq("clerkId", winningBid.bidderId))
+        .first();
+      const winnerName = winnerUser?.alias ?? "Someone";
+      const winnerAvatar = winnerUser?.selectedAvatar ?? winnerUser?.imageUrl;
+
+      const winData = JSON.stringify({
+        type: "auction_won",
+        amount: winningBid.amount,
+      });
+      const messageBody = `:auction:${winData}`;
+
+      await ctx.db.insert("messages", {
+        user: winningBid.bidderId,
+        userId: winningBid.bidderId,
+        userName: winnerName,
+        avatarUrl: winnerAvatar,
+        body: messageBody,
+      });
+
+      return { processed: true, winner: winningBid.bidderId };
+    }
+
+    // No bids - session stays open
+    return { processed: false, reason: "No bids to process" };
   },
 });
 

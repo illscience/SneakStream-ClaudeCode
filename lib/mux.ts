@@ -310,7 +310,12 @@ export async function getCurrentViewers(playbackId: string): Promise<number> {
 
     return 0;
   } catch (error) {
-    console.error("Failed to fetch viewer count from Mux:", error);
+    // Real-Time Data API is a premium Mux feature - silently return 0 if not available
+    // Only log unexpected errors (not 404s which indicate the feature isn't enabled)
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (!errorMessage.includes("404")) {
+      console.error("Failed to fetch viewer count from Mux:", error);
+    }
     return 0;
   }
 }

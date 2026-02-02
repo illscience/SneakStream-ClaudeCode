@@ -24,9 +24,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get current session from Convex to verify user is winner
-    const session = await convex.query(api.bidding.getCurrentSession, {
-      livestreamId: body.livestreamId as Id<"livestreams">,
+    // Get the bidding session directly by ID and verify user is winner
+    const session = await convex.query(api.bidding.getSessionForPayment, {
+      sessionId: sessionId as Id<"biddingSessions">,
+      userId,
     });
 
     if (!session) {
@@ -36,17 +37,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (session.status !== "payment_pending") {
+    if ("error" in session) {
       return NextResponse.json(
-        { error: "Session is not in payment pending state" },
+        { error: session.error },
         { status: 400 }
       );
     }
 
-    if (!session.currentBid || session.currentBid.bidderId !== userId) {
+    if (!session.currentBid) {
       return NextResponse.json(
-        { error: "You are not the winner of this bid" },
-        { status: 403 }
+        { error: "No winning bid found" },
+        { status: 400 }
       );
     }
 

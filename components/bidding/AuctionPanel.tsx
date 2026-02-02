@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { SignInButton, useUser } from "@clerk/nextjs";
-import { Gavel, Timer, CreditCard, Loader2, Plus } from "lucide-react";
+import { Gavel, Timer, CreditCard, Loader2, Plus, Square } from "lucide-react";
 
 interface AuctionPanelProps {
   livestreamId: Id<"livestreams">;
@@ -25,17 +25,30 @@ export function AuctionPanel({ livestreamId, streamStartedAt }: AuctionPanelProp
   );
   const placeBid = useMutation(api.bidding.placeBid);
   const openBidding = useMutation(api.bidding.openBidding);
+  const closeBidding = useMutation(api.bidding.closeBidding);
+  const processBiddingExpiry = useMutation(api.bidding.processBiddingExpiry);
 
   const isAdmin = currentUser?.isAdmin ?? false;
 
-  // Update countdown timer
+  // Update countdown timer and process expiry when it hits 0
   useEffect(() => {
     if (!session) return;
 
-    const updateCountdown = () => {
+    const updateCountdown = async () => {
       if (session.status === "open" && session.biddingEndsAt) {
         const remaining = Math.max(0, session.biddingEndsAt - Date.now());
-        setCountdown(Math.ceil(remaining / 1000));
+        const seconds = Math.ceil(remaining / 1000);
+        setCountdown(seconds);
+
+        // When countdown hits 0, trigger the expiry processing
+        if (seconds === 0 && session.holder) {
+          try {
+            await processBiddingExpiry({ sessionId: session._id });
+          } catch (err) {
+            // Silently handle - cron will also process this
+            console.error("Failed to process bidding expiry:", err);
+          }
+        }
       } else {
         setCountdown(null);
       }
@@ -44,7 +57,7 @@ export function AuctionPanel({ livestreamId, streamStartedAt }: AuctionPanelProp
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
-  }, [session]);
+  }, [session, processBiddingExpiry]);
 
   const handleOpenBidding = async () => {
     if (!streamStartedAt) return;
@@ -55,6 +68,19 @@ export function AuctionPanel({ livestreamId, streamStartedAt }: AuctionPanelProp
       await openBidding({ livestreamId, videoTimestamp });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to open bidding");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCloseBidding = async () => {
+    if (!session) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      await closeBidding({ sessionId: session._id });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to close bidding");
     } finally {
       setIsLoading(false);
     }
@@ -71,7 +97,7 @@ export function AuctionPanel({ livestreamId, streamStartedAt }: AuctionPanelProp
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#ff00ff] text-white">
               <Gavel className="h-4 w-4" />
             </div>
-            <span className="text-sm font-medium text-white">Live Auction</span>
+            <span className="text-sm font-medium text-white">Live Auction - BUY THIS RECORD NOW</span>
           </div>
           <button
             onClick={handleOpenBidding}
@@ -151,7 +177,7 @@ export function AuctionPanel({ livestreamId, streamStartedAt }: AuctionPanelProp
             <Gavel className="h-4 w-4" />
           </div>
           <div>
-            <span className="text-sm font-medium text-white">Live Auction</span>
+            <span className="text-sm font-medium text-white">Live Auction - BUY THIS RECORD NOW</span>
             {session.status === "payment_pending" && (
               <div className="flex items-center gap-1 text-xs text-[#c4ff0e]">
                 <CreditCard className="h-3 w-3" />
@@ -162,13 +188,32 @@ export function AuctionPanel({ livestreamId, streamStartedAt }: AuctionPanelProp
         </div>
 
         {/* Current Bid Display */}
-        <div className="text-right">
-          <div className="text-xs text-zinc-400">
-            {session.holder ? "Current Bid" : "Starting Bid"}
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <div className="text-xs text-zinc-400">
+              {session.holder ? "Current Bid" : "Starting Bid"}
+            </div>
+            <div className="text-xl font-bold text-[#c4ff0e]">
+              ${(session.holder ? session.currentBid!.amount : 1000) / 100}
+            </div>
           </div>
-          <div className="text-xl font-bold text-[#c4ff0e]">
-            ${(session.holder ? session.currentBid!.amount : 1000) / 100}
-          </div>
+          {/* Admin Close Bidding Button - only show when bidding is still open */}
+          {isAdmin && session.status === "open" && (
+            <button
+              onClick={handleCloseBidding}
+              disabled={isLoading}
+              className="flex items-center gap-2 rounded-lg bg-red-500 px-4 py-2 text-sm font-bold text-white transition-all hover:bg-red-600 disabled:opacity-50"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Square className="h-4 w-4" />
+                  Close Bidding
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -213,7 +258,7 @@ export function AuctionPanel({ livestreamId, streamStartedAt }: AuctionPanelProp
           </div>
           <span className="text-sm text-zinc-300">
             <span className="text-[#ff00ff] font-medium">{session.holder.alias}</span>
-            {isHolder ? " (You)" : ""} is winning
+            {isHolder ? " (You)" : ""} {session.status === "payment_pending" ? "won!" : "is winning"}
           </span>
         </div>
       )}
@@ -242,7 +287,7 @@ export function AuctionPanel({ livestreamId, streamStartedAt }: AuctionPanelProp
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <>Claim for $10</>
+                  <>Bid $10 for this record</>
                 )}
               </button>
             )}
