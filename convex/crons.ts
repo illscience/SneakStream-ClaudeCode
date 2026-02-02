@@ -10,11 +10,4 @@ crons.interval(
   internal.bidding.checkBiddingExpiry
 );
 
-// Auto-open bidding every 5 minutes for active streams
-crons.interval(
-  "auto open bidding",
-  { minutes: 5 },
-  internal.bidding.autoOpenBidding
-);
-
 export default crons;
