@@ -96,6 +96,7 @@ export default defineSchema({
     description: v.optional(v.string()),
     status: v.string(), // "active", "ended"
     startedAt: v.number(), // timestamp
+    startedAtFromWebhook: v.optional(v.boolean()), // true if startedAt was updated by Mux webhook (actual streaming start)
     endedAt: v.optional(v.number()), // timestamp
     viewerCount: v.optional(v.number()),
     provider: v.optional(v.string()),
