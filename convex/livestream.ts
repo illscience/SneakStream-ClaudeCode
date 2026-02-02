@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalMutation } from "./_generated/server";
 import { ADMIN_LIBRARY_USER_ID, requireAdmin, getAuthenticatedUser } from "./adminSettings";
 
 // Get the current active stream
@@ -45,6 +45,55 @@ export const getLivestream = query({
   args: { livestreamId: v.id("livestreams") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.livestreamId);
+  },
+});
+
+// Update startedAt when Mux stream actually goes active (receives video frames)
+// This is called by the Mux webhook when live_stream.active fires
+export const updateStreamStartedAt = mutation({
+  args: {
+    streamId: v.string(), // Mux stream ID
+    startedAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    // Find the livestream by Mux stream ID
+    const stream = await ctx.db
+      .query("livestreams")
+      .withIndex("by_streamId", (q) => q.eq("streamId", args.streamId))
+      .first();
+
+    if (!stream) {
+      console.warn("[updateStreamStartedAt] Stream not found:", args.streamId);
+      return null;
+    }
+
+    // Only update if stream is active (don't update ended streams)
+    if (stream.status !== "active") {
+      console.log("[updateStreamStartedAt] Stream not active, skipping:", args.streamId);
+      return null;
+    }
+
+    // Only update startedAt ONCE - on the first active event
+    // This prevents reconnects from resetting the timeline
+    if (stream.startedAtFromWebhook) {
+      console.log("[updateStreamStartedAt] Already updated from webhook, skipping:", args.streamId);
+      return null;
+    }
+
+    // Update startedAt to accurate timestamp and mark as webhook-updated
+    await ctx.db.patch(stream._id, {
+      startedAt: args.startedAt,
+      startedAtFromWebhook: true,
+    });
+
+    console.log("[updateStreamStartedAt] Updated startedAt for stream:", {
+      streamId: args.streamId,
+      convexId: stream._id,
+      oldStartedAt: stream.startedAt,
+      newStartedAt: args.startedAt,
+    });
+
+    return stream._id;
   },
 });
 
@@ -240,5 +289,24 @@ export const updateStreamPrice = mutation({
     await ctx.db.patch(args.streamId, {
       price: args.price,
     });
+  },
+});
+
+// Clear recordingVideoId from a livestream (used when deleting recording video)
+export const clearRecordingVideoId = internalMutation({
+  args: {
+    livestreamId: v.id("livestreams"),
+  },
+  handler: async (ctx, args) => {
+    const livestream = await ctx.db.get(args.livestreamId);
+    if (!livestream) {
+      return { cleared: false, reason: "Livestream not found" };
+    }
+
+    await ctx.db.patch(args.livestreamId, {
+      recordingVideoId: undefined,
+    });
+
+    return { cleared: true };
   },
 });

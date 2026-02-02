@@ -95,8 +95,12 @@ export default function LibraryPage() {
     setEditingTitle("");
   };
 
-  const handleDelete = async (videoId: Id<"videos">, videoTitle: string) => {
-    if (!confirm(`Are you sure you want to delete "${videoTitle}"?\n\nThis will also delete the video from Mux and cannot be undone.`)) {
+  const handleDelete = async (videoId: Id<"videos">, videoTitle: string, force = false, crateCount = 0) => {
+    const confirmMessage = force
+      ? `FORCE DELETE "${videoTitle}"?\n\nThis will:\n- Delete the video from Mux\n- Remove ${crateCount} crate purchase${crateCount === 1 ? '' : 's'} from users\n\nThis cannot be undone!`
+      : `Are you sure you want to delete "${videoTitle}"?\n\nThis will also delete the video from Mux and cannot be undone.`;
+
+    if (!confirm(confirmMessage)) {
       return;
     }
 
@@ -104,15 +108,33 @@ export default function LibraryPage() {
       const response = await fetch("/api/video/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoId }),
+        body: JSON.stringify({ videoId, force }),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to delete video");
+        // Check if blocked by crate purchases safeguard
+        if (response.status === 409 && result.requiresForce) {
+          const count = result.crateCount || 0;
+          const forceConfirm = confirm(
+            `Cannot delete "${videoTitle}"\n\n` +
+            `This recording has ${count} crate purchase${count === 1 ? '' : 's'} associated with it.\n\n` +
+            `Do you want to FORCE DELETE?\n` +
+            `This will permanently remove ${count === 1 ? 'this purchase' : `these ${count} purchases`} from users' crates.`
+          );
+
+          if (forceConfirm) {
+            // Retry with force=true
+            await handleDelete(videoId, videoTitle, true, count);
+          }
+          return;
+        }
+        throw new Error(result.error || "Failed to delete video");
       }
 
       console.log("Video deleted successfully");
+      showNotification(`"${videoTitle}" deleted`);
     } catch (error) {
       console.error("Delete error:", error);
       alert(`Failed to delete video: ${error instanceof Error ? error.message : "Unknown error"}`);

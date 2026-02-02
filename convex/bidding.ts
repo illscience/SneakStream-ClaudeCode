@@ -778,6 +778,25 @@ export const getAllCratePurchases = query({
   },
 });
 
+// Delete all crate entries for a livestream (used when force-deleting recording)
+export const deleteCrateEntriesForLivestream = internalMutation({
+  args: {
+    livestreamId: v.id("livestreams"),
+  },
+  handler: async (ctx, args) => {
+    const crateEntries = await ctx.db
+      .query("crate")
+      .filter((q) => q.eq(q.field("livestreamId"), args.livestreamId))
+      .collect();
+
+    for (const entry of crateEntries) {
+      await ctx.db.delete(entry._id);
+    }
+
+    return { deleted: crateEntries.length };
+  },
+});
+
 // Close all bidding sessions for a livestream when it ends
 export const closeAllSessionsForStream = internalMutation({
   args: {

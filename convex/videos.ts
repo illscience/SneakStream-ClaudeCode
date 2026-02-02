@@ -387,13 +387,68 @@ export const incrementHeartCount = mutation({
 });
 
 // Delete video (admin only)
+// Safeguards against deleting recordings with crate purchases unless force=true
 export const deleteVideo = mutation({
-  args: { videoId: v.id("videos") },
+  args: {
+    videoId: v.id("videos"),
+    force: v.optional(v.boolean()), // Force delete - also removes crate entries
+  },
   handler: async (ctx, args) => {
     // SECURITY: Only admins can delete videos
     await requireAdmin(ctx);
 
+    const video = await ctx.db.get(args.videoId);
+    if (!video) {
+      throw new Error("Video not found");
+    }
+
+    // Check if this video is a livestream recording
+    if (video.linkedLivestreamId) {
+      // Check for crate purchases linked to this livestream
+      const crateEntries = await ctx.db
+        .query("crate")
+        .filter((q) => q.eq(q.field("livestreamId"), video.linkedLivestreamId))
+        .collect();
+
+      if (crateEntries.length > 0) {
+        if (!args.force) {
+          // Block deletion - there are crate purchases
+          throw new Error(
+            `Cannot delete video: ${crateEntries.length} crate purchase(s) reference this recording. ` +
+            `Use force=true to delete the video and remove associated crate entries.`
+          );
+        }
+
+        // Force delete - remove crate entries first
+        for (const entry of crateEntries) {
+          await ctx.db.delete(entry._id);
+        }
+        console.log("[videos.deleteVideo] Force deleted crate entries", {
+          videoId: args.videoId,
+          livestreamId: video.linkedLivestreamId,
+          deletedCrateEntries: crateEntries.length,
+        });
+      }
+
+      // Clear recordingVideoId from the linked livestream
+      const livestream = await ctx.db.get(video.linkedLivestreamId);
+      if (livestream && livestream.recordingVideoId === args.videoId) {
+        await ctx.db.patch(video.linkedLivestreamId, {
+          recordingVideoId: undefined,
+        });
+        console.log("[videos.deleteVideo] Cleared recordingVideoId from livestream", {
+          videoId: args.videoId,
+          livestreamId: video.linkedLivestreamId,
+        });
+      }
+    }
+
     await ctx.db.delete(args.videoId);
+    console.log("[videos.deleteVideo] Deleted video", {
+      videoId: args.videoId,
+      title: video.title,
+      force: args.force ?? false,
+    });
   },
 });
 
