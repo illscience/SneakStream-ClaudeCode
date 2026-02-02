@@ -711,84 +711,22 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
               )
             }
 
-            // Render crate purchase celebration message
+            // Render crate purchase message
             if (crateData) {
               return (
-                <div
-                  key={message._id}
-                  className="group relative overflow-hidden rounded-xl border border-[#ff00ff]/40 bg-gradient-to-r from-[#ff00ff]/20 via-zinc-900 to-[#c4ff0e]/20 p-4"
-                >
-                  {/* Sparkle effect */}
-                  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMCwyNTUsMC4zKSIvPjwvc3ZnPg==')] opacity-50" />
-
-                  <div className="relative flex items-start gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#ff00ff] text-white shadow-lg shadow-[#ff00ff]/30">
-                      <Disc3 className="h-6 w-6" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-[#ff00ff]">
-                          {message.userName || "Someone"}
-                        </span>
-                        <span className="text-white">added a track to their crate!</span>
-                        <span className="rounded-full bg-[#ff00ff] px-3 py-0.5 text-sm font-bold text-white">
-                          ${(crateData.amount / 100).toFixed(0)}
-                        </span>
-                        <span className="text-2xl animate-bounce">💿</span>
-                        {isAdmin && (
-                          <button
-                            onClick={() => {
-                              setDeletedMessageIds((prev) => new Set(prev).add(message._id))
-                              deleteMessage({ messageId: message._id }).catch((error) => {
-                                console.error("Failed to delete message:", error)
-                                setDeletedMessageIds((prev) => {
-                                  const newSet = new Set(prev)
-                                  newSet.delete(message._id)
-                                  return newSet
-                                })
-                              })
-                            }}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-500 hover:text-red-500 ml-auto"
-                            title="Delete message"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                      {/* Love button for crate purchases */}
-                      {!isOptimistic && (
-                        <div className="mt-3 flex items-center gap-2 text-xs text-zinc-500">
-                          <button
-                            onClick={() => handleLove(message._id)}
-                            className={`flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
-                              loveCount > 0 || loveAnimatingId === message._id
-                                ? "bg-red-600 text-white"
-                                : "bg-zinc-900/60 text-zinc-500 hover:text-red-500"
-                            }`}
-                          >
-                            <Heart className={`w-4 h-4 ${loveCount > 0 ? "fill-white" : ""}`} />
-                            <span>{loveCount}</span>
-                          </button>
-                          {recentLovers.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                              {recentLovers.map((lover: { clerkId: string; alias: string; avatarUrl?: string }) => (
-                                <div
-                                  key={`${message._id}-${lover.clerkId}`}
-                                  className="h-5 w-5 rounded-full border border-zinc-900 bg-zinc-800 flex items-center justify-center overflow-hidden text-[10px]"
-                                  title={lover.alias}
-                                >
-                                  {lover.avatarUrl ? (
-                                    <img src={lover.avatarUrl} alt={lover.alias} className="h-full w-full object-cover" />
-                                  ) : (
-                                    <span className="text-white">{lover.alias.charAt(0).toUpperCase()}</span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                <div key={message._id} className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#ff00ff] text-white">
+                    <Disc3 className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-[#ff00ff]">
+                      {message.userName || "Someone"}
+                    </span>
+                    <span className="text-white text-sm">added a track to their crate!</span>
+                    <span className="rounded-full bg-[#ff00ff] px-2 py-0.5 text-sm font-bold text-white">
+                      ${(crateData.amount / 100).toFixed(0)}
+                    </span>
+                    <span className="text-xl">💿</span>
                   </div>
                 </div>
               )
@@ -799,38 +737,29 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
               const isWon = auctionData.type === "auction_won"
               const isOutbid = auctionData.type === "outbid"
               return (
-                <div
-                  key={message._id}
-                  className={`group relative overflow-hidden rounded-xl border p-3 ${
-                    isWon
-                      ? "border-[#c4ff0e]/40 bg-gradient-to-r from-[#c4ff0e]/20 via-zinc-900 to-[#ff00ff]/20"
-                      : "border-[#ff00ff]/30 bg-gradient-to-r from-[#ff00ff]/10 via-zinc-900/80 to-[#c4ff0e]/10"
-                  }`}
-                >
-                  <div className="relative flex items-center gap-3">
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                <div key={message._id} className="flex items-center gap-3">
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                    isWon ? "bg-[#c4ff0e] text-black" : "bg-[#ff00ff] text-white"
+                  }`}>
+                    {isWon ? "🏆" : "🔨"}
+                  </div>
+                  <div className="flex-1 flex items-center gap-2 flex-wrap">
+                    <span className={`font-bold ${isWon ? "text-[#c4ff0e]" : "text-[#ff00ff]"}`}>
+                      {message.userName || "Someone"}
+                    </span>
+                    <span className="text-white text-sm">
+                      {isWon
+                        ? "won the auction!"
+                        : isOutbid
+                        ? "outbid with"
+                        : "placed a bid of"}
+                    </span>
+                    <span className={`rounded-full px-2 py-0.5 text-sm font-bold ${
                       isWon ? "bg-[#c4ff0e] text-black" : "bg-[#ff00ff] text-white"
                     }`}>
-                      {isWon ? "🏆" : "🔨"}
-                    </div>
-                    <div className="flex-1 flex items-center gap-2 flex-wrap">
-                      <span className={`font-bold ${isWon ? "text-[#c4ff0e]" : "text-[#ff00ff]"}`}>
-                        {message.userName || "Someone"}
-                      </span>
-                      <span className="text-white text-sm">
-                        {isWon
-                          ? "won the auction!"
-                          : isOutbid
-                          ? "outbid with"
-                          : "placed a bid of"}
-                      </span>
-                      <span className={`rounded-full px-2 py-0.5 text-sm font-bold ${
-                        isWon ? "bg-[#c4ff0e] text-black" : "bg-[#ff00ff] text-white"
-                      }`}>
-                        ${(auctionData.amount / 100).toFixed(0)}
-                      </span>
-                      {isWon && <span className="text-xl">🎉</span>}
-                    </div>
+                      ${(auctionData.amount / 100).toFixed(0)}
+                    </span>
+                    {isWon && <span className="text-xl">🎉</span>}
                   </div>
                 </div>
               )
