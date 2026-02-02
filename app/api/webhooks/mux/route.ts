@@ -17,6 +17,8 @@ type MuxWebhookEvent = {
     live_stream_id?: string;
     passthrough?: string;
     playback_ids?: Array<{ id?: string; policy?: string }>;
+    // For live_stream events
+    active_asset_id?: string;
   };
 };
 
@@ -245,6 +247,24 @@ export async function POST(request: NextRequest) {
       const result = await upsertMuxAsset(event);
       if (!result.ok) {
         console.warn("[mux webhook] Upsert skipped:", result.reason);
+      }
+    }
+
+    // Handle live stream becoming active - this is when actual video starts streaming
+    // Update startedAt to accurate timestamp for correct video deep linking
+    if (event.type === "video.live_stream.active") {
+      const liveStreamId = eventAsset?.id;
+      if (liveStreamId) {
+        console.log("[mux webhook] Live stream active, updating startedAt", { liveStreamId });
+        try {
+          await convex.mutation(api.livestream.updateStreamStartedAt, {
+            streamId: liveStreamId,
+            startedAt: Date.now(),
+          });
+          console.log("[mux webhook] Successfully updated startedAt for stream", { liveStreamId });
+        } catch (error) {
+          console.warn("[mux webhook] Failed to update startedAt:", error);
+        }
       }
     }
 
