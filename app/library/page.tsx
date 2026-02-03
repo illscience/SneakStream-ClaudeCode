@@ -5,10 +5,12 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
-import { Film, Plus, Play, Eye, Clock, RefreshCw, Trash2, Heart, Edit2, Check, X, SkipForward, Radio } from "lucide-react";
+import { Film, Plus, Play, Eye, Clock, RefreshCw, Heart, Edit2, Check, X, SkipForward, Radio, Download, AlertTriangle } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import MainNav from "@/components/navigation/MainNav";
+
+const DOWNLOADING_VIDEO_KEY = "downloadingVideoId";
 
 export default function LibraryPage() {
   const { user, isLoaded } = useUser();
@@ -18,6 +20,8 @@ export default function LibraryPage() {
   const [editingVideoId, setEditingVideoId] = useState<Id<"videos"> | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [notification, setNotification] = useState<string | null>(null);
+  const [downloadingVideoId, setDownloadingVideoId] = useState<Id<"videos"> | null>(null);
+  const downloadResumeAttempted = useRef(false);
   const isAdmin = useQuery(
     api.adminSettings.checkIsAdmin,
     user?.id ? {} : "skip"
@@ -35,6 +39,30 @@ export default function LibraryPage() {
 
   // Get current default video to show "ON AIR NOW" indicator
   const defaultVideo = useQuery(api.videos.getDefaultVideo);
+
+  // Check for duplicate asset IDs (data integrity warning)
+  const duplicateAssetWarnings = useMemo(() => {
+    if (!videos) return [];
+
+    const assetIdMap = new Map<string, Array<{ id: Id<"videos">; title: string }>>();
+
+    for (const video of videos) {
+      if (video.assetId) {
+        const existing = assetIdMap.get(video.assetId) || [];
+        existing.push({ id: video._id, title: video.title });
+        assetIdMap.set(video.assetId, existing);
+      }
+    }
+
+    const duplicates: Array<{ assetId: string; videos: Array<{ id: Id<"videos">; title: string }> }> = [];
+    for (const [assetId, vids] of assetIdMap) {
+      if (vids.length > 1) {
+        duplicates.push({ assetId, videos: vids });
+      }
+    }
+
+    return duplicates;
+  }, [videos]);
 
   const showNotification = (message: string) => {
     setNotification(message);
@@ -95,49 +123,37 @@ export default function LibraryPage() {
     setEditingTitle("");
   };
 
-  const handleDelete = async (videoId: Id<"videos">, videoTitle: string, force = false, crateCount = 0) => {
-    const confirmMessage = force
-      ? `FORCE DELETE "${videoTitle}"?\n\nThis will:\n- Delete the video from Mux\n- Remove ${crateCount} crate purchase${crateCount === 1 ? '' : 's'} from users\n\nThis cannot be undone!`
-      : `Are you sure you want to delete "${videoTitle}"?\n\nThis will also delete the video from Mux and cannot be undone.`;
+  const handleDownload = async (videoId: Id<"videos">, videoTitle: string) => {
+    // Prevent duplicate requests
+    if (downloadingVideoId === videoId) return;
 
-    if (!confirm(confirmMessage)) {
-      return;
-    }
+    setDownloadingVideoId(videoId);
+    localStorage.setItem(DOWNLOADING_VIDEO_KEY, videoId);
 
     try {
-      const response = await fetch("/api/video/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoId, force }),
-      });
+      const response = await fetch(`/api/video/download?videoId=${videoId}`);
+
+      // Check content type before parsing
+      const contentType = response.headers.get("content-type");
+      if (!contentType?.includes("application/json")) {
+        throw new Error("Download service unavailable. Please try again.");
+      }
 
       const result = await response.json();
 
       if (!response.ok) {
-        // Check if blocked by crate purchases safeguard
-        if (response.status === 409 && result.requiresForce) {
-          const count = result.crateCount || 0;
-          const forceConfirm = confirm(
-            `Cannot delete "${videoTitle}"\n\n` +
-            `This recording has ${count} crate purchase${count === 1 ? '' : 's'} associated with it.\n\n` +
-            `Do you want to FORCE DELETE?\n` +
-            `This will permanently remove ${count === 1 ? 'this purchase' : `these ${count} purchases`} from users' crates.`
-          );
-
-          if (forceConfirm) {
-            // Retry with force=true
-            await handleDelete(videoId, videoTitle, true, count);
-          }
-          return;
-        }
-        throw new Error(result.error || "Failed to delete video");
+        throw new Error(result.error || "Failed to generate download URL");
       }
 
-      console.log("Video deleted successfully");
-      showNotification(`"${videoTitle}" deleted`);
+      // Open download URL in new tab
+      window.open(result.downloadUrl, "_blank");
+      showNotification(`Download started: ${videoTitle}`);
     } catch (error) {
-      console.error("Delete error:", error);
-      alert(`Failed to delete video: ${error instanceof Error ? error.message : "Unknown error"}`);
+      console.error("Download error:", error);
+      alert(`Failed to download: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setDownloadingVideoId(null);
+      localStorage.removeItem(DOWNLOADING_VIDEO_KEY);
     }
   };
 
@@ -294,6 +310,25 @@ export default function LibraryPage() {
     return () => clearInterval(interval);
   }, [videos?.length]);
 
+  // Restore download state from localStorage on initial mount
+  useEffect(() => {
+    // Only attempt resume once when videos first load
+    if (downloadResumeAttempted.current || !videos) return;
+
+    const savedDownloadingId = localStorage.getItem(DOWNLOADING_VIDEO_KEY);
+    if (savedDownloadingId) {
+      downloadResumeAttempted.current = true;
+      const video = videos.find((v) => v._id === savedDownloadingId);
+      if (video) {
+        // Resume download - the API handles polling if still preparing
+        handleDownload(video._id, video.title);
+      } else {
+        // Video no longer exists or not in list, clear stale state
+        localStorage.removeItem(DOWNLOADING_VIDEO_KEY);
+      }
+    }
+  }, [videos]);
+
   useEffect(() => {
     if (isLoaded && !user) {
       router.push("/");
@@ -329,6 +364,35 @@ export default function LibraryPage() {
       )}
 
       <div className="max-w-7xl mx-auto p-8 pt-24">
+        {/* Duplicate Asset ID Warning */}
+        {duplicateAssetWarnings.length > 0 && (
+          <div className="mb-6 p-4 bg-yellow-500/10 border border-yellow-500/50 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-yellow-500">Duplicate Asset IDs Detected</h3>
+                <p className="text-sm text-zinc-400 mt-1">
+                  The following videos reference the same underlying Mux asset. This may indicate a data issue:
+                </p>
+                <ul className="mt-2 space-y-1 text-sm">
+                  {duplicateAssetWarnings.map(({ assetId, videos }) => (
+                    <li key={assetId} className="text-zinc-300">
+                      <span className="font-mono text-xs text-yellow-500/80">{assetId.slice(0, 12)}...</span>
+                      {" → "}
+                      {videos.map((v, i) => (
+                        <span key={v.id}>
+                          {i > 0 && ", "}
+                          <span className="text-white">{v.title}</span>
+                        </span>
+                      ))}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-4 mb-8">
           <div className="flex items-center justify-between">
             <div>
@@ -567,17 +631,24 @@ export default function LibraryPage() {
                     </button>
                   )}
 
-                  {/* Delete Button */}
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleDelete(video._id, video.title);
-                    }}
-                    className="w-10 h-10 bg-red-600/90 hover:bg-red-700 rounded-full flex items-center justify-center shadow-lg backdrop-blur-sm"
-                    title="Delete video"
-                  >
-                    <Trash2 className="w-5 h-5 text-white" />
-                  </button>
+                  {/* Download Button - Mux videos only */}
+                  {video.status === "ready" && video.provider === "mux" && video.assetId && (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleDownload(video._id, video.title);
+                      }}
+                      disabled={downloadingVideoId === video._id}
+                      className="w-10 h-10 bg-purple-600/90 hover:bg-purple-700 rounded-full flex items-center justify-center shadow-lg backdrop-blur-sm text-white disabled:opacity-50"
+                      title="Download original video"
+                    >
+                      {downloadingVideoId === video._id ? (
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Download className="w-5 h-5" />
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

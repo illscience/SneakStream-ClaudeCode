@@ -189,6 +189,11 @@ export interface MuxAssetData {
   duration?: number;
   playback_ids?: MuxAssetPlaybackId[];
   tracks?: Array<{ type: string; max_width?: number; max_height?: number }>;
+  master_access?: "none" | "temporary";
+  master?: {
+    status: "preparing" | "ready";
+    url?: string;
+  };
 }
 
 export interface MuxAssetListItem extends MuxAssetData {
@@ -214,6 +219,19 @@ export async function listAssets(params: { liveStreamId?: string; limit?: number
 
 export async function getAsset(assetId: string): Promise<MuxAssetData> {
   return muxRequest<MuxAssetData>(`/video/v1/assets/${assetId}`);
+}
+
+export async function enableMasterAccess(assetId: string): Promise<MuxAssetData> {
+  return muxRequest<MuxAssetData>(`/video/v1/assets/${assetId}/master-access`, {
+    method: "PUT",
+    json: { master_access: "temporary" },
+  });
+}
+
+export async function getAssetWithMaster(assetId: string): Promise<MuxAssetData> {
+  return muxRequest<MuxAssetData>(`/video/v1/assets/${assetId}`, {
+    method: "GET",
+  });
 }
 
 export interface MuxLiveStream {
