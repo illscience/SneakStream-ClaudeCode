@@ -537,3 +537,186 @@ export const getDefaultVideo = query({
     return defaultVideo;
   },
 });
+
+// Request master download - sets status to "preparing" (admin only)
+export const requestMasterDownload = mutation({
+  args: { videoId: v.id("videos") },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    const video = await ctx.db.get(args.videoId);
+    if (!video) {
+      throw new Error("Video not found");
+    }
+
+    // Check if already preparing or ready (not expired)
+    if (video.masterStatus === "preparing") {
+      return { status: "already_preparing" };
+    }
+
+    if (video.masterStatus === "ready" && video.masterExpiresAt && video.masterExpiresAt > Date.now()) {
+      return { status: "already_ready", masterUrl: video.masterUrl };
+    }
+
+    // Set status to preparing
+    await ctx.db.patch(args.videoId, {
+      masterStatus: "preparing",
+      masterUrl: undefined,
+      masterExpiresAt: undefined,
+    });
+
+    return { status: "preparing" };
+  },
+});
+
+// Update master status when Mux reports ready (admin only)
+export const updateMasterStatus = mutation({
+  args: {
+    videoId: v.id("videos"),
+    status: v.union(v.literal("preparing"), v.literal("ready")),
+    masterUrl: v.optional(v.string()),
+    masterExpiresAt: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    const video = await ctx.db.get(args.videoId);
+    if (!video) {
+      throw new Error("Video not found");
+    }
+
+    await ctx.db.patch(args.videoId, {
+      masterStatus: args.status,
+      masterUrl: args.masterUrl,
+      masterExpiresAt: args.masterExpiresAt,
+    });
+  },
+});
+
+// Clear expired master URLs (can be called periodically or on page load)
+export const clearExpiredMasters = mutation({
+  args: { videoIds: v.optional(v.array(v.id("videos"))) },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    const now = Date.now();
+    let cleared = 0;
+
+    if (args.videoIds && args.videoIds.length > 0) {
+      // Clear specific videos
+      for (const videoId of args.videoIds) {
+        const video = await ctx.db.get(videoId);
+        if (video && video.masterExpiresAt && video.masterExpiresAt < now) {
+          await ctx.db.patch(videoId, {
+            masterStatus: undefined,
+            masterUrl: undefined,
+            masterExpiresAt: undefined,
+          });
+          cleared++;
+        }
+      }
+    } else {
+      // Clear all expired - query all videos with masterStatus
+      const videos = await ctx.db
+        .query("videos")
+        .filter((q) => q.neq(q.field("masterStatus"), undefined))
+        .collect();
+
+      for (const video of videos) {
+        if (video.masterExpiresAt && video.masterExpiresAt < now) {
+          await ctx.db.patch(video._id, {
+            masterStatus: undefined,
+            masterUrl: undefined,
+            masterExpiresAt: undefined,
+          });
+          cleared++;
+        }
+      }
+    }
+
+    return { cleared };
+  },
+});
+
+// Get videos with preparing master status (for polling - kept as fallback)
+export const getPreparingDownloads = query({
+  handler: async (ctx) => {
+    const videos = await ctx.db
+      .query("videos")
+      .filter((q) => q.eq(q.field("masterStatus"), "preparing"))
+      .collect();
+
+    return videos.map((v) => ({
+      _id: v._id,
+      assetId: v.assetId,
+      title: v.title,
+    }));
+  },
+});
+
+// Update master status by Mux assetId (called by webhook - no admin check, webhook signature is verified)
+export const updateMasterStatusByAssetId = mutation({
+  args: {
+    assetId: v.string(),
+    status: v.union(v.literal("preparing"), v.literal("ready")),
+    masterUrl: v.optional(v.string()),
+    masterExpiresAt: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const video = await ctx.db
+      .query("videos")
+      .withIndex("by_assetId", (q) => q.eq("assetId", args.assetId))
+      .first();
+
+    if (!video) {
+      console.log("[videos.updateMasterStatusByAssetId] Video not found for assetId:", args.assetId);
+      return { ok: false, reason: "Video not found" };
+    }
+
+    await ctx.db.patch(video._id, {
+      masterStatus: args.status,
+      masterUrl: args.masterUrl,
+      masterExpiresAt: args.masterExpiresAt,
+    });
+
+    console.log("[videos.updateMasterStatusByAssetId] Updated", {
+      videoId: video._id,
+      assetId: args.assetId,
+      status: args.status,
+      hasUrl: !!args.masterUrl,
+    });
+
+    return { ok: true, videoId: video._id };
+  },
+});
+
+// Clear master status by Mux assetId (called by webhook on delete/error)
+export const clearMasterByAssetId = mutation({
+  args: {
+    assetId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const video = await ctx.db
+      .query("videos")
+      .withIndex("by_assetId", (q) => q.eq("assetId", args.assetId))
+      .first();
+
+    if (!video) {
+      console.log("[videos.clearMasterByAssetId] Video not found for assetId:", args.assetId);
+      return { ok: false, reason: "Video not found" };
+    }
+
+    await ctx.db.patch(video._id, {
+      masterStatus: undefined,
+      masterUrl: undefined,
+      masterExpiresAt: undefined,
+    });
+
+    console.log("[videos.clearMasterByAssetId] Cleared", {
+      videoId: video._id,
+      assetId: args.assetId,
+    });
+
+    return { ok: true, videoId: video._id };
+  },
+});

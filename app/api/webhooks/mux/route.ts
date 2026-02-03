@@ -19,6 +19,11 @@ type MuxWebhookEvent = {
     playback_ids?: Array<{ id?: string; policy?: string }>;
     // For live_stream events
     active_asset_id?: string;
+    // For master access events
+    master?: {
+      status?: string;
+      url?: string;
+    };
   };
 };
 
@@ -264,6 +269,55 @@ export async function POST(request: NextRequest) {
           console.log("[mux webhook] Successfully updated startedAt for stream", { liveStreamId });
         } catch (error) {
           console.warn("[mux webhook] Failed to update startedAt:", error);
+        }
+      }
+    }
+
+    // Handle master access webhooks for video downloads
+    if (event.type === "video.asset.master.preparing") {
+      const assetId = eventAsset?.id;
+      if (assetId) {
+        console.log("[mux webhook] Master preparing", { assetId });
+        try {
+          await convex.mutation(api.videos.updateMasterStatusByAssetId, {
+            assetId,
+            status: "preparing",
+          });
+        } catch (error) {
+          console.warn("[mux webhook] Failed to update master status (preparing):", error);
+        }
+      }
+    }
+
+    if (event.type === "video.asset.master.ready") {
+      const assetId = eventAsset?.id;
+      const masterUrl = eventAsset?.master?.url;
+      if (assetId && masterUrl) {
+        console.log("[mux webhook] Master ready", { assetId, hasUrl: !!masterUrl });
+        const MASTER_URL_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+        try {
+          await convex.mutation(api.videos.updateMasterStatusByAssetId, {
+            assetId,
+            status: "ready",
+            masterUrl,
+            masterExpiresAt: Date.now() + MASTER_URL_EXPIRY_MS,
+          });
+        } catch (error) {
+          console.warn("[mux webhook] Failed to update master status (ready):", error);
+        }
+      }
+    }
+
+    if (event.type === "video.asset.master.deleted" || event.type === "video.asset.master.errored") {
+      const assetId = eventAsset?.id;
+      if (assetId) {
+        console.log("[mux webhook] Master deleted/errored", { assetId, type: event.type });
+        try {
+          await convex.mutation(api.videos.clearMasterByAssetId, {
+            assetId,
+          });
+        } catch (error) {
+          console.warn("[mux webhook] Failed to clear master status:", error);
         }
       }
     }
