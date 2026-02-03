@@ -4,8 +4,8 @@ import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { requireAdminFromRoute } from "@/lib/convexServer";
 
-const POLL_INTERVAL_MS = 2000;
-const MAX_POLL_TIME_MS = 300000; // 5 minutes for large videos
+const POLL_INTERVAL_MS = 3000;
+const MAX_POLL_TIME_MS = 1800000; // 30 minutes for very large videos
 
 async function pollForMasterUrl(assetId: string): Promise<string> {
   const startTime = Date.now();
