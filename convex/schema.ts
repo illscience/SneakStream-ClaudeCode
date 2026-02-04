@@ -64,6 +64,13 @@ export default defineSchema({
     price: v.optional(v.number()), // Price in cents for PPV videos
     playbackPolicy: v.optional(v.string()), // "public" | "signed"
     linkedLivestreamId: v.optional(v.id("livestreams")), // Link to source livestream for recordings
+    // Master download fields (Mux)
+    masterStatus: v.optional(v.union(
+      v.literal("preparing"),  // enableMasterAccess called, waiting for Mux
+      v.literal("ready")       // master URL available
+    )),
+    masterUrl: v.optional(v.string()),
+    masterExpiresAt: v.optional(v.number()), // timestamp when URL expires (24h from creation)
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"])
