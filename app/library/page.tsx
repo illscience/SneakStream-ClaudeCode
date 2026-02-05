@@ -14,11 +14,11 @@ export default function LibraryPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const [checking, setChecking] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [editingVideoId, setEditingVideoId] = useState<Id<"videos"> | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [notification, setNotification] = useState<string | null>(null);
   const [requestingDownload, setRequestingDownload] = useState<Id<"videos"> | null>(null);
+  const [invalidAssetIds, setInvalidAssetIds] = useState<string[]>([]);
   const isAdmin = useQuery(
     api.adminSettings.checkIsAdmin,
     user?.id ? {} : "skip"
@@ -61,6 +61,19 @@ export default function LibraryPage() {
 
     return duplicates;
   }, [videos]);
+
+  const assetIdsForValidation = useMemo(() => {
+    if (!videos) return [];
+    const ids = new Set<string>();
+    for (const video of videos) {
+      if (video.provider === "mux" && video.assetId) {
+        ids.add(video.assetId);
+      }
+    }
+    return Array.from(ids);
+  }, [videos]);
+
+  const invalidAssetSet = useMemo(() => new Set(invalidAssetIds), [invalidAssetIds]);
 
   const showNotification = (message: string) => {
     setNotification(message);
@@ -213,6 +226,38 @@ export default function LibraryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videos?.length, isAdmin]);
 
+  useEffect(() => {
+    if (!isAdmin) return;
+    if (assetIdsForValidation.length === 0) {
+      setInvalidAssetIds([]);
+      return;
+    }
+
+    let cancelled = false;
+    const validateAssets = async () => {
+      try {
+        const response = await fetch("/api/video/validate-assets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ assetIds: assetIdsForValidation }),
+        });
+
+        if (!response.ok) return;
+        const result = await response.json();
+        if (!cancelled && Array.isArray(result.invalid)) {
+          setInvalidAssetIds(result.invalid);
+        }
+      } catch (error) {
+        console.warn("Asset validation failed:", error);
+      }
+    };
+
+    validateAssets();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, assetIdsForValidation]);
+
   const checkProcessingVideos = async () => {
     if (!videos) return;
 
@@ -294,64 +339,6 @@ export default function LibraryPage() {
       console.error("Error checking video status:", error);
     } finally {
       setChecking(false);
-    }
-  };
-
-  const syncRecordings = async () => {
-    setSyncing(true);
-
-    try {
-      const response = await fetch("/api/stream/import-mux-assets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        const { summary, skipped, errors } = result;
-        let message = `Import complete!\n\n` +
-          `Total Mux assets scanned: ${summary.totalAssets}\n` +
-          `Assets imported: ${summary.assetsImported}\n` +
-          `Assets skipped: ${summary.assetsSkipped}\n` +
-          `Errors: ${summary.errors}\n\n`;
-
-        // Show skip reasons (first 5)
-        if (skipped && skipped.length > 0) {
-          message += `\nSkip reasons:\n`;
-          const reasonCounts: Record<string, number> = {};
-          skipped.forEach((skip: { reason: string }) => {
-            reasonCounts[skip.reason] = (reasonCounts[skip.reason] || 0) + 1;
-          });
-          Object.entries(reasonCounts).forEach(([reason, count]) => {
-            message += `- ${reason}: ${count}\n`;
-          });
-        }
-
-        // Show errors
-        if (errors && errors.length > 0) {
-          message += `\nErrors:\n`;
-          errors.forEach((err: { assetId: string; error: string }, i: number) => {
-            if (i < 3) { // Only show first 3
-              message += `- Asset ${err.assetId}: ${err.error}\n`;
-            }
-          });
-          if (errors.length > 3) {
-            message += `... and ${errors.length - 3} more errors\n`;
-          }
-        }
-
-        message += `\n` + (summary.assetsImported > 0 ? "Refresh to see your imported recordings!" : "No new recordings found.");
-        alert(message);
-      } else {
-        throw new Error(result.error || "Import failed");
-      }
-    } catch (error) {
-      console.error("Import error:", error);
-      alert("Failed to import recordings. Please try again.");
-    } finally {
-      setSyncing(false);
     }
   };
 
@@ -468,16 +455,6 @@ export default function LibraryPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button
-              onClick={syncRecordings}
-              disabled={syncing}
-              className="flex items-center gap-2 px-4 py-2 md:px-6 md:py-3 bg-blue-600 text-white rounded-full text-sm md:text-base font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
-              title="Import all Mux recordings into library"
-            >
-              <RefreshCw className={`w-4 h-4 md:w-5 md:h-5 ${syncing ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">{syncing ? "Importing..." : "Import from Mux"}</span>
-              <span className="sm:hidden">Import</span>
-            </button>
             {videos?.some((v) => v.status === "processing" || v.status === "uploading") && (
               <button
                 onClick={checkProcessingVideos}
@@ -517,6 +494,12 @@ export default function LibraryPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {videos.map((video) => {
               const downloadState = getDownloadState(video);
+              const isInvalidAsset =
+                video.provider === "mux" &&
+                video.status === "ready" &&
+                !!video.assetId &&
+                !video.assetId.startsWith("pending:") &&
+                invalidAssetSet.has(video.assetId);
 
               return (
                 <div key={video._id} className="relative group">
@@ -538,6 +521,12 @@ export default function LibraryPage() {
 
                         {/* Status Badge */}
                         <div className="absolute top-3 right-3 flex gap-2">
+                          {isInvalidAsset && (
+                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-600 text-white flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3" />
+                              INVALID ASSET
+                            </span>
+                          )}
                           {defaultVideo?._id === video._id && (
                             <span className="px-3 py-1 rounded-full text-xs font-medium bg-lime-400 text-black flex items-center gap-1">
                               <Radio className="w-3 h-3" />

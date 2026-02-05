@@ -2,6 +2,13 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { ADMIN_LIBRARY_USER_ID, requireAdmin, getAuthenticatedUser, getOptionalAuthenticatedUser } from "./adminSettings";
 
+const numberOrZero = (value?: number | null) =>
+  typeof value === "number" ? value : 0;
+const nonEmpty = (value?: string | null) =>
+  typeof value === "string" && value.trim().length > 0;
+const masterUrlMatchesAsset = (masterUrl: string | undefined, assetId: string) =>
+  Boolean(masterUrl) && masterUrl.includes(`/${assetId}/`);
+
 // Create a new video entry (admin only)
 export const createVideo = mutation({
   args: {
@@ -105,6 +112,23 @@ export const upsertMuxAsset = mutation({
           placeholderAssetId,
           existingId: existing._id,
         });
+      }
+    }
+
+    if (existing && args.assetId && existing.assetId !== args.assetId) {
+      const conflict = await ctx.db
+        .query("videos")
+        .withIndex("by_assetId", (q) => q.eq("assetId", args.assetId))
+        .order("desc")
+        .first();
+
+      if (conflict && conflict._id !== existing._id) {
+        console.warn("[videos.upsertMuxAsset] assetId conflict, using existing asset record", {
+          assetId: args.assetId,
+          existingId: existing._id,
+          conflictId: conflict._id,
+        });
+        existing = conflict;
       }
     }
 
@@ -263,6 +287,259 @@ export const getAdminLibraryVideos = query({
     );
 
     return videosWithUploader;
+  },
+});
+
+// List duplicate Mux asset IDs in the admin library (admin only)
+export const listDuplicateMuxAssets = query({
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+
+    const videos = await ctx.db
+      .query("videos")
+      .withIndex("by_user", (q) => q.eq("userId", ADMIN_LIBRARY_USER_ID))
+      .order("desc")
+      .collect();
+
+    const groups = new Map<string, typeof videos>();
+    for (const video of videos) {
+      if (video.provider !== "mux" || !video.assetId) continue;
+      const list = groups.get(video.assetId) || [];
+      list.push(video);
+      groups.set(video.assetId, list);
+    }
+
+    const duplicates = [];
+    for (const [assetId, list] of groups) {
+      if (list.length > 1) {
+        duplicates.push({
+          assetId,
+          count: list.length,
+          videoIds: list.map((v) => v._id),
+          durations: list.map((v) => v.duration ?? 0),
+          titles: list.map((v) => v.title),
+        });
+      }
+    }
+
+    return duplicates;
+  },
+});
+
+// Dedupe Mux assets in the admin library (admin only). Use dryRun to preview.
+export const dedupeMuxAssets = mutation({
+  args: {
+    assetIds: v.optional(v.array(v.string())),
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    const dryRun = Boolean(args.dryRun);
+    const now = Date.now();
+
+    const videos = await ctx.db
+      .query("videos")
+      .withIndex("by_user", (q) => q.eq("userId", ADMIN_LIBRARY_USER_ID))
+      .order("desc")
+      .collect();
+
+    const groups = new Map<string, typeof videos>();
+    for (const video of videos) {
+      if (video.provider !== "mux" || !video.assetId) continue;
+      if (args.assetIds && !args.assetIds.includes(video.assetId)) continue;
+      const list = groups.get(video.assetId) || [];
+      list.push(video);
+      groups.set(video.assetId, list);
+    }
+
+    const results = [];
+
+    for (const [assetId, list] of groups) {
+      if (list.length <= 1) continue;
+
+      const sorted = [...list].sort((a, b) => {
+        const durA = numberOrZero(a.duration);
+        const durB = numberOrZero(b.duration);
+        if (durA !== durB) return durB - durA; // longest wins
+        const linkedA = a.linkedLivestreamId ? 1 : 0;
+        const linkedB = b.linkedLivestreamId ? 1 : 0;
+        if (linkedA !== linkedB) return linkedB - linkedA;
+        const heartA = numberOrZero(a.heartCount);
+        const heartB = numberOrZero(b.heartCount);
+        if (heartA !== heartB) return heartB - heartA;
+        const viewA = numberOrZero(a.viewCount);
+        const viewB = numberOrZero(b.viewCount);
+        if (viewA !== viewB) return viewB - viewA;
+        return numberOrZero(b._creationTime) - numberOrZero(a._creationTime);
+      });
+
+      const canonical = sorted[0];
+      const duplicates = sorted.slice(1);
+      const duplicateIds = new Set(duplicates.map((v) => v._id));
+
+      const patch: Record<string, unknown> = {};
+
+      const maxDuration = Math.max(...list.map((v) => numberOrZero(v.duration)));
+      if (numberOrZero(canonical.duration) < maxDuration) patch.duration = maxDuration;
+
+      const maxHearts = Math.max(...list.map((v) => numberOrZero(v.heartCount)));
+      if (numberOrZero(canonical.heartCount) < maxHearts) patch.heartCount = maxHearts;
+
+      const maxViews = Math.max(...list.map((v) => numberOrZero(v.viewCount)));
+      if (numberOrZero(canonical.viewCount) < maxViews) patch.viewCount = maxViews;
+
+      if (!canonical.linkedLivestreamId) {
+        const candidate = list.find((v) => v.linkedLivestreamId);
+        if (candidate?.linkedLivestreamId) patch.linkedLivestreamId = candidate.linkedLivestreamId;
+      }
+
+      if (!canonical.isDefault && list.some((v) => v.isDefault)) {
+        patch.isDefault = true;
+        const defaultVideo = list.find((v) => v.isDefault && v.startTime);
+        if (defaultVideo?.startTime) patch.startTime = defaultVideo.startTime;
+      }
+
+      if (!nonEmpty(canonical.title)) {
+        const candidate = list.find((v) => nonEmpty(v.title));
+        if (candidate?.title) patch.title = candidate.title;
+      }
+
+      if (!nonEmpty(canonical.description)) {
+        const candidate = list.find((v) => nonEmpty(v.description));
+        if (candidate?.description) patch.description = candidate.description;
+      }
+
+      if (!canonical.visibility) {
+        const candidate = list.find((v) => v.visibility);
+        if (candidate?.visibility) patch.visibility = candidate.visibility;
+      }
+
+      if (canonical.price === undefined) {
+        const candidate = list.find((v) => v.price !== undefined);
+        if (candidate?.price !== undefined) patch.price = candidate.price;
+      }
+
+      if (!canonical.playbackId) {
+        const candidate = list.find((v) => v.playbackId);
+        if (candidate?.playbackId) {
+          patch.playbackId = candidate.playbackId;
+          patch.playbackUrl = candidate.playbackUrl;
+        }
+      }
+
+      if (!canonical.thumbnailUrl) {
+        const candidate = list.find((v) => v.thumbnailUrl);
+        if (candidate?.thumbnailUrl) patch.thumbnailUrl = candidate.thumbnailUrl;
+      }
+
+      const validMasters = list.filter(
+        (v) =>
+          v.masterUrl &&
+          v.masterExpiresAt &&
+          v.masterExpiresAt > now &&
+          masterUrlMatchesAsset(v.masterUrl, assetId)
+      );
+
+      if (validMasters.length > 0) {
+        const best = validMasters.sort(
+          (a, b) => numberOrZero(b.masterExpiresAt) - numberOrZero(a.masterExpiresAt)
+        )[0];
+        patch.masterStatus = "ready";
+        patch.masterUrl = best.masterUrl;
+        patch.masterExpiresAt = best.masterExpiresAt;
+      } else if (list.some((v) => v.masterStatus === "preparing")) {
+        patch.masterStatus = "preparing";
+        patch.masterUrl = undefined;
+        patch.masterExpiresAt = undefined;
+      } else if (canonical.masterStatus || canonical.masterUrl || canonical.masterExpiresAt) {
+        patch.masterStatus = undefined;
+        patch.masterUrl = undefined;
+        patch.masterExpiresAt = undefined;
+      }
+
+      const referenceUpdates: Record<string, number> = {
+        playlist: 0,
+        playbackState: 0,
+        purchases: 0,
+        entitlements: 0,
+        tips: 0,
+        livestreams: 0,
+      };
+
+      const playlist = await ctx.db.query("playlist").collect();
+      for (const item of playlist) {
+        if (duplicateIds.has(item.videoId)) {
+          referenceUpdates.playlist += 1;
+          if (!dryRun) await ctx.db.patch(item._id, { videoId: canonical._id });
+        }
+      }
+
+      const playbackState = await ctx.db.query("playbackState").collect();
+      for (const state of playbackState) {
+        if (duplicateIds.has(state.videoId)) {
+          referenceUpdates.playbackState += 1;
+          if (!dryRun) await ctx.db.patch(state._id, { videoId: canonical._id });
+        }
+      }
+
+      const purchases = await ctx.db.query("purchases").collect();
+      for (const purchase of purchases) {
+        if (purchase.videoId && duplicateIds.has(purchase.videoId)) {
+          referenceUpdates.purchases += 1;
+          if (!dryRun) await ctx.db.patch(purchase._id, { videoId: canonical._id });
+        }
+      }
+
+      const entitlements = await ctx.db.query("entitlements").collect();
+      for (const entitlement of entitlements) {
+        if (entitlement.videoId && duplicateIds.has(entitlement.videoId)) {
+          referenceUpdates.entitlements += 1;
+          if (!dryRun) await ctx.db.patch(entitlement._id, { videoId: canonical._id });
+        }
+      }
+
+      const tips = await ctx.db.query("tips").collect();
+      for (const tip of tips) {
+        if (tip.videoId && duplicateIds.has(tip.videoId)) {
+          referenceUpdates.tips += 1;
+          if (!dryRun) await ctx.db.patch(tip._id, { videoId: canonical._id });
+        }
+      }
+
+      const livestreams = await ctx.db.query("livestreams").collect();
+      for (const stream of livestreams) {
+        if (stream.recordingVideoId && duplicateIds.has(stream.recordingVideoId)) {
+          referenceUpdates.livestreams += 1;
+          if (!dryRun) await ctx.db.patch(stream._id, { recordingVideoId: canonical._id });
+        }
+      }
+
+      if (!dryRun) {
+        if (Object.keys(patch).length > 0) {
+          await ctx.db.patch(canonical._id, patch);
+        }
+        for (const dup of duplicates) {
+          await ctx.db.delete(dup._id);
+        }
+      }
+
+      results.push({
+        assetId,
+        keepId: canonical._id,
+        deleteIds: duplicates.map((v) => v._id),
+        keptDuration: canonical.duration ?? 0,
+        keptLinkedLivestream: Boolean(canonical.linkedLivestreamId),
+        referenceUpdates,
+        patch,
+      });
+    }
+
+    return {
+      dryRun,
+      duplicatesFound: results.length,
+      totalDeleted: dryRun ? 0 : results.reduce((sum, r) => sum + r.deleteIds.length, 0),
+      results,
+    };
   },
 });
 

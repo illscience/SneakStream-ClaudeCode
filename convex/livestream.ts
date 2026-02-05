@@ -204,36 +204,69 @@ export const endStream = mutation({
         ? `https://stream.mux.com/${args.playbackId}.m3u8`
         : undefined;
 
-      const videoId = await ctx.db.insert("videos", {
-        userId: ADMIN_LIBRARY_USER_ID,
-        uploadedBy: stream.startedBy || stream.userId,
-        title: stream.title,
-        description: stream.description,
-        provider: "mux",
-        assetId: args.assetId,
-        playbackId: args.playbackId,
-        playbackUrl,
-        duration: args.duration,
-        status: args.playbackId ? "ready" : "processing",
-        visibility: "public", // Recordings are always public
-        viewCount: 0,
-        heartCount: 0,
-        linkedLivestreamId: args.streamId, // Link recording back to livestream
-      });
+      // Check if the Mux webhook already created a record for this asset
+      const existing = await ctx.db
+        .query("videos")
+        .withIndex("by_assetId", (q) => q.eq("assetId", args.assetId!))
+        .order("desc")
+        .first();
+
+      let videoId;
+
+      if (existing) {
+        // Webhook beat us — patch the existing record with livestream link
+        videoId = existing._id;
+        const updates: Record<string, unknown> = {};
+        if (!existing.linkedLivestreamId) updates.linkedLivestreamId = args.streamId;
+        if (!existing.uploadedBy) updates.uploadedBy = stream.startedBy || stream.userId;
+        if (args.playbackId && !existing.playbackId) {
+          updates.playbackId = args.playbackId;
+          updates.playbackUrl = playbackUrl;
+        }
+        if (args.duration && (!existing.duration || args.duration > existing.duration)) {
+          updates.duration = args.duration;
+        }
+        if (args.playbackId && existing.status !== "ready") {
+          updates.status = "ready";
+        }
+        if (Object.keys(updates).length > 0) {
+          await ctx.db.patch(existing._id, updates);
+        }
+        console.log("[livestream.endStream] patched existing video record (webhook race avoided)", {
+          videoId,
+          assetId: args.assetId,
+          updates,
+        });
+      } else {
+        videoId = await ctx.db.insert("videos", {
+          userId: ADMIN_LIBRARY_USER_ID,
+          uploadedBy: stream.startedBy || stream.userId,
+          title: stream.title,
+          description: stream.description,
+          provider: "mux",
+          assetId: args.assetId,
+          playbackId: args.playbackId,
+          playbackUrl,
+          duration: args.duration,
+          status: args.playbackId ? "ready" : "processing",
+          visibility: "public", // Recordings are always public
+          viewCount: 0,
+          heartCount: 0,
+          linkedLivestreamId: args.streamId, // Link recording back to livestream
+        });
+        console.log("[livestream.endStream] inserted new video record", {
+          videoId,
+          assetId: args.assetId,
+          playbackId: args.playbackId,
+          playbackUrl,
+          title: stream.title,
+          status: args.playbackId ? "ready" : "processing",
+          linkedLivestreamId: args.streamId,
+        });
+      }
 
       // Update livestream with reference to its recording
       await ctx.db.patch(args.streamId, {
-        recordingVideoId: videoId,
-      });
-
-      console.log("[livestream.endStream] inserted video record", {
-        videoId,
-        assetId: args.assetId,
-        playbackId: args.playbackId,
-        playbackUrl,
-        title: stream.title,
-        status: args.playbackId ? "ready" : "processing",
-        linkedLivestreamId: args.streamId,
         recordingVideoId: videoId,
       });
     } else {
