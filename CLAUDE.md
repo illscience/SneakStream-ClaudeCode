@@ -128,6 +128,7 @@ CLAUDE_API_KEY=                   # For AI event discovery
 
 ## Commit Guidelines
 
+- **Do NOT commit or push changes unless explicitly asked** - wait for user confirmation before running git commit or git push
 - Small, imperative commits: `Add muted autoplay control`, `Fix: prevent double chat send`
 - Reference touched areas in body when change spans modules
 - Run `npm run lint` before committing
