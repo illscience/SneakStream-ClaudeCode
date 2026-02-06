@@ -2,19 +2,20 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/clerk-expo";
+import { ClerkProvider, ClerkLoaded } from "@clerk/clerk-expo";
 import { tokenCache } from "@clerk/clerk-expo/token-cache";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { convex } from "@/lib/convex";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { FAPIAuthProvider, useFAPIConvexAuth } from "@/lib/fapi-auth";
 
 SplashScreen.preventAutoHideAsync();
 
 const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
-function ConvexClerkProvider({ children }) {
+function ConvexAuthProvider({ children }) {
   return (
-    <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+    <ConvexProviderWithClerk client={convex} useAuth={useFAPIConvexAuth}>
       {children}
     </ConvexProviderWithClerk>
   );
@@ -22,7 +23,6 @@ function ConvexClerkProvider({ children }) {
 
 function RootLayoutNav() {
   useEffect(() => {
-    // Hide splash screen once layout is ready
     SplashScreen.hideAsync();
   }, []);
 
@@ -48,9 +48,11 @@ export default function RootLayout() {
           tokenCache={tokenCache}
         >
           <ClerkLoaded>
-            <ConvexClerkProvider>
-              <RootLayoutNav />
-            </ConvexClerkProvider>
+            <FAPIAuthProvider>
+              <ConvexAuthProvider>
+                <RootLayoutNav />
+              </ConvexAuthProvider>
+            </FAPIAuthProvider>
           </ClerkLoaded>
         </ClerkProvider>
       </GestureHandlerRootView>

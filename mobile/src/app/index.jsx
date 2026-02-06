@@ -24,17 +24,16 @@ import {
 } from "lucide-react-native";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, usePaginatedQuery } from "convex/react";
-import { useUser, useAuth, SignedIn, SignedOut } from "@clerk/clerk-expo";
 import { api } from "convex/_generated/api";
 import { useVideoPlayer, VideoView } from "expo-video";
 import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedView";
 import { useRouter } from "expo-router";
+import { useFAPIAuth } from "@/lib/fapi-auth";
 
 export default function Index() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user } = useUser();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded, user } = useFAPIAuth();
   const [chatMessage, setChatMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [hasHearted, setHasHearted] = useState(false);
@@ -174,26 +173,21 @@ export default function Index() {
   }, [playbackState?.videoId, hasHearted, incrementHeart]);
 
   const handleSendMessage = useCallback(async () => {
-    if (!chatMessage.trim() || isSending || !isSignedIn || !user) return;
+    if (!chatMessage.trim() || isSending || !isSignedIn) return;
 
     const body = chatMessage.trim();
     setChatMessage("");
     setIsSending(true);
 
     try {
-      await sendMessage({
-        body,
-        userId: user.id,
-        userName: user.firstName || user.username || "User",
-        avatarUrl: user.imageUrl,
-      });
+      await sendMessage({ body });
     } catch (error) {
       console.error("Send message error:", error);
       setChatMessage(body);
     } finally {
       setIsSending(false);
     }
-  }, [chatMessage, isSending, isSignedIn, user, sendMessage]);
+  }, [chatMessage, isSending, isSignedIn, sendMessage]);
 
   const isLive = !!activeStream;
   const videoTitle = currentVideo?.title || "Loading...";
@@ -453,7 +447,7 @@ export default function Index() {
           </View>
 
           {/* User Avatar / Sign In */}
-          <SignedIn>
+          {isSignedIn ? (
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
               <Text style={{ color: "#999", fontSize: 14, marginRight: 12 }}>Your avatar:</Text>
               <View
@@ -466,22 +460,21 @@ export default function Index() {
                   overflow: "hidden",
                 }}
               >
-                {user?.imageUrl ? (
-                  <Image source={{ uri: user.imageUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                {user?.image_url ? (
+                  <Image source={{ uri: user.image_url }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
                 ) : (
                   <View style={{ width: "100%", height: "100%", justifyContent: "center", alignItems: "center" }}>
                     <Text style={{ color: "#fff", fontWeight: "700" }}>
-                      {(user?.firstName || user?.username || "U")[0].toUpperCase()}
+                      {(user?.first_name || user?.username || "U")[0].toUpperCase()}
                     </Text>
                   </View>
                 )}
               </View>
               <Text style={{ color: "#9ACD32", fontSize: 16, fontWeight: "600" }}>
-                {user?.firstName || user?.username || "You"}
+                {user?.first_name || user?.username || "You"}
               </Text>
             </View>
-          </SignedIn>
-          <SignedOut>
+          ) : (
             <TouchableOpacity
               style={{
                 flexDirection: "row",
@@ -498,10 +491,10 @@ export default function Index() {
               <LogIn size={20} color="#000" />
               <Text style={{ color: "#000", fontWeight: "700", marginLeft: 8 }}>Sign in to chat</Text>
             </TouchableOpacity>
-          </SignedOut>
+          )}
 
           {/* Chat Input */}
-          <SignedIn>
+          {isSignedIn ? (
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 24 }}>
               <TouchableOpacity
                 style={{
@@ -566,7 +559,7 @@ export default function Index() {
                 <Send size={20} color={chatMessage.trim() && !isSending ? "#000" : "#666"} />
               </TouchableOpacity>
             </View>
-          </SignedIn>
+          ) : null}
 
           {/* Chat Messages */}
           {messagesStatus === "LoadingFirstPage" ? (
