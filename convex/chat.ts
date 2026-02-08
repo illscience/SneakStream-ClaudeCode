@@ -19,26 +19,19 @@ export const sendMessage = mutation({
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
       .first();
 
+    if (!user) {
+      throw new Error("User record not found for authenticated user");
+    }
+
     await ctx.db.insert("messages", {
-      user: user?.alias,
+      user: user.alias,
       userId: clerkId,
-      userName: user?.alias ?? "User",
-      avatarUrl: user?.selectedAvatar ?? user?.imageUrl,
+      userName: user.alias ?? "User",
+      avatarUrl: user.selectedAvatar ?? user.imageUrl,
       body: args.body,
       imageStorageId: args.imageStorageId,
       imageMimeType: args.imageMimeType,
     });
-
-    // Create user record if it doesn't exist
-    if (!user) {
-      await ctx.db.insert("users", {
-        clerkId,
-        alias: "User",
-        email: undefined,
-        imageUrl: undefined,
-        selectedAvatar: undefined,
-      });
-    }
   },
 });
 

@@ -81,6 +81,18 @@ export default function Index() {
   // Convex mutations
   const sendMessage = useMutation(api.chat.sendMessage);
   const incrementHeart = useMutation(api.videos.incrementHeartCount);
+  const upsertUser = useMutation(api.users.upsertUser);
+
+  // Sync FAPI user profile to Convex (same as web app does on login)
+  const userSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!isSignedIn || !isConvexAuthenticated || !user || userSyncedRef.current) return;
+    userSyncedRef.current = true;
+    const alias = user.username || [user.first_name, user.last_name].filter(Boolean).join(" ") || "User";
+    const email = user.email_addresses?.[0]?.email_address;
+    upsertUser({ alias, email, imageUrl: user.image_url })
+      .catch((e) => console.error("[UserSync] upsertUser failed:", e));
+  }, [isSignedIn, isConvexAuthenticated, user, upsertUser]);
 
   // Video player setup - use playbackUrl from the video
   // For iOS HLS playback, we need to specify contentType
