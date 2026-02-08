@@ -1,23 +1,60 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+// ClerkProvider removed — its SDK has a race condition with our FAPI JWT storage
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { ClerkProvider, ClerkLoaded } from "@clerk/clerk-expo";
-import { tokenCache } from "@clerk/clerk-expo/token-cache";
-import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { ConvexProviderWithAuth } from "convex/react";
 import { convex } from "@/lib/convex";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { FAPIAuthProvider, useFAPIConvexAuth } from "@/lib/fapi-auth";
+import { FAPIAuthProvider, clerkFetch, useFAPIAuth } from "@/lib/fapi-auth";
 
 SplashScreen.preventAutoHideAsync();
 
-const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+function useConvexFAPIAuth() {
+  const { isLoaded, isSignedIn, sessionId } = useFAPIAuth();
+  const sessionIdRef = useRef(sessionId);
+  sessionIdRef.current = sessionId;
+
+  const fetchAccessToken = useCallback(
+    async () => {
+      const sid = sessionIdRef.current;
+      if (!sid) return null;
+      try {
+        const path = `/v1/client/sessions/${sid}/tokens/convex`;
+        const resp = await clerkFetch(path, { method: "POST" });
+        const data = await resp.json();
+        const token = typeof data?.jwt === "string" ? data.jwt.trim() : null;
+
+        if (!resp.ok) {
+          console.error("[ConvexAuth] fetchAccessToken failed:", resp.status);
+          return null;
+        }
+
+        console.log("[ConvexAuth] fetchAccessToken OK, jwtLength:", token?.length ?? 0);
+        return token;
+      } catch (e) {
+        console.error("[ConvexAuth] fetchAccessToken error:", e);
+        return null;
+      }
+    },
+    [],
+  );
+
+  return useMemo(
+    () => ({
+      isLoading: !isLoaded,
+      isAuthenticated: Boolean(isSignedIn && sessionId),
+      fetchAccessToken,
+    }),
+    [isLoaded, isSignedIn, sessionId, fetchAccessToken],
+  );
+}
 
 function ConvexAuthProvider({ children }) {
   return (
-    <ConvexProviderWithClerk client={convex} useAuth={useFAPIConvexAuth}>
+    <ConvexProviderWithAuth client={convex} useAuth={useConvexFAPIAuth}>
       {children}
-    </ConvexProviderWithClerk>
+    </ConvexProviderWithAuth>
   );
 }
 
@@ -36,25 +73,14 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  if (!CLERK_PUBLISHABLE_KEY) {
-    console.warn("Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY");
-  }
-
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <ClerkProvider
-          publishableKey={CLERK_PUBLISHABLE_KEY || ""}
-          tokenCache={tokenCache}
-        >
-          <ClerkLoaded>
-            <FAPIAuthProvider>
-              <ConvexAuthProvider>
-                <RootLayoutNav />
-              </ConvexAuthProvider>
-            </FAPIAuthProvider>
-          </ClerkLoaded>
-        </ClerkProvider>
+        <FAPIAuthProvider>
+          <ConvexAuthProvider>
+            <RootLayoutNav />
+          </ConvexAuthProvider>
+        </FAPIAuthProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );

@@ -1,11 +1,15 @@
+const DEFAULT_CLERK_ISSUER_DOMAIN = "https://clerk.sneakstream.xyz";
+
+const normalizeIssuerDomain = (value: string | undefined) => {
+  const resolved = (value ?? DEFAULT_CLERK_ISSUER_DOMAIN).trim();
+  return resolved.replace(/\/+$/, "");
+};
+
 export default {
   providers: [
     {
-      // The domain from which Clerk tokens are issued.
-      // Get this from Clerk Dashboard > API Keys > "Issuer" or construct from your Clerk frontend API:
-      // e.g., "https://your-app.clerk.accounts.dev" or "https://clerk.your-domain.com"
-      domain: process.env.CLERK_JWT_ISSUER_DOMAIN,
-      // Application ID - set to "convex" to match the default Clerk JWT template
+      // If this value doesn't exactly match JWT `iss`, ctx.auth.getUserIdentity() is null.
+      domain: normalizeIssuerDomain(process.env.CLERK_JWT_ISSUER_DOMAIN),
       applicationID: "convex",
     },
   ],

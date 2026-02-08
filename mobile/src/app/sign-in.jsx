@@ -94,21 +94,11 @@ export default function SignInScreen() {
         });
         let createData = await createResp.json();
 
-        // If already signed in, revoke stale session and retry
+        // If already signed in, just refresh auth state and dismiss
         if (createData?.errors?.[0]?.code === "session_exists") {
-          const staleSession = createData?.meta?.client?.sessions?.find(
-            (s) => s.status === "active"
-          );
-          if (staleSession?.id) {
-            await clerkFetch(`/v1/client/sessions/${staleSession.id}/revoke`, {
-              method: "POST",
-            });
-            createResp = await clerkFetch("/v1/client/sign_ins", {
-              method: "POST",
-              body: `strategy=${strategy}&redirect_url=${encodeURIComponent(redirectUrl)}`,
-            });
-            createData = await createResp.json();
-          }
+          await refresh();
+          router.back();
+          return;
         }
 
         const signInId = createData?.response?.id;

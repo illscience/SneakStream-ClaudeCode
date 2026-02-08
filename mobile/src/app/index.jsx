@@ -23,7 +23,7 @@ import {
   LogIn,
 } from "lucide-react-native";
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useQuery, useMutation, usePaginatedQuery } from "convex/react";
+import { useQuery, useMutation, usePaginatedQuery, useConvexAuth } from "convex/react";
 import { api } from "convex/_generated/api";
 import { useVideoPlayer, VideoView } from "expo-video";
 import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedView";
@@ -33,7 +33,8 @@ import { useFAPIAuth } from "@/lib/fapi-auth";
 export default function Index() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { isSignedIn, isLoaded, user } = useFAPIAuth();
+  const { isSignedIn, user } = useFAPIAuth();
+  const { isAuthenticated: isConvexAuthenticated, isLoading: isConvexAuthLoading } = useConvexAuth();
   const [chatMessage, setChatMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [hasHearted, setHasHearted] = useState(false);
@@ -61,6 +62,7 @@ export default function Index() {
 
   const isLoadingMore = messagesStatus === "LoadingMore";
   const canLoadMore = messagesStatus === "CanLoadMore";
+  const canSendChat = isSignedIn && isConvexAuthenticated;
 
   // Auto-load more messages when scrolling near bottom
   const handleScroll = useCallback((event) => {
@@ -173,21 +175,27 @@ export default function Index() {
   }, [playbackState?.videoId, hasHearted, incrementHeart]);
 
   const handleSendMessage = useCallback(async () => {
-    if (!chatMessage.trim() || isSending || !isSignedIn) return;
+    console.log("[Chat] handleSendMessage — isSignedIn:", isSignedIn, "isConvexAuthenticated:", isConvexAuthenticated, "isSending:", isSending, "msg:", chatMessage.trim().substring(0, 20));
+    if (!chatMessage.trim() || isSending || !canSendChat) {
+      console.log("[Chat] blocked — empty:", !chatMessage.trim(), "sending:", isSending, "convexUnauthed:", !canSendChat);
+      return;
+    }
 
     const body = chatMessage.trim();
     setChatMessage("");
     setIsSending(true);
 
     try {
+      console.log("[Chat] calling sendMessage mutation with body:", body.substring(0, 30));
       await sendMessage({ body });
+      console.log("[Chat] sendMessage SUCCESS");
     } catch (error) {
-      console.error("Send message error:", error);
+      console.error("[Chat] sendMessage FAILED:", error?.message || error);
       setChatMessage(body);
     } finally {
       setIsSending(false);
     }
-  }, [chatMessage, isSending, isSignedIn, sendMessage]);
+  }, [chatMessage, isSending, isSignedIn, isConvexAuthenticated, canSendChat, sendMessage]);
 
   const isLive = !!activeStream;
   const videoTitle = currentVideo?.title || "Loading...";
@@ -493,72 +501,101 @@ export default function Index() {
             </TouchableOpacity>
           )}
 
+          {isSignedIn ? (
+            <Text style={{ color: "#666", fontSize: 12, marginBottom: 12 }}>
+              {isConvexAuthLoading
+                ? "Connecting chat authentication..."
+                : isConvexAuthenticated
+                  ? "Chat authentication connected"
+                  : "Chat authentication unavailable"}
+            </Text>
+          ) : null}
+
           {/* Chat Input */}
           {isSignedIn ? (
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 24 }}>
-              <TouchableOpacity
+            canSendChat ? (
+              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 24 }}>
+                <TouchableOpacity
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    backgroundColor: "#2a2a2a",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginRight: 8,
+                  }}
+                >
+                  <ImageIcon size={20} color="#999" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    backgroundColor: "#2a2a2a",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginRight: 8,
+                  }}
+                >
+                  <Smile size={20} color="#999" />
+                </TouchableOpacity>
+
+                <TextInput
+                  value={chatMessage}
+                  onChangeText={setChatMessage}
+                  placeholder="Type a message..."
+                  placeholderTextColor="#666"
+                  style={{
+                    flex: 1,
+                    height: 48,
+                    backgroundColor: "#2a2a2a",
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    color: "#fff",
+                    fontSize: 14,
+                    marginRight: 8,
+                  }}
+                  returnKeyType="send"
+                  onSubmitEditing={handleSendMessage}
+                  editable={!isSending}
+                />
+
+                <TouchableOpacity
+                  onPress={handleSendMessage}
+                  disabled={!chatMessage.trim() || isSending || !canSendChat}
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    backgroundColor: chatMessage.trim() && !isSending && canSendChat ? "#9ACD32" : "#2a2a2a",
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <Send size={20} color={chatMessage.trim() && !isSending && canSendChat ? "#000" : "#666"} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View
                 style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 12,
-                  backgroundColor: "#2a2a2a",
-                  justifyContent: "center",
+                  flexDirection: "row",
                   alignItems: "center",
-                  marginRight: 8,
+                  justifyContent: "center",
+                  backgroundColor: "#2a2a2a",
+                  borderRadius: 12,
+                  paddingVertical: 12,
+                  marginBottom: 24,
                 }}
               >
-                <ImageIcon size={20} color="#999" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 12,
-                  backgroundColor: "#2a2a2a",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  marginRight: 8,
-                }}
-              >
-                <Smile size={20} color="#999" />
-              </TouchableOpacity>
-
-              <TextInput
-                value={chatMessage}
-                onChangeText={setChatMessage}
-                placeholder="Type a message..."
-                placeholderTextColor="#666"
-                style={{
-                  flex: 1,
-                  height: 48,
-                  backgroundColor: "#2a2a2a",
-                  borderRadius: 12,
-                  paddingHorizontal: 16,
-                  color: "#fff",
-                  fontSize: 14,
-                  marginRight: 8,
-                }}
-                returnKeyType="send"
-                onSubmitEditing={handleSendMessage}
-                editable={!isSending}
-              />
-
-              <TouchableOpacity
-                onPress={handleSendMessage}
-                disabled={!chatMessage.trim() || isSending}
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 12,
-                  backgroundColor: chatMessage.trim() && !isSending ? "#9ACD32" : "#2a2a2a",
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <Send size={20} color={chatMessage.trim() && !isSending ? "#000" : "#666"} />
-              </TouchableOpacity>
-            </View>
+                <ActivityIndicator size="small" color="#9ACD32" />
+                <Text style={{ color: "#999", marginLeft: 10, fontSize: 13 }}>
+                  Finalizing secure chat connection...
+                </Text>
+              </View>
+            )
           ) : null}
 
           {/* Chat Messages */}
