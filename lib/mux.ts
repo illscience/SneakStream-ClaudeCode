@@ -189,6 +189,11 @@ export interface MuxAssetData {
   duration?: number;
   playback_ids?: MuxAssetPlaybackId[];
   tracks?: Array<{ type: string; max_width?: number; max_height?: number }>;
+  master_access?: "none" | "temporary";
+  master?: {
+    status: "preparing" | "ready";
+    url?: string;
+  };
 }
 
 export interface MuxAssetListItem extends MuxAssetData {
@@ -214,6 +219,19 @@ export async function listAssets(params: { liveStreamId?: string; limit?: number
 
 export async function getAsset(assetId: string): Promise<MuxAssetData> {
   return muxRequest<MuxAssetData>(`/video/v1/assets/${assetId}`);
+}
+
+export async function enableMasterAccess(assetId: string): Promise<MuxAssetData> {
+  return muxRequest<MuxAssetData>(`/video/v1/assets/${assetId}/master-access`, {
+    method: "PUT",
+    json: { master_access: "temporary" },
+  });
+}
+
+export async function getAssetWithMaster(assetId: string): Promise<MuxAssetData> {
+  return muxRequest<MuxAssetData>(`/video/v1/assets/${assetId}`, {
+    method: "GET",
+  });
 }
 
 export interface MuxLiveStream {
@@ -310,7 +328,12 @@ export async function getCurrentViewers(playbackId: string): Promise<number> {
 
     return 0;
   } catch (error) {
-    console.error("Failed to fetch viewer count from Mux:", error);
+    // Real-Time Data API is a premium Mux feature - silently return 0 if not available
+    // Only log unexpected errors (not 404s which indicate the feature isn't enabled)
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (!errorMessage.includes("404")) {
+      console.error("Failed to fetch viewer count from Mux:", error);
+    }
     return 0;
   }
 }

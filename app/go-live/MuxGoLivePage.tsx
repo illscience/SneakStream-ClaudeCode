@@ -10,6 +10,20 @@ import Hls from "hls.js";
 
 type StreamStep = "idle" | "preview" | "live";
 
+function getDefaultStreamTitle(): string {
+  const now = new Date();
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  const day = now.getDate();
+  const ordinal =
+    day === 1 || day === 21 || day === 31 ? "st" :
+    day === 2 || day === 22 ? "nd" :
+    day === 3 || day === 23 ? "rd" : "th";
+
+  return `DJ Sneak Live / ${days[now.getDay()]} ${months[now.getMonth()]} ${day}${ordinal}`;
+}
+
 export default function MuxGoLivePage() {
   const { user } = useUser();
   const [isLoading, setIsLoading] = useState(false);
@@ -216,24 +230,27 @@ export default function MuxGoLivePage() {
       let streamData;
 
       // Check if user has saved credentials
-      if (savedCredentials) {
-        if (savedCredentials.provider === "mux") {
-          try {
-            const enableResponse = await fetch("/api/stream/enable", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ streamId: savedCredentials.streamId }),
-            });
+      let credentialsValid = false;
+      if (savedCredentials && savedCredentials.provider === "mux") {
+        try {
+          const enableResponse = await fetch("/api/stream/enable", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ streamId: savedCredentials.streamId }),
+          });
 
-            if (!enableResponse.ok) {
-              const error = await enableResponse.json();
-              console.warn("Failed to enable Mux live stream:", error);
-            }
-          } catch (error) {
-            console.warn("Failed to enable Mux live stream:", error);
+          if (enableResponse.ok) {
+            credentialsValid = true;
+          } else {
+            const error = await enableResponse.json();
+            console.warn("Failed to enable Mux live stream, will create new one:", error);
           }
+        } catch (error) {
+          console.warn("Failed to enable Mux live stream, will create new one:", error);
         }
+      }
 
+      if (credentialsValid && savedCredentials) {
         // Reuse existing stream
         streamData = {
           streamId: savedCredentials.streamId,
@@ -248,7 +265,7 @@ export default function MuxGoLivePage() {
         const response = await fetch("/api/stream/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: "DJ SNEAK Live", provider: "mux" }),
+          body: JSON.stringify({ name: getDefaultStreamTitle(), provider: "mux" }),
         });
 
         if (!response.ok) {
@@ -284,7 +301,7 @@ export default function MuxGoLivePage() {
     setIsLoading(true);
     try {
       await startStream({
-        title: "DJ SNEAK Live",
+        title: getDefaultStreamTitle(),
         description: "Live DJ set",
         provider: "mux",
         streamId: previewStream.streamId,

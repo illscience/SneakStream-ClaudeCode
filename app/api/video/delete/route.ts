@@ -7,7 +7,7 @@ import { requireAdminFromRoute } from "@/lib/convexServer";
 export async function POST(request: NextRequest) {
   try {
     const { client } = await requireAdminFromRoute();
-    const { videoId } = await request.json();
+    const { videoId, force } = await request.json();
 
     if (!videoId) {
       return NextResponse.json(
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("[video/delete] Deleting video:", videoId);
+    console.log("[video/delete] Deleting video:", videoId, { force: !!force });
 
     // Get video details from database
     const video = await client.query(api.videos.getVideo, {
@@ -30,6 +30,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Delete from database FIRST (checks for crate purchases)
+    // This prevents orphaning Mux assets if the safeguard blocks deletion
+    await client.mutation(api.videos.deleteVideo, {
+      videoId: videoId as Id<"videos">,
+      force: !!force,
+    });
+
+    console.log("[video/delete] Video deleted from database");
+
     // Delete from Mux if it's a Mux video with an asset ID
     if (video.provider === "mux" && video.assetId) {
       try {
@@ -38,29 +47,34 @@ export async function POST(request: NextRequest) {
         console.log("[video/delete] Mux asset deleted successfully");
       } catch (muxError) {
         console.error("[video/delete] Failed to delete Mux asset:", muxError);
-        // Continue with database deletion even if Mux deletion fails
-        // (asset might already be deleted)
+        // Continue - database record is already deleted
+        // Mux asset might already be deleted or will be cleaned up later
       }
     }
-
-    // Delete from database
-    await client.mutation(api.videos.deleteVideo, {
-      videoId: videoId as Id<"videos">
-    });
-
-    console.log("[video/delete] Video deleted from database");
 
     return NextResponse.json({
       success: true,
       message: "Video deleted successfully",
     });
   } catch (error) {
-    if (String(error).includes("Unauthorized") || String(error).includes("Not authenticated")) {
+    const errorStr = String(error);
+    if (errorStr.includes("Unauthorized") || errorStr.includes("Not authenticated")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    // Check for crate purchases safeguard error
+    if (errorStr.includes("crate purchase(s) reference this recording")) {
+      // Extract count from error message: "Cannot delete video: X crate purchase(s)..."
+      const countMatch = errorStr.match(/(\d+) crate purchase/);
+      const crateCount = countMatch ? parseInt(countMatch[1], 10) : 0;
+      console.log("[video/delete] Blocked by safeguard:", errorStr, { crateCount });
+      return NextResponse.json(
+        { error: "Video has crate purchases", details: errorStr, requiresForce: true, crateCount },
+        { status: 409 } // Conflict
+      );
     }
     console.error("[video/delete] Delete error:", error);
     return NextResponse.json(
-      { error: "Internal server error", details: String(error) },
+      { error: "Internal server error", details: errorStr },
       { status: 500 }
     );
   }

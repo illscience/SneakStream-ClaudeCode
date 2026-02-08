@@ -7,8 +7,9 @@ import { SignInButton, useUser } from "@clerk/nextjs"
 import { usePaginatedQuery, useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { EMOTE_BY_ID, EMOTES } from "@/lib/emotes"
-import { DollarSign, Heart, Image as ImageIcon, Loader2, MessageSquare, Send, Smile, Trash2 } from "lucide-react"
+import { DollarSign, Disc3, Heart, Image as ImageIcon, Loader2, MessageSquare, Send, Smile, Trash2 } from "lucide-react"
 import { TipModal } from "@/components/tips"
+import { AuctionPanel } from "@/components/bidding"
 
 const GIF_URL_PATTERN =
   /https?:\/\/[^\s]+\.gif(\?[^\s]*)?|https?:\/\/(media\.giphy\.com|giphy\.com|media\.tenor\.com|tenor\.com|imgur\.com|i\.imgur\.com)\/[^\s]+/gi
@@ -61,9 +62,10 @@ const extractGifUrls = (body: string) => {
 
 interface LiveChatProps {
   livestreamId?: Id<"livestreams">
+  streamStartedAt?: number
 }
 
-export default function LiveChat({ livestreamId }: LiveChatProps) {
+export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProps) {
   const { user } = useUser()
   const [newMessage, setNewMessage] = useState("")
   const [isTipModalOpen, setIsTipModalOpen] = useState(false)
@@ -560,6 +562,9 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
         </div>
       )}
 
+      {/* Auction Panel - only during active livestream */}
+      {livestreamId && <AuctionPanel livestreamId={livestreamId} streamStartedAt={streamStartedAt} />}
+
       <div className="space-y-3 bg-zinc-900/50 rounded-xl p-4 border border-zinc-800 touch-pan-y">
         {[...optimisticMessages, ...(messages || [])]
           .filter((message) => !deletedMessageIds.has(message._id))
@@ -580,7 +585,29 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
               }
             }
 
-            const { text, urls: gifUrls } = emote || tipData ? { text: "", urls: [] } : extractGifUrls(rawBody)
+            // Check for crate purchase message
+            const crateMatch = rawBody.match(/^:crate_purchase:(.+)$/)
+            let crateData: { type: string; amount: number } | null = null
+            if (crateMatch) {
+              try {
+                crateData = JSON.parse(crateMatch[1])
+              } catch {
+                crateData = null
+              }
+            }
+
+            // Check for auction message (bid, outbid, won)
+            const auctionMatch = rawBody.match(/^:auction:(.+)$/)
+            let auctionData: { type: string; amount: number; outbidUserId?: string } | null = null
+            if (auctionMatch) {
+              try {
+                auctionData = JSON.parse(auctionMatch[1])
+              } catch {
+                auctionData = null
+              }
+            }
+
+            const { text, urls: gifUrls } = emote || tipData || crateData || auctionData ? { text: "", urls: [] } : extractGifUrls(rawBody)
             const isGifUpload =
               message.imageMimeType === "image/gif" ||
               message.imageUrl?.toLowerCase().includes(".gif")
@@ -679,6 +706,60 @@ export default function LiveChat({ livestreamId }: LiveChatProps) {
                         </div>
                       )}
                     </div>
+                  </div>
+                </div>
+              )
+            }
+
+            // Render crate purchase message
+            if (crateData) {
+              return (
+                <div key={message._id} className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#ff00ff] text-white">
+                    <Disc3 className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-[#ff00ff]">
+                      {message.userName || "Someone"}
+                    </span>
+                    <span className="text-white text-sm">added a track to their crate!</span>
+                    <span className="rounded-full bg-[#ff00ff] px-2 py-0.5 text-sm font-bold text-white">
+                      ${(crateData.amount / 100).toFixed(0)}
+                    </span>
+                    <span className="text-xl">💿</span>
+                  </div>
+                </div>
+              )
+            }
+
+            // Render auction message (bid, outbid, won)
+            if (auctionData) {
+              const isWon = auctionData.type === "auction_won"
+              const isOutbid = auctionData.type === "outbid"
+              return (
+                <div key={message._id} className="flex items-center gap-3">
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                    isWon ? "bg-[#c4ff0e] text-black" : "bg-[#ff00ff] text-white"
+                  }`}>
+                    {isWon ? "🏆" : "🔨"}
+                  </div>
+                  <div className="flex-1 flex items-center gap-2 flex-wrap">
+                    <span className={`font-bold ${isWon ? "text-[#c4ff0e]" : "text-[#ff00ff]"}`}>
+                      {message.userName || "Someone"}
+                    </span>
+                    <span className="text-white text-sm">
+                      {isWon
+                        ? "won the auction!"
+                        : isOutbid
+                        ? "outbid with"
+                        : "placed a bid of"}
+                    </span>
+                    <span className={`rounded-full px-2 py-0.5 text-sm font-bold ${
+                      isWon ? "bg-[#c4ff0e] text-black" : "bg-[#ff00ff] text-white"
+                    }`}>
+                      ${(auctionData.amount / 100).toFixed(0)}
+                    </span>
+                    {isWon && <span className="text-xl">🎉</span>}
                   </div>
                 </div>
               )

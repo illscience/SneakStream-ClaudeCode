@@ -71,13 +71,13 @@ export default function Home() {
   // Get heart count from current video
   const heartCount = defaultVideo?.heartCount || 0;
 
-  // Poll viewer count for active streams
+  // Poll viewer count for active streams (using entitlement count as proxy)
   useEffect(() => {
-    if (!activeStream?.playbackId) return;
+    if (!activeStream?._id) return;
 
     const fetchViewers = async () => {
       try {
-        const response = await fetch(`/api/viewers?playbackId=${activeStream.playbackId}`);
+        const response = await fetch(`/api/viewers?livestreamId=${activeStream._id}`);
         const data = await response.json();
         if (data.viewers !== undefined) {
           setViewerCount(data.viewers);
@@ -96,7 +96,7 @@ export default function Home() {
     const interval = setInterval(fetchViewers, 30000); // Poll every 30 seconds
 
     return () => clearInterval(interval);
-  }, [activeStream?.playbackId, activeStream?._id, updateViewerCount]);
+  }, [activeStream?._id]);
 
   const heroTitle = activeStream?.title ?? defaultVideo?.title ?? "Dream In Audio";
 
@@ -392,11 +392,12 @@ export default function Home() {
         <div className="px-4 lg:px-8 pb-48 pt-4">
           <div className="flex justify-center">
             <div className="max-w-6xl w-full lg:static sticky top-24">
-              <LiveChat livestreamId={activeStream?._id} />
+              <LiveChat livestreamId={activeStream?._id} streamStartedAt={activeStream?.startedAt} />
             </div>
           </div>
         </div>
       </main>
+
 
       {/* Audio Player Controls */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-gradient-to-b from-zinc-900 to-black">

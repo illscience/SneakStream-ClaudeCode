@@ -8,6 +8,7 @@ import type { ChangeEvent } from "react";
 import { Users, UserPlus, Heart, Music, Loader2 } from "lucide-react";
 import MainNav from "@/components/navigation/MainNav";
 import EditableAlias from "../../components/ui/editable-alias";
+import { CrateSection } from "@/components/bidding";
 
 export default function ProfilePage() {
   const { user, isLoaded } = useUser();
@@ -270,6 +271,11 @@ export default function ProfilePage() {
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Crate Section */}
+        <div className="mb-6">
+          <CrateSection />
         </div>
 
         {/* Tabs-style sections */}
