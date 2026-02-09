@@ -7,6 +7,7 @@ import {
   TextInput,
   ActivityIndicator,
   AppState,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
@@ -29,6 +30,88 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedView";
 import { useRouter } from "expo-router";
 import { useFAPIAuth } from "@/lib/fapi-auth";
+import AuctionPanel from "@/components/AuctionPanel";
+import * as ImagePicker from "expo-image-picker";
+
+const EMOTE_TOKEN_PATTERN = /^:emote:([^\s]+)$/;
+const CRATE_PURCHASE_PATTERN = /^:crate_purchase:(.+)$/;
+const AUCTION_PATTERN = /^:auction:(.+)$/;
+const EMOTE_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
+const DEFAULT_EMOTE_BASE_URL = "https://www.dreaminaudio.xyz";
+const EMOTE_IDS = Array.from({ length: 65 }, (_, index) => `image${index}.png`);
+const MAX_CHAT_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;
+
+const emoteBaseUrl = (
+  process.env.EXPO_PUBLIC_EMOTE_BASE_URL ||
+  process.env.EXPO_PUBLIC_APP_URL ||
+  process.env.EXPO_PUBLIC_BASE_URL ||
+  DEFAULT_EMOTE_BASE_URL
+).replace(/\/+$/, "");
+
+const getEmoteUriFromBody = (body) => {
+  if (typeof body !== "string") return null;
+  const match = body.trim().match(EMOTE_TOKEN_PATTERN);
+  if (!match) return null;
+
+  const emoteId = match[1];
+  if (!EMOTE_ID_PATTERN.test(emoteId)) return null;
+
+  const baseWithEmotesPath = /\/emotes$/i.test(emoteBaseUrl)
+    ? emoteBaseUrl
+    : `${emoteBaseUrl}/emotes`;
+
+  return `${baseWithEmotesPath}/${encodeURIComponent(emoteId)}`;
+};
+
+const parseCratePurchaseToken = (body) => {
+  if (typeof body !== "string") return null;
+  const match = body.trim().match(CRATE_PURCHASE_PATTERN);
+  if (!match) return null;
+
+  try {
+    const parsed = JSON.parse(match[1]);
+    if (!parsed || typeof parsed !== "object") return null;
+    if (typeof parsed.amount !== "number") return null;
+    return {
+      amount: parsed.amount,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const parseAuctionToken = (body) => {
+  if (typeof body !== "string") return null;
+  const match = body.trim().match(AUCTION_PATTERN);
+  if (!match) return null;
+
+  try {
+    const parsed = JSON.parse(match[1]);
+    if (!parsed || typeof parsed !== "object") return null;
+    if (typeof parsed.amount !== "number") return null;
+    if (typeof parsed.type !== "string") return null;
+    return {
+      type: parsed.type,
+      amount: parsed.amount,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const inferImageMimeType = (asset, fallbackMimeType) => {
+  if (typeof asset?.mimeType === "string" && asset.mimeType) {
+    return asset.mimeType;
+  }
+
+  const uriWithoutQuery = typeof asset?.uri === "string" ? asset.uri.toLowerCase().split("?")[0] : "";
+  if (uriWithoutQuery.endsWith(".gif")) return "image/gif";
+  if (uriWithoutQuery.endsWith(".png")) return "image/png";
+  if (uriWithoutQuery.endsWith(".webp")) return "image/webp";
+  if (uriWithoutQuery.endsWith(".heic") || uriWithoutQuery.endsWith(".heif")) return "image/heic";
+  if (uriWithoutQuery.endsWith(".jpg") || uriWithoutQuery.endsWith(".jpeg")) return "image/jpeg";
+  return fallbackMimeType || "image/jpeg";
+};
 
 export default function Index() {
   const insets = useSafeAreaInsets();
@@ -37,6 +120,7 @@ export default function Index() {
   const { isAuthenticated: isConvexAuthenticated, isLoading: isConvexAuthLoading } = useConvexAuth();
   const [chatMessage, setChatMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isEmotePickerOpen, setIsEmotePickerOpen] = useState(false);
   const [hasHearted, setHasHearted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [hasSyncedPlayback, setHasSyncedPlayback] = useState(false);
@@ -80,6 +164,7 @@ export default function Index() {
 
   // Convex mutations
   const sendMessage = useMutation(api.chat.sendMessage);
+  const generateUploadUrl = useMutation(api.chat.generateUploadUrl);
   const incrementHeart = useMutation(api.videos.incrementHeartCount);
   const upsertUser = useMutation(api.users.upsertUser);
 
@@ -195,6 +280,7 @@ export default function Index() {
 
     const body = chatMessage.trim();
     setChatMessage("");
+    setIsEmotePickerOpen(false);
     setIsSending(true);
 
     try {
@@ -208,6 +294,102 @@ export default function Index() {
       setIsSending(false);
     }
   }, [chatMessage, isSending, isSignedIn, isConvexAuthenticated, canSendChat, sendMessage]);
+
+  const handleToggleEmotePicker = useCallback(() => {
+    if (!canSendChat || isSending) return;
+    setIsEmotePickerOpen((prev) => !prev);
+  }, [canSendChat, isSending]);
+
+  const handleSendEmote = useCallback(async (emoteId) => {
+    if (!canSendChat || isSending) return;
+
+    setIsSending(true);
+    try {
+      await sendMessage({ body: `:emote:${emoteId}` });
+      setIsEmotePickerOpen(false);
+    } catch (error) {
+      console.error("[Chat] failed to send emote:", error?.message || error);
+    } finally {
+      setIsSending(false);
+    }
+  }, [canSendChat, isSending, sendMessage]);
+
+  const handlePickPhoto = useCallback(async () => {
+    if (!canSendChat || isSending) return;
+    setIsEmotePickerOpen(false);
+
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission required", "Please allow photo library access to send images.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 1,
+      });
+
+      if (result.canceled || !result.assets?.[0]) {
+        return;
+      }
+
+      const selectedAsset = result.assets[0];
+      if (
+        typeof selectedAsset.fileSize === "number" &&
+        selectedAsset.fileSize > MAX_CHAT_IMAGE_SIZE_BYTES
+      ) {
+        Alert.alert("Image too large", "Please choose an image under 8MB.");
+        return;
+      }
+
+      setIsSending(true);
+
+      const localFileResponse = await fetch(selectedAsset.uri);
+      const localFileBlob = await localFileResponse.blob();
+
+      if (localFileBlob.size > MAX_CHAT_IMAGE_SIZE_BYTES) {
+        Alert.alert("Image too large", "Please choose an image under 8MB.");
+        return;
+      }
+
+      const mimeType = inferImageMimeType(selectedAsset, localFileBlob.type);
+      const { uploadUrl } = await generateUploadUrl({});
+      const uploadResponse = await fetch(uploadUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": mimeType,
+        },
+        body: localFileBlob,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed with status ${uploadResponse.status}`);
+      }
+
+      const uploadPayload = await uploadResponse.json();
+      const storageId = uploadPayload?.storageId;
+      if (!storageId) {
+        throw new Error("Upload response missing storageId");
+      }
+
+      const messageText = chatMessage.trim();
+      await sendMessage({
+        body: messageText || "",
+        imageStorageId: storageId,
+        imageMimeType: mimeType,
+      });
+      if (messageText) {
+        setChatMessage("");
+      }
+    } catch (error) {
+      console.error("[Chat] failed to upload photo:", error?.message || error);
+      Alert.alert("Upload failed", "We could not send that photo. Please try again.");
+    } finally {
+      setIsSending(false);
+    }
+  }, [canSendChat, isSending, chatMessage, generateUploadUrl, sendMessage]);
 
   const isLive = !!activeStream;
   const videoTitle = currentVideo?.title || "Loading...";
@@ -523,73 +705,143 @@ export default function Index() {
             </Text>
           ) : null}
 
+          {activeStream?._id ? (
+            <AuctionPanel
+              livestreamId={activeStream._id}
+              streamStartedAt={activeStream?.startedAt}
+              onRequireSignIn={() => router.push("/sign-in")}
+            />
+          ) : null}
+
           {/* Chat Input */}
           {isSignedIn ? (
             canSendChat ? (
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 24 }}>
-                <TouchableOpacity
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 12,
-                    backgroundColor: "#2a2a2a",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    marginRight: 8,
-                  }}
-                >
-                  <ImageIcon size={20} color="#999" />
-                </TouchableOpacity>
+              <>
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: isEmotePickerOpen ? 12 : 24 }}>
+                  <TouchableOpacity
+                    onPress={handlePickPhoto}
+                    disabled={isSending || !canSendChat}
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 12,
+                      backgroundColor: "#2a2a2a",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      marginRight: 8,
+                      opacity: isSending || !canSendChat ? 0.6 : 1,
+                    }}
+                  >
+                    <ImageIcon size={20} color="#999" />
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 12,
-                    backgroundColor: "#2a2a2a",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    marginRight: 8,
-                  }}
-                >
-                  <Smile size={20} color="#999" />
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleToggleEmotePicker}
+                    disabled={isSending || !canSendChat}
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 12,
+                      backgroundColor: isEmotePickerOpen ? "#9ACD32" : "#2a2a2a",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      marginRight: 8,
+                      opacity: isSending || !canSendChat ? 0.6 : 1,
+                    }}
+                  >
+                    <Smile size={20} color={isEmotePickerOpen ? "#000" : "#999"} />
+                  </TouchableOpacity>
 
-                <TextInput
-                  value={chatMessage}
-                  onChangeText={setChatMessage}
-                  placeholder="Type a message..."
-                  placeholderTextColor="#666"
-                  style={{
-                    flex: 1,
-                    height: 48,
-                    backgroundColor: "#2a2a2a",
-                    borderRadius: 12,
-                    paddingHorizontal: 16,
-                    color: "#fff",
-                    fontSize: 14,
-                    marginRight: 8,
-                  }}
-                  returnKeyType="send"
-                  onSubmitEditing={handleSendMessage}
-                  editable={!isSending}
-                />
+                  <TextInput
+                    value={chatMessage}
+                    onChangeText={setChatMessage}
+                    placeholder="Type a message..."
+                    placeholderTextColor="#666"
+                    style={{
+                      flex: 1,
+                      height: 48,
+                      backgroundColor: "#2a2a2a",
+                      borderRadius: 12,
+                      paddingHorizontal: 16,
+                      color: "#fff",
+                      fontSize: 14,
+                      marginRight: 8,
+                    }}
+                    returnKeyType="send"
+                    onSubmitEditing={handleSendMessage}
+                    editable={!isSending}
+                  />
 
-                <TouchableOpacity
-                  onPress={handleSendMessage}
-                  disabled={!chatMessage.trim() || isSending || !canSendChat}
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 12,
-                    backgroundColor: chatMessage.trim() && !isSending && canSendChat ? "#9ACD32" : "#2a2a2a",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  <Send size={20} color={chatMessage.trim() && !isSending && canSendChat ? "#000" : "#666"} />
-                </TouchableOpacity>
-              </View>
+                  <TouchableOpacity
+                    onPress={handleSendMessage}
+                    disabled={!chatMessage.trim() || isSending || !canSendChat}
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 12,
+                      backgroundColor: chatMessage.trim() && !isSending && canSendChat ? "#9ACD32" : "#2a2a2a",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    {isSending ? (
+                      <ActivityIndicator size="small" color="#9ACD32" />
+                    ) : (
+                      <Send size={20} color={chatMessage.trim() && !isSending && canSendChat ? "#000" : "#666"} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                {isEmotePickerOpen ? (
+                  <View
+                    style={{
+                      backgroundColor: "#171717",
+                      borderRadius: 12,
+                      padding: 10,
+                      marginBottom: 24,
+                      borderWidth: 1,
+                      borderColor: "#2a2a2a",
+                    }}
+                  >
+                    <ScrollView
+                      style={{ maxHeight: 190 }}
+                      showsVerticalScrollIndicator={false}
+                      keyboardShouldPersistTaps="handled"
+                    >
+                      <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                        {EMOTE_IDS.map((emoteId) => {
+                          const emoteUri = getEmoteUriFromBody(`:emote:${emoteId}`);
+                          if (!emoteUri) return null;
+                          return (
+                            <TouchableOpacity
+                              key={emoteId}
+                              onPress={() => handleSendEmote(emoteId)}
+                              disabled={isSending}
+                              style={{
+                                width: 46,
+                                height: 46,
+                                borderRadius: 10,
+                                backgroundColor: "#222",
+                                justifyContent: "center",
+                                alignItems: "center",
+                                marginRight: 8,
+                                marginBottom: 8,
+                                opacity: isSending ? 0.6 : 1,
+                              }}
+                            >
+                              <Image
+                                source={{ uri: emoteUri }}
+                                style={{ width: 34, height: 34 }}
+                                contentFit="contain"
+                              />
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </ScrollView>
+                  </View>
+                ) : null}
+              </>
             ) : (
               <View
                 style={{
@@ -620,9 +872,88 @@ export default function Index() {
             <>
               {/* Messages are returned newest-first from query */}
               {messages.map((msg, index) => {
+                const rawBody = typeof msg.body === "string" ? msg.body : "";
+                const emoteUri = getEmoteUriFromBody(rawBody);
+                const cratePurchase = parseCratePurchaseToken(rawBody);
+                const auctionEvent = parseAuctionToken(rawBody);
                 const isGifUpload =
                   msg.imageMimeType === "image/gif" ||
                   (typeof msg.imageUrl === "string" && msg.imageUrl.toLowerCase().includes(".gif"));
+
+                if (cratePurchase) {
+                  return (
+                    <View key={msg._id} style={{ marginBottom: index < messages.length - 1 ? 20 : 0 }}>
+                      <View
+                        style={{
+                          backgroundColor: "#3b0764",
+                          borderColor: "#86198f",
+                          borderWidth: 1,
+                          borderRadius: 12,
+                          paddingHorizontal: 12,
+                          paddingVertical: 10,
+                          flexDirection: "row",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Text style={{ fontSize: 18, marginRight: 8 }}>💿</Text>
+                        <Text style={{ color: "#fff", fontSize: 14, flex: 1, lineHeight: 20 }}>
+                          <Text style={{ color: "#e879f9", fontWeight: "700" }}>
+                            {msg.userName || "Someone"}
+                          </Text>
+                          {" added a track to their crate for "}
+                          <Text style={{ color: "#fff", fontWeight: "700" }}>
+                            ${Math.round(cratePurchase.amount / 100)}
+                          </Text>
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                }
+
+                if (auctionEvent) {
+                  const isWon = auctionEvent.type === "auction_won";
+                  const isOutbid = auctionEvent.type === "outbid";
+                  const verb = isWon
+                    ? "won the auction for"
+                    : isOutbid
+                      ? "outbid with"
+                      : "placed a bid of";
+
+                  return (
+                    <View key={msg._id} style={{ marginBottom: index < messages.length - 1 ? 20 : 0 }}>
+                      <View
+                        style={{
+                          backgroundColor: isWon ? "#274e13" : "#3b0764",
+                          borderColor: isWon ? "#65a30d" : "#86198f",
+                          borderWidth: 1,
+                          borderRadius: 12,
+                          paddingHorizontal: 12,
+                          paddingVertical: 10,
+                          flexDirection: "row",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Text style={{ fontSize: 18, marginRight: 8 }}>{isWon ? "🏆" : "🔨"}</Text>
+                        <Text style={{ color: "#fff", fontSize: 14, flex: 1, lineHeight: 20 }}>
+                          <Text
+                            style={{
+                              color: isWon ? "#c4ff0e" : "#e879f9",
+                              fontWeight: "700",
+                            }}
+                          >
+                            {msg.userName || "Someone"}
+                          </Text>
+                          {` ${verb} `}
+                          <Text style={{ color: "#fff", fontWeight: "700" }}>
+                            ${Math.round(auctionEvent.amount / 100)}
+                          </Text>
+                          {isWon ? " 🎉" : ""}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                }
+
                 return (
                 <View key={msg._id} style={{ marginBottom: index < messages.length - 1 ? 20 : 0 }}>
                 <View style={{ flexDirection: "row" }}>
@@ -657,9 +988,24 @@ export default function Index() {
                       </Text>
                     </View>
 
-                    {msg.body ? (
+                    {emoteUri ? (
+                      <View style={{ marginBottom: 8 }}>
+                        <Image
+                          source={{ uri: emoteUri }}
+                          style={{
+                            width: "100%",
+                            maxWidth: 280,
+                            aspectRatio: 1,
+                            borderRadius: 12,
+                          }}
+                          contentFit="contain"
+                        />
+                      </View>
+                    ) : null}
+
+                    {rawBody && !emoteUri ? (
                       <Text style={{ color: "#fff", fontSize: 15, lineHeight: 22, marginBottom: 8 }}>
-                        {msg.body}
+                        {rawBody}
                       </Text>
                     ) : null}
 
