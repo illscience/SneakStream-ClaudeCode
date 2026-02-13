@@ -159,8 +159,12 @@ export default function Index() {
     }
   }, [canLoadMore, isLoadingMore, loadMore]);
 
-  // Get video from playbackState, or fall back to defaultVideo, or any public video
-  const currentVideo = playbackState?.video || defaultVideo || publicVideos?.[0];
+  const isLive = !!activeStream?.playbackUrl;
+
+  // Prefer live stream when active, otherwise fall back to recorded video
+  const currentVideo = activeStream?.playbackUrl
+    ? activeStream
+    : playbackState?.video || defaultVideo || publicVideos?.[0];
 
   // Convex mutations
   const sendMessage = useMutation(api.chat.sendMessage);
@@ -187,7 +191,9 @@ export default function Index() {
 
 
   const player = useVideoPlayer(videoSource, (player) => {
-    player.loop = true;
+    player.loop = !isLive;
+    player.staysActiveInBackground = true;
+    player.showNowPlayingNotification = true;
     player.play();
   });
 
@@ -208,8 +214,9 @@ export default function Index() {
 
   // Sync video position with global playback time
   // This ensures all viewers see the same point in the video
+  // Skip sync for live streams — they play in real-time
   useEffect(() => {
-    if (!player || !globalStartTime || !videoDurationForSync || hasSyncedPlayback) {
+    if (isLive || !player || !globalStartTime || !videoDurationForSync || hasSyncedPlayback) {
       return;
     }
 
@@ -240,16 +247,24 @@ export default function Index() {
   // Re-sync when app comes back from background
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
-      if (nextAppState === "active" && player && globalStartTime && videoDurationForSync) {
-        // Re-calculate and sync position
-        const now = Date.now();
-        const elapsedSeconds = (now - globalStartTime) / 1000;
-        const syncedPosition = videoDurationForSync > 0
-          ? elapsedSeconds % videoDurationForSync
-          : elapsedSeconds;
+      if (nextAppState === "active" && player) {
+        // For live streams, just resume playback — no timeline sync needed
+        if (isLive) {
+          player.play();
+          return;
+        }
 
-        if (syncedPosition >= 0 && syncedPosition < videoDurationForSync) {
-          player.currentTime = syncedPosition;
+        if (globalStartTime && videoDurationForSync) {
+          // Re-calculate and sync position
+          const now = Date.now();
+          const elapsedSeconds = (now - globalStartTime) / 1000;
+          const syncedPosition = videoDurationForSync > 0
+            ? elapsedSeconds % videoDurationForSync
+            : elapsedSeconds;
+
+          if (syncedPosition >= 0 && syncedPosition < videoDurationForSync) {
+            player.currentTime = syncedPosition;
+          }
         }
 
         // Resume playback
@@ -258,7 +273,7 @@ export default function Index() {
     });
 
     return () => subscription.remove();
-  }, [player, globalStartTime, videoDurationForSync]);
+  }, [player, isLive, globalStartTime, videoDurationForSync]);
 
   const toggleLike = useCallback(async () => {
     if (!playbackState?.videoId || hasHearted) return;
@@ -391,7 +406,6 @@ export default function Index() {
     }
   }, [canSendChat, isSending, chatMessage, generateUploadUrl, sendMessage]);
 
-  const isLive = !!activeStream;
   const videoTitle = currentVideo?.title || "Loading...";
   const heartCount = currentVideo?.heartCount || 0;
   const videoDuration = currentVideo?.duration || 0;

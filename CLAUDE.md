@@ -211,6 +211,25 @@ Notes:
 - Clerk frontend URL is currently hardcoded to `https://clerk.sneakstream.xyz` in mobile auth modules.
 - Keep web and mobile domain configuration aligned for token + checkout flows.
 
+### Switching Mobile Between Dev and Production
+The mobile app uses two env files:
+- `mobile/.env` — **production** values (Convex `resilient-spider-207`, web `sneakstream.xyz`)
+- `mobile/.env.local` — **dev** values (Convex `colorful-ant-503`), overrides `.env` when present
+
+To point the local simulator at **production**:
+```bash
+mv mobile/.env.local mobile/.env.local.bak    # Disable dev overrides
+cd mobile && npx expo start --ios --clear      # Restart with production env
+```
+
+To restore **dev** mode:
+```bash
+mv mobile/.env.local.bak mobile/.env.local     # Re-enable dev overrides
+cd mobile && npx expo start --ios --clear       # Restart with dev env
+```
+
+EAS production builds (`eas.json` `production` profile) inject their own env vars and ignore both files.
+
 ### Mobile Debug Checklist
 When mobile auth/chat/auction issues occur, verify in order:
 1. `EXPO_PUBLIC_CONVEX_URL` resolves correctly.
