@@ -121,7 +121,7 @@ export default function Index() {
   const [chatMessage, setChatMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isEmotePickerOpen, setIsEmotePickerOpen] = useState(false);
-  const [hasHearted, setHasHearted] = useState(false);
+  const [isHeartAnimating, setIsHeartAnimating] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [hasSyncedPlayback, setHasSyncedPlayback] = useState(false);
   const scrollViewRef = useRef(null);
@@ -194,6 +194,8 @@ export default function Index() {
     player.loop = !isLive;
     player.staysActiveInBackground = true;
     player.showNowPlayingNotification = true;
+    player.audioMixingMode = "doNotMix";
+    player.volume = 1.0;
     player.play();
   });
 
@@ -275,16 +277,17 @@ export default function Index() {
     return () => subscription.remove();
   }, [player, isLive, globalStartTime, videoDurationForSync]);
 
-  const toggleLike = useCallback(async () => {
-    if (!playbackState?.videoId || hasHearted) return;
-    setHasHearted(true);
+  const heartVideoId = playbackState?.videoId || defaultVideo?._id || publicVideos?.[0]?._id;
+  const handleHeart = useCallback(async () => {
+    if (!heartVideoId) return;
+    setIsHeartAnimating(true);
+    setTimeout(() => setIsHeartAnimating(false), 300);
     try {
-      await incrementHeart({ videoId: playbackState.videoId });
+      await incrementHeart({ videoId: heartVideoId });
     } catch (error) {
       console.error("Heart error:", error);
-      setHasHearted(false);
     }
-  }, [playbackState?.videoId, hasHearted, incrementHeart]);
+  }, [heartVideoId, incrementHeart]);
 
   const handleSendMessage = useCallback(async () => {
     console.log("[Chat] handleSendMessage — isSignedIn:", isSignedIn, "isConvexAuthenticated:", isConvexAuthenticated, "isSending:", isSending, "msg:", chatMessage.trim().substring(0, 20));
@@ -407,7 +410,9 @@ export default function Index() {
   }, [canSendChat, isSending, chatMessage, generateUploadUrl, sendMessage]);
 
   const videoTitle = currentVideo?.title || "Loading...";
-  const heartCount = currentVideo?.heartCount || 0;
+  // Heart count always comes from the video record (not the livestream object)
+  const heartVideo = playbackState?.video || defaultVideo || publicVideos?.[0];
+  const heartCount = heartVideo?.heartCount || 0;
   const videoDuration = currentVideo?.duration || 0;
 
   const formatDuration = (seconds) => {
@@ -561,18 +566,20 @@ export default function Index() {
             {/* Like Button */}
             <View style={{ position: "absolute", bottom: 12, right: 12 }}>
               <TouchableOpacity
-                onPress={toggleLike}
+                onPress={handleHeart}
+                activeOpacity={0.7}
                 style={{
-                  width: 64,
-                  height: 64,
-                  borderRadius: 16,
-                  backgroundColor: hasHearted ? "#E91E63" : "#DC2626",
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 12,
+                  backgroundColor: "#DC2626",
                   justifyContent: "center",
                   alignItems: "center",
+                  transform: [{ scale: isHeartAnimating ? 1.1 : 1 }],
                 }}
               >
-                <Heart size={24} color="#fff" fill={hasHearted ? "#fff" : "none"} />
-                <Text style={{ color: "#fff", fontWeight: "700", fontSize: 16, marginTop: 4 }}>
+                <Heart size={20} color="#fff" fill="#fff" />
+                <Text style={{ color: "#fff", fontWeight: "700", fontSize: 12, marginTop: 2 }}>
                   {heartCount}
                 </Text>
               </TouchableOpacity>
