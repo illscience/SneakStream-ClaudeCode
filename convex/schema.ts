@@ -116,10 +116,31 @@ export default defineSchema({
     visibility: v.optional(v.string()), // "public" | "ppv"
     price: v.optional(v.number()), // Price in cents for PPV livestreams
     recordingVideoId: v.optional(v.id("videos")), // Link to the recording after stream ends
+    recordingAssetId: v.optional(v.string()), // Mux asset id linked to this livestream
+    recordingSource: v.optional(v.union(v.literal("webhook"), v.literal("end_stream"))),
+    recordingLinkedAt: v.optional(v.number()),
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"])
     .index("by_streamId", ["streamId"]),
+
+  recordingCandidates: defineTable({
+    assetId: v.string(),
+    liveStreamId: v.optional(v.string()),
+    linkedLivestreamId: v.optional(v.id("livestreams")),
+    playbackId: v.optional(v.string()),
+    duration: v.optional(v.number()),
+    status: v.optional(v.string()),
+    reason: v.string(),
+    sourceEventTypes: v.array(v.string()),
+    firstSeenAt: v.number(),
+    lastSeenAt: v.number(),
+    traceId: v.optional(v.string()),
+    resolvedVideoId: v.optional(v.id("videos")),
+  })
+    .index("by_assetId", ["assetId"])
+    .index("by_liveStreamId", ["liveStreamId"])
+    .index("by_lastSeenAt", ["lastSeenAt"]),
 
   // Synchronized playback state for default video
   playbackState: defineTable({
