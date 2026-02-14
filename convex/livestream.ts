@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { ADMIN_LIBRARY_USER_ID, requireAdmin, getAuthenticatedUser } from "./adminSettings";
+import { logConvexTrace } from "./debugTrace";
+import { upsertMuxRecording } from "./recordingIngest";
 
 // Get the current active stream
 export const getActiveStream = query({
@@ -30,13 +32,51 @@ export const getUserStreams = query({
 
 // Get a stream by provider stream ID
 export const getStreamByStreamId = query({
-  args: { streamId: v.string() },
+  args: {
+    streamId: v.string(),
+    recordingCreatedAt: v.optional(v.number()),
+    recordingObservedAt: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const streams = await ctx.db
       .query("livestreams")
       .withIndex("by_streamId", (q) => q.eq("streamId", args.streamId))
-      .order("desc")
-      .first();
+      .collect();
+
+    if (streams.length === 0) {
+      return null;
+    }
+
+    const observedAt = args.recordingObservedAt ?? Date.now();
+    const recordedAt = args.recordingCreatedAt ?? observedAt;
+    const candidateStreams = streams.filter((stream) => {
+      const windowStart = stream.startedAt - 10 * 60 * 1000;
+      const windowEnd = (stream.endedAt ?? observedAt + 30 * 60 * 1000) + 30 * 60 * 1000;
+      return recordedAt >= windowStart && recordedAt <= windowEnd;
+    });
+
+    if (candidateStreams.length === 1) {
+      return candidateStreams[0];
+    }
+
+    if (candidateStreams.length > 1) {
+      const unlinkedCandidates = candidateStreams.filter((stream) => !stream.recordingVideoId);
+      const pool = unlinkedCandidates.length > 0 ? unlinkedCandidates : candidateStreams;
+      return pool.sort((a, b) => b.startedAt - a.startedAt)[0];
+    }
+
+    if (streams.length === 1) {
+      return streams[0];
+    }
+
+    const recentActive = streams.filter(
+      (stream) => stream.status === "active" && observedAt - stream.startedAt < 3 * 60 * 60 * 1000
+    );
+    if (recentActive.length === 1) {
+      return recentActive[0];
+    }
+
+    return null;
   },
 });
 
@@ -64,12 +104,20 @@ export const updateStreamStartedAt = mutation({
 
     if (!stream) {
       console.warn("[updateStreamStartedAt] Stream not found:", args.streamId);
+      logConvexTrace("livestream.updateStartedAt.not_found", {
+        streamId: args.streamId,
+      });
       return null;
     }
 
     // Only update if stream is active (don't update ended streams)
     if (stream.status !== "active") {
       console.log("[updateStreamStartedAt] Stream not active, skipping:", args.streamId);
+      logConvexTrace("livestream.updateStartedAt.skipped_not_active", {
+        streamId: args.streamId,
+        livestreamId: stream._id,
+        status: stream.status,
+      });
       return null;
     }
 
@@ -77,6 +125,11 @@ export const updateStreamStartedAt = mutation({
     // This prevents reconnects from resetting the timeline
     if (stream.startedAtFromWebhook) {
       console.log("[updateStreamStartedAt] Already updated from webhook, skipping:", args.streamId);
+      logConvexTrace("livestream.updateStartedAt.skipped_already_set", {
+        streamId: args.streamId,
+        livestreamId: stream._id,
+        currentStartedAt: stream.startedAt,
+      });
       return null;
     }
 
@@ -89,6 +142,12 @@ export const updateStreamStartedAt = mutation({
     console.log("[updateStreamStartedAt] Updated startedAt for stream:", {
       streamId: args.streamId,
       convexId: stream._id,
+      oldStartedAt: stream.startedAt,
+      newStartedAt: args.startedAt,
+    });
+    logConvexTrace("livestream.updateStartedAt.updated", {
+      streamId: args.streamId,
+      livestreamId: stream._id,
       oldStartedAt: stream.startedAt,
       newStartedAt: args.startedAt,
     });
@@ -132,7 +191,22 @@ export const startStream = mutation({
         status: "ended",
         endedAt: Date.now(),
       });
+      logConvexTrace("livestream.startStream.ended_prior", {
+        endedLivestreamId: stream._id,
+        endedStreamId: stream.streamId,
+        endedTitle: stream.title,
+        endedRecordingVideoId: stream.recordingVideoId ?? null,
+      });
     }
+
+    logConvexTrace("livestream.startStream.creating", {
+      userId,
+      userName,
+      title: args.title,
+      provider: args.provider || "mux",
+      streamId: args.streamId,
+      priorActiveCount: existingActiveStreams.length,
+    });
 
     // Create new stream (default to PPV)
     const newStreamId = await ctx.db.insert("livestreams", {
@@ -154,6 +228,13 @@ export const startStream = mutation({
       price: 500, // Default price $5.00
     });
 
+    logConvexTrace("livestream.startStream.created", {
+      newLivestreamId: newStreamId,
+      userId,
+      title: args.title,
+      streamId: args.streamId,
+    });
+
     return newStreamId;
   },
 });
@@ -166,11 +247,20 @@ export const endStream = mutation({
     assetId: v.optional(v.string()),
     playbackId: v.optional(v.string()),
     duration: v.optional(v.number()),
+    traceId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // SECURITY: Only admins can end streams
     const userId = await requireAdmin(ctx);
 
+    logConvexTrace("livestream.endStream.called", {
+      traceId: args.traceId,
+      streamId: args.streamId,
+      assetId: args.assetId,
+      playbackId: args.playbackId,
+      duration: args.duration,
+      actingUserId: userId,
+    });
     console.log("[livestream.endStream] called", {
       streamId: args.streamId,
       assetId: args.assetId,
@@ -180,6 +270,10 @@ export const endStream = mutation({
 
     const stream = await ctx.db.get(args.streamId);
     if (!stream) {
+      logConvexTrace("livestream.endStream.stream_not_found", {
+        traceId: args.traceId,
+        streamId: args.streamId,
+      });
       console.warn("[livestream.endStream] stream not found", {
         streamId: args.streamId,
       });
@@ -191,52 +285,70 @@ export const endStream = mutation({
       endedAt: Date.now(),
       endedBy: userId,
     });
+    logConvexTrace("livestream.endStream.marked_ended", {
+      traceId: args.traceId,
+      streamId: args.streamId,
+      userId: stream.userId,
+      title: stream.title,
+      currentStatus: stream.status,
+    });
     console.log("[livestream.endStream] marked ended", {
       streamId: args.streamId,
       userId: stream.userId,
       title: stream.title,
     });
 
-    // Save recording to library (even if still processing).
-    // Recordings are always PUBLIC - only the live stream itself is PPV
+    // Save recording to library via idempotent upsert by assetId.
+    // This prevents duplicate rows when webhook and end-stream both ingest.
     if (args.assetId) {
-      const playbackUrl = args.playbackId
-        ? `https://stream.mux.com/${args.playbackId}.m3u8`
-        : undefined;
-
-      const videoId = await ctx.db.insert("videos", {
+      logConvexTrace("livestream.endStream.upsert_intent", {
+        traceId: args.traceId,
+        streamId: args.streamId,
+        assetId: args.assetId,
+        playbackId: args.playbackId,
+        status: args.playbackId ? "ready" : "processing",
+      });
+      const result = await upsertMuxRecording(ctx, {
+        source: "end_stream",
+        traceId: args.traceId,
+        assetId: args.assetId,
         userId: ADMIN_LIBRARY_USER_ID,
         uploadedBy: stream.startedBy || stream.userId,
         title: stream.title,
         description: stream.description,
-        provider: "mux",
-        assetId: args.assetId,
         playbackId: args.playbackId,
-        playbackUrl,
         duration: args.duration,
         status: args.playbackId ? "ready" : "processing",
-        visibility: "public", // Recordings are always public
-        viewCount: 0,
-        heartCount: 0,
-        linkedLivestreamId: args.streamId, // Link recording back to livestream
+        visibility: "public",
+        liveStreamId: stream.streamId,
+        linkedLivestreamId: args.streamId,
       });
 
-      // Update livestream with reference to its recording
-      await ctx.db.patch(args.streamId, {
-        recordingVideoId: videoId,
-      });
-
-      console.log("[livestream.endStream] inserted video record", {
-        videoId,
+      logConvexTrace("livestream.endStream.upsert_result", {
+        traceId: args.traceId,
+        streamId: args.streamId,
+        videoId: result.videoId,
         assetId: args.assetId,
         playbackId: args.playbackId,
-        playbackUrl,
+        action: result.action,
+        linkStatus: result.linkStatus,
+      });
+
+      console.log("[livestream.endStream] upserted recording video", {
+        videoId: result.videoId,
+        assetId: args.assetId,
+        playbackId: args.playbackId,
         title: stream.title,
         status: args.playbackId ? "ready" : "processing",
         linkedLivestreamId: args.streamId,
-        recordingVideoId: videoId,
+        action: result.action,
+        linkStatus: result.linkStatus,
       });
     } else {
+      logConvexTrace("livestream.endStream.no_asset", {
+        traceId: args.traceId,
+        streamId: args.streamId,
+      });
       console.log("[livestream.endStream] no assetId provided; skipping video insert", {
         streamId: args.streamId,
       });

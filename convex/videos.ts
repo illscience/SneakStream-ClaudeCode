@@ -1,6 +1,8 @@
 import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { ADMIN_LIBRARY_USER_ID, requireAdmin, getAuthenticatedUser, getOptionalAuthenticatedUser } from "./adminSettings";
+import { logConvexTrace } from "./debugTrace";
+import { upsertMuxRecording } from "./recordingIngest";
 
 // Create a new video entry (admin only)
 export const createVideo = mutation({
@@ -18,6 +20,7 @@ export const createVideo = mutation({
     visibility: v.string(),
     price: v.optional(v.number()),
     playbackPolicy: v.optional(v.string()),
+    traceId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // SECURITY: Only admins can create videos
@@ -25,6 +28,13 @@ export const createVideo = mutation({
 
     const resolvedProvider = args.provider || (args.livepeerAssetId ? "livepeer" : "mux");
     const resolvedAssetId = args.assetId || args.livepeerAssetId || undefined;
+    logConvexTrace("videos.createVideo.called", {
+      traceId: args.traceId,
+      title: args.title,
+      resolvedAssetId,
+      resolvedProvider,
+      uploadedBy,
+    });
 
     if (resolvedAssetId) {
       const existing = await ctx.db
@@ -33,12 +43,23 @@ export const createVideo = mutation({
         .order("desc")
         .first();
 
+      logConvexTrace("videos.createVideo.existing_lookup", {
+        traceId: args.traceId,
+        resolvedAssetId,
+        existingVideoId: existing?._id,
+      });
+
       if (existing) {
+        logConvexTrace("videos.createVideo.reused_existing", {
+          traceId: args.traceId,
+          resolvedAssetId,
+          existingVideoId: existing._id,
+        });
         return existing._id;
       }
     }
 
-    return await ctx.db.insert("videos", {
+    const videoId = await ctx.db.insert("videos", {
       userId: ADMIN_LIBRARY_USER_ID,
       uploadedBy,
       title: args.title,
@@ -57,6 +78,14 @@ export const createVideo = mutation({
       ...(args.price !== undefined ? { price: args.price } : {}),
       ...(args.playbackPolicy ? { playbackPolicy: args.playbackPolicy } : {}),
     });
+    logConvexTrace("videos.createVideo.inserted", {
+      traceId: args.traceId,
+      videoId,
+      resolvedAssetId,
+      title: args.title,
+      visibility: args.visibility,
+    });
+    return videoId;
   },
 });
 
@@ -75,8 +104,19 @@ export const upsertMuxAsset = mutation({
     visibility: v.optional(v.string()),
     liveStreamId: v.optional(v.string()),
     linkedLivestreamId: v.optional(v.id("livestreams")), // Convex livestream ID for PPV bundling
+    traceId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    logConvexTrace("videos.upsertMuxAsset.called", {
+      traceId: args.traceId,
+      assetId: args.assetId,
+      userId: args.userId,
+      title: args.title,
+      status: args.status,
+      playbackId: args.playbackId,
+      liveStreamId: args.liveStreamId,
+      linkedLivestreamId: args.linkedLivestreamId,
+    });
     console.log("[videos.upsertMuxAsset] incoming", {
       assetId: args.assetId,
       userId: args.userId,
@@ -86,100 +126,142 @@ export const upsertMuxAsset = mutation({
       liveStreamId: args.liveStreamId,
     });
 
-    let existing = await ctx.db
-      .query("videos")
-      .withIndex("by_assetId", (q) => q.eq("assetId", args.assetId))
-      .order("desc")
-      .first();
-
-    if (!existing && args.liveStreamId) {
-      const placeholderAssetId = `pending:${args.liveStreamId}`;
-      existing = await ctx.db
-        .query("videos")
-        .withIndex("by_assetId", (q) => q.eq("assetId", placeholderAssetId))
-        .order("desc")
-        .first();
-
-      if (existing) {
-        console.log("[videos.upsertMuxAsset] matched placeholder by liveStreamId", {
-          placeholderAssetId,
-          existingId: existing._id,
-        });
-      }
-    }
-
-    const playbackUrl = args.playbackId
-      ? `https://stream.mux.com/${args.playbackId}.m3u8`
-      : undefined;
-
-    if (existing) {
-      const updates: Record<string, unknown> = {};
-
-      if (args.title) updates.title = args.title;
-      if (args.description !== undefined) updates.description = args.description;
-      if (args.playbackId) {
-        updates.playbackId = args.playbackId;
-        updates.playbackUrl = playbackUrl;
-      }
-      if (args.duration !== undefined) updates.duration = args.duration;
-      if (args.status) updates.status = args.status;
-      if (args.visibility) updates.visibility = args.visibility;
-      if (args.assetId && existing.assetId !== args.assetId) {
-        updates.assetId = args.assetId;
-      }
-      if (args.userId && existing.userId !== args.userId) {
-        updates.userId = args.userId;
-      }
-      if (args.uploadedBy && !existing.uploadedBy) {
-        updates.uploadedBy = args.uploadedBy;
-      }
-      if (existing.provider !== "mux") updates.provider = "mux";
-
-      if (Object.keys(updates).length > 0) {
-        await ctx.db.patch(existing._id, updates);
-        console.log("[videos.upsertMuxAsset] updated existing video", {
-          videoId: existing._id,
-          assetId: args.assetId,
-          updates,
-        });
-      }
-
-      return existing._id;
-    }
-
-    const newVideoId = await ctx.db.insert("videos", {
+    const result = await upsertMuxRecording(ctx, {
+      source: "webhook",
+      traceId: args.traceId,
+      assetId: args.assetId,
       userId: args.userId,
       uploadedBy: args.uploadedBy,
       title: args.title,
       description: args.description,
-      provider: "mux",
-      assetId: args.assetId,
       playbackId: args.playbackId,
-      playbackUrl,
       duration: args.duration,
-      status: args.status || "processing",
-      visibility: args.visibility || "public",
-      viewCount: 0,
-      heartCount: 0,
-      ...(args.linkedLivestreamId ? { linkedLivestreamId: args.linkedLivestreamId } : {}),
-    });
-
-    // If linked to a livestream, update the livestream with recordingVideoId
-    if (args.linkedLivestreamId) {
-      await ctx.db.patch(args.linkedLivestreamId, {
-        recordingVideoId: newVideoId,
-      });
-    }
-
-    console.log("[videos.upsertMuxAsset] inserted new video", {
-      videoId: newVideoId,
-      assetId: args.assetId,
-      playbackId: args.playbackId,
-      status: args.status || "processing",
+      status: args.status,
+      visibility: args.visibility,
+      liveStreamId: args.liveStreamId,
       linkedLivestreamId: args.linkedLivestreamId,
     });
 
-    return newVideoId;
+    logConvexTrace("videos.upsertMuxAsset.result", {
+      traceId: args.traceId,
+      assetId: args.assetId,
+      videoId: result.videoId,
+      playbackId: args.playbackId,
+      status: args.status,
+      action: result.action,
+      linkStatus: result.linkStatus,
+    });
+    console.log("[videos.upsertMuxAsset] upsert result", {
+      videoId: result.videoId,
+      assetId: args.assetId,
+      playbackId: args.playbackId,
+      status: args.status,
+      linkedLivestreamId: args.linkedLivestreamId,
+      action: result.action,
+      linkStatus: result.linkStatus,
+    });
+
+    const existingCandidate = await ctx.db
+      .query("recordingCandidates")
+      .withIndex("by_assetId", (q) => q.eq("assetId", args.assetId))
+      .first();
+    if (existingCandidate && !existingCandidate.resolvedVideoId) {
+      await ctx.db.patch(existingCandidate._id, {
+        resolvedVideoId: result.videoId,
+        linkedLivestreamId: args.linkedLivestreamId,
+        status: args.status || existingCandidate.status,
+        duration: args.duration ?? existingCandidate.duration,
+        playbackId: args.playbackId ?? existingCandidate.playbackId,
+        lastSeenAt: Date.now(),
+      });
+    }
+
+    return result.videoId;
+  },
+});
+
+export const recordMuxAssetCandidate = mutation({
+  args: {
+    assetId: v.string(),
+    liveStreamId: v.optional(v.string()),
+    linkedLivestreamId: v.optional(v.id("livestreams")),
+    playbackId: v.optional(v.string()),
+    duration: v.optional(v.number()),
+    status: v.optional(v.string()),
+    reason: v.string(),
+    eventType: v.string(),
+    traceId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const existing = await ctx.db
+      .query("recordingCandidates")
+      .withIndex("by_assetId", (q) => q.eq("assetId", args.assetId))
+      .first();
+
+    if (existing) {
+      const sourceEventTypes = existing.sourceEventTypes.includes(args.eventType)
+        ? existing.sourceEventTypes
+        : [...existing.sourceEventTypes, args.eventType];
+
+      await ctx.db.patch(existing._id, {
+        liveStreamId: args.liveStreamId ?? existing.liveStreamId,
+        linkedLivestreamId: args.linkedLivestreamId ?? existing.linkedLivestreamId,
+        playbackId: args.playbackId ?? existing.playbackId,
+        duration: args.duration ?? existing.duration,
+        status: args.status ?? existing.status,
+        reason: args.reason,
+        sourceEventTypes,
+        traceId: args.traceId ?? existing.traceId,
+        lastSeenAt: now,
+      });
+      logConvexTrace("videos.recordMuxAssetCandidate.updated", {
+        traceId: args.traceId,
+        assetId: args.assetId,
+        liveStreamId: args.liveStreamId,
+        reason: args.reason,
+      });
+      return existing._id;
+    }
+
+    const candidateId = await ctx.db.insert("recordingCandidates", {
+      assetId: args.assetId,
+      liveStreamId: args.liveStreamId,
+      linkedLivestreamId: args.linkedLivestreamId,
+      playbackId: args.playbackId,
+      duration: args.duration,
+      status: args.status,
+      reason: args.reason,
+      sourceEventTypes: [args.eventType],
+      firstSeenAt: now,
+      lastSeenAt: now,
+      traceId: args.traceId,
+    });
+
+    logConvexTrace("videos.recordMuxAssetCandidate.inserted", {
+      traceId: args.traceId,
+      assetId: args.assetId,
+      liveStreamId: args.liveStreamId,
+      reason: args.reason,
+      candidateId,
+    });
+    return candidateId;
+  },
+});
+
+export const getRecordingCandidates = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    const limit = Math.min(Math.max(args.limit ?? 100, 1), 500);
+    return await ctx.db
+      .query("recordingCandidates")
+      .withIndex("by_lastSeenAt")
+      .order("desc")
+      .take(limit);
   },
 });
 
@@ -263,6 +345,56 @@ export const getAdminLibraryVideos = query({
     );
 
     return videosWithUploader;
+  },
+});
+
+// Inspect duplicate asset IDs for forensic debugging (admin only)
+export const getDuplicateAssetGroups = query({
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+
+    const videos = await ctx.db.query("videos").order("desc").collect();
+    const byAssetId = new Map<
+      string,
+      Array<{
+        id: string;
+        creationTime: number;
+        title: string;
+        duration: number | undefined;
+        status: string;
+        linkedLivestreamId: string | undefined;
+        uploadedBy: string | undefined;
+        playbackId: string | undefined;
+      }>
+    >();
+
+    for (const video of videos) {
+      if (!video.assetId) {
+        continue;
+      }
+
+      const current = byAssetId.get(video.assetId) ?? [];
+      current.push({
+        id: video._id,
+        creationTime: video._creationTime,
+        title: video.title,
+        duration: video.duration,
+        status: video.status,
+        linkedLivestreamId: video.linkedLivestreamId,
+        uploadedBy: video.uploadedBy,
+        playbackId: video.playbackId,
+      });
+      byAssetId.set(video.assetId, current);
+    }
+
+    return Array.from(byAssetId.entries())
+      .filter(([, rows]) => rows.length > 1)
+      .map(([assetId, rows]) => ({
+        assetId,
+        count: rows.length,
+        videos: rows.sort((a, b) => a.creationTime - b.creationTime),
+      }))
+      .sort((a, b) => b.count - a.count);
   },
 });
 
