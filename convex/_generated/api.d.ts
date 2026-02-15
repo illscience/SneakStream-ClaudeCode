@@ -16,6 +16,7 @@ import type {
 import type * as adminSettings from "../adminSettings.js";
 import type * as bidding from "../bidding.js";
 import type * as chat from "../chat.js";
+import type * as cleanupVideos from "../cleanupVideos.js";
 import type * as crons from "../crons.js";
 import type * as debugTrace from "../debugTrace.js";
 import type * as entitlements from "../entitlements.js";
@@ -43,6 +44,7 @@ declare const fullApi: ApiFromModules<{
   adminSettings: typeof adminSettings;
   bidding: typeof bidding;
   chat: typeof chat;
+  cleanupVideos: typeof cleanupVideos;
   crons: typeof crons;
   debugTrace: typeof debugTrace;
   entitlements: typeof entitlements;
