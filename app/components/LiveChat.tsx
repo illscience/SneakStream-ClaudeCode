@@ -7,7 +7,7 @@ import { SignInButton, useUser } from "@clerk/nextjs"
 import { usePaginatedQuery, useQuery, useMutation } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { EMOTE_BY_ID, EMOTES } from "@/lib/emotes"
-import { DollarSign, Disc3, Heart, Image as ImageIcon, Loader2, MessageSquare, Send, Smile, Trash2 } from "lucide-react"
+import { DollarSign, Disc3, Heart, Image as ImageIcon, Loader2, MessageSquare, Reply, Send, Smile, Trash2, X } from "lucide-react"
 import { TipModal } from "@/components/tips"
 import { AuctionPanel } from "@/components/bidding"
 
@@ -80,6 +80,7 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
   const [mentionSearch, setMentionSearch] = useState("")
   const [showMentionPopup, setShowMentionPopup] = useState(false)
   const [mentionPosition, setMentionPosition] = useState<number | null>(null)
+  const [replyingTo, setReplyingTo] = useState<{ id: string; userName: string; body: string } | null>(null)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const hasSyncedUserRef = useRef(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -217,6 +218,8 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
     const messageText = newMessage.trim()
     const optimisticId = `optimistic-${Date.now()}`
 
+    const currentReply = replyingTo
+
     const optimisticMsg = {
       _id: optimisticId,
       _creationTime: Date.now(),
@@ -226,6 +229,7 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
       avatarUrl: resolvedAvatar,
       body: messageText,
       imageUrl: imagePreview || undefined,
+      replyTo: currentReply ? { userName: currentReply.userName, body: currentReply.body } : undefined,
     }
 
     setOptimisticMessages((prev) => [...prev, optimisticMsg])
@@ -233,6 +237,7 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
     setShowMentionPopup(false)
     setMentionSearch("")
     setMentionPosition(null)
+    setReplyingTo(null)
     setIsSending(true)
 
     try {
@@ -265,6 +270,7 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
         body: messageText || "",
         imageStorageId: uploadedStorageId,
         imageMimeType: uploadedMimeType || imageFile?.type,
+        replyToId: currentReply ? (currentReply.id as Id<"messages">) : undefined,
       })
       setOptimisticMessages((prev) => prev.filter((m) => m._id !== optimisticId))
       setImageFile(null)
@@ -405,6 +411,21 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
             <Smile className="h-5 w-5" />
           </button>
           <div className="flex-1 flex flex-col gap-2">
+            {replyingTo && (
+              <div className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900/80 px-3 py-2 text-sm">
+                <div className="flex-1 min-w-0">
+                  <span className="text-zinc-400">Replying to </span>
+                  <span className="font-semibold text-[#c4ff0e]">{replyingTo.userName}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReplyingTo(null)}
+                  className="shrink-0 text-zinc-400 hover:text-white transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
             <div className="relative">
               <textarea
                 ref={textareaRef}
@@ -686,6 +707,21 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
                             <Heart className={`w-4 h-4 ${loveCount > 0 ? "fill-white" : ""}`} />
                             <span>{loveCount}</span>
                           </button>
+                          {isSignedIn && (
+                            <button
+                              onClick={() => {
+                                setReplyingTo({
+                                  id: message._id,
+                                  userName: message.userName || message.user || "Anonymous",
+                                  body: rawBody,
+                                })
+                                textareaRef.current?.focus()
+                              }}
+                              className="flex items-center gap-1 rounded-full px-2 py-1 transition-colors bg-zinc-900/60 text-zinc-500 hover:text-[#c4ff0e]"
+                            >
+                              <Reply className="w-4 h-4" />
+                            </button>
+                          )}
                           {recentLovers.length > 0 && (
                             <div className="flex flex-wrap gap-1">
                               {recentLovers.map((lover: { clerkId: string; alias: string; avatarUrl?: string }) => (
@@ -810,6 +846,17 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
                       </button>
                     )}
                   </div>
+                  {message.replyTo && (
+                    <div className="flex items-start gap-1.5 rounded-md border-l-2 border-[#c4ff0e]/50 bg-zinc-800/50 px-2 py-1.5 mt-0.5 mb-0.5">
+                      <Reply className="w-3 h-3 mt-0.5 shrink-0 text-zinc-500" />
+                      <div className="min-w-0">
+                        <span className="text-xs font-semibold text-[#c4ff0e]">{message.replyTo.userName}</span>
+                        <p className="text-xs text-zinc-400 truncate max-w-[240px]">
+                          {message.replyTo.body}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   {emote && (
                     <div className="mt-2">
                       <img
@@ -863,6 +910,21 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
                         <Heart className={`w-4 h-4 ${loveCount > 0 ? "fill-white" : ""}`} />
                         <span>{loveCount}</span>
                       </button>
+                      {isSignedIn && (
+                        <button
+                          onClick={() => {
+                            setReplyingTo({
+                              id: message._id,
+                              userName: message.userName || message.user || "Anonymous",
+                              body: rawBody,
+                            })
+                            textareaRef.current?.focus()
+                          }}
+                          className="flex items-center gap-1 rounded-full px-2 py-1 transition-colors bg-zinc-900/60 text-zinc-500 hover:text-[#c4ff0e]"
+                        >
+                          <Reply className="w-4 h-4" />
+                        </button>
+                      )}
                       {recentLovers.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {recentLovers.map((lover: { clerkId: string; alias: string; avatarUrl?: string }) => (

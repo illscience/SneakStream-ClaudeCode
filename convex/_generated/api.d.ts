@@ -23,6 +23,7 @@ import type * as entitlements from "../entitlements.js";
 import type * as events from "../events.js";
 import type * as follows from "../follows.js";
 import type * as livestream from "../livestream.js";
+import type * as notifications from "../notifications.js";
 import type * as playbackState from "../playbackState.js";
 import type * as playlist from "../playlist.js";
 import type * as purchases from "../purchases.js";
@@ -51,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   events: typeof events;
   follows: typeof follows;
   livestream: typeof livestream;
+  notifications: typeof notifications;
   playbackState: typeof playbackState;
   playlist: typeof playlist;
   purchases: typeof purchases;

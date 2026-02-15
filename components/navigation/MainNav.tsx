@@ -8,6 +8,7 @@ import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from "@clerk/n
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import LogoShimmer from "./LogoShimmer";
+import NotificationBell from "../notification-bell";
 
 interface NavLink {
   href: string;
@@ -235,6 +236,7 @@ export default function MainNav() {
           </SignedOut>
 
           <SignedIn>
+            <NotificationBell />
             <UserButton
               appearance={{
                 elements: {
@@ -308,7 +310,10 @@ export default function MainNav() {
             <SignedIn>
               <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-200">
                 <span>Account</span>
-                <UserButton appearance={{ elements: { avatarBox: "h-9 w-9" } }} />
+                <div className="flex items-center gap-3">
+                  <NotificationBell />
+                  <UserButton appearance={{ elements: { avatarBox: "h-9 w-9" } }} />
+                </div>
               </div>
             </SignedIn>
           </div>
