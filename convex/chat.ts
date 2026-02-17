@@ -2,12 +2,14 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { getAuthenticatedUser, requireAdmin } from "./adminSettings";
+import { createNotification } from "./notifications";
 
 export const sendMessage = mutation({
   args: {
     body: v.string(),
     imageStorageId: v.optional(v.id("_storage")),
     imageMimeType: v.optional(v.string()),
+    replyToId: v.optional(v.id("messages")),
   },
   handler: async (ctx, args) => {
     // Get authenticated user from JWT
@@ -19,19 +21,64 @@ export const sendMessage = mutation({
       .withIndex("by_clerk_id", (q) => q.eq("clerkId", clerkId))
       .first();
 
-    if (!user) {
-      throw new Error("User record not found for authenticated user");
-    }
-
-    await ctx.db.insert("messages", {
-      user: user.alias,
+    const messageId = await ctx.db.insert("messages", {
+      user: user?.alias,
       userId: clerkId,
-      userName: user.alias ?? "User",
-      avatarUrl: user.selectedAvatar ?? user.imageUrl,
+      userName: user?.alias ?? "User",
+      avatarUrl: user?.selectedAvatar ?? user?.imageUrl,
       body: args.body,
       imageStorageId: args.imageStorageId,
       imageMimeType: args.imageMimeType,
+      replyToId: args.replyToId,
     });
+
+    // Parse @mentions and create notifications
+    const mentions = args.body.match(/@(\w+)/g);
+    if (mentions) {
+      const uniqueMentions = [...new Set(mentions.map((m) => m.slice(1)))];
+      for (const alias of uniqueMentions) {
+        const mentionedUser = await ctx.db
+          .query("users")
+          .withIndex("by_alias", (q) => q.eq("alias", alias))
+          .first();
+        if (mentionedUser) {
+          await createNotification(ctx, {
+            userId: mentionedUser.clerkId,
+            type: "mention",
+            fromUserId: clerkId,
+            fromUserName: user?.alias ?? "User",
+            fromAvatarUrl: user?.selectedAvatar ?? user?.imageUrl,
+            messageId,
+          });
+        }
+      }
+    }
+
+    // Create reply notification for the original message author
+    if (args.replyToId) {
+      const parentMessage = await ctx.db.get(args.replyToId);
+      if (parentMessage?.userId) {
+        await createNotification(ctx, {
+          userId: parentMessage.userId,
+          type: "reply",
+          fromUserId: clerkId,
+          fromUserName: user?.alias ?? "User",
+          fromAvatarUrl: user?.selectedAvatar ?? user?.imageUrl,
+          messageId,
+        });
+      }
+    }
+
+    // Create user record if it doesn't exist
+    if (!user) {
+      await ctx.db.insert("users", {
+        clerkId,
+        alias: "User",
+        email: undefined,
+        imageUrl: undefined,
+        selectedAvatar: undefined,
+      });
+    }
   },
 });
 
@@ -64,6 +111,18 @@ const buildMessageWithLoves = async (ctx: { db: any; storage: any }, message: an
     })
   );
 
+  // Fetch reply parent if this message is a reply
+  let replyTo: { userName: string; body: string } | undefined;
+  if (message.replyToId) {
+    const parentMessage = await ctx.db.get(message.replyToId);
+    if (parentMessage) {
+      replyTo = {
+        userName: parentMessage.userName ?? parentMessage.user ?? "Anonymous",
+        body: parentMessage.body,
+      };
+    }
+  }
+
   return {
     ...message,
     imageUrl: message.imageStorageId
@@ -71,6 +130,7 @@ const buildMessageWithLoves = async (ctx: { db: any; storage: any }, message: an
       : undefined,
     loveCount: uniqueLoves.length,
     recentLovers,
+    replyTo,
   };
 };
 

@@ -10,6 +10,7 @@ export default defineSchema({
     body: v.string(),
     imageStorageId: v.optional(v.id("_storage")),
     imageMimeType: v.optional(v.string()),
+    replyToId: v.optional(v.id("messages")),
   }),
 
   messageLoves: defineTable({
@@ -116,10 +117,31 @@ export default defineSchema({
     visibility: v.optional(v.string()), // "public" | "ppv"
     price: v.optional(v.number()), // Price in cents for PPV livestreams
     recordingVideoId: v.optional(v.id("videos")), // Link to the recording after stream ends
+    recordingAssetId: v.optional(v.string()), // Mux asset id linked to this livestream
+    recordingSource: v.optional(v.union(v.literal("webhook"), v.literal("end_stream"))),
+    recordingLinkedAt: v.optional(v.number()),
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"])
     .index("by_streamId", ["streamId"]),
+
+  recordingCandidates: defineTable({
+    assetId: v.string(),
+    liveStreamId: v.optional(v.string()),
+    linkedLivestreamId: v.optional(v.id("livestreams")),
+    playbackId: v.optional(v.string()),
+    duration: v.optional(v.number()),
+    status: v.optional(v.string()),
+    reason: v.string(),
+    sourceEventTypes: v.array(v.string()),
+    firstSeenAt: v.number(),
+    lastSeenAt: v.number(),
+    traceId: v.optional(v.string()),
+    resolvedVideoId: v.optional(v.id("videos")),
+  })
+    .index("by_assetId", ["assetId"])
+    .index("by_liveStreamId", ["liveStreamId"])
+    .index("by_lastSeenAt", ["lastSeenAt"]),
 
   // Synchronized playback state for default video
   playbackState: defineTable({
@@ -242,4 +264,21 @@ export default defineSchema({
   })
     .index("by_owner", ["ownerId"])
     .index("by_session", ["stripeSessionId"]),
+
+  // Notifications
+  notifications: defineTable({
+    userId: v.string(),           // Clerk ID of recipient
+    type: v.string(),             // "mention" | "follow" | "go_live"
+    isRead: v.boolean(),
+    createdAt: v.number(),
+    // Who triggered it
+    fromUserId: v.optional(v.string()),
+    fromUserName: v.optional(v.string()),
+    fromAvatarUrl: v.optional(v.string()),
+    // Context references
+    messageId: v.optional(v.id("messages")),
+    livestreamId: v.optional(v.id("livestreams")),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_read", ["userId", "isRead"]),
 });

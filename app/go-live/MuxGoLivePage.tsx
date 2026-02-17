@@ -7,8 +7,14 @@ import { api } from "../../convex/_generated/api";
 import { Radio, Video, Eye, CheckCircle, Volume2 } from "lucide-react";
 import MainNav from "@/components/navigation/MainNav";
 import Hls from "hls.js";
+import { createTraceId, logTrace } from "@/lib/debugLog";
 
 type StreamStep = "idle" | "preview" | "live";
+
+const isTraceIdValidatorError = (error: unknown) => {
+  const msg = String(error);
+  return msg.includes("ArgumentValidationError") && msg.includes("`traceId`");
+};
 
 function getDefaultStreamTitle(): string {
   const now = new Date();
@@ -39,6 +45,7 @@ export default function MuxGoLivePage() {
   const [streamStatus, setStreamStatus] = useState<"waiting" | "connected" | "error">("waiting");
   const [editingTitle, setEditingTitle] = useState("");
   const [isTitleEditing, setIsTitleEditing] = useState(false);
+  const [silentMode, setSilentMode] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -309,6 +316,7 @@ export default function MuxGoLivePage() {
         playbackId: previewStream.playbackId,
         playbackUrl: previewStream.playbackUrl,
         rtmpIngestUrl: previewStream.rtmpIngestUrl,
+        silent: silentMode || undefined,
       });
       setStreamStep("live");
       // Keep previewStream so video continues playing
@@ -329,8 +337,14 @@ export default function MuxGoLivePage() {
   const handleEndStream = async () => {
     if (!activeStream || !user) return;
     setIsLoading(true);
+    let traceId = createTraceId("go-live-end");
     try {
       console.log("Ending stream with ID:", activeStream.streamId);
+      logTrace("go-live-page", "end_stream_clicked", {
+        traceId,
+        streamId: activeStream.streamId,
+        livestreamId: activeStream._id,
+      });
 
       const pollDelayMs = 4000;
       const pollAttempts = 4;
@@ -339,15 +353,25 @@ export default function MuxGoLivePage() {
         const response = await fetch("/api/stream/end", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ streamId: activeStream.streamId }),
+          body: JSON.stringify({ streamId: activeStream.streamId, traceId }),
+        });
+
+        const payload = await response.json();
+        if (payload.traceId) {
+          traceId = payload.traceId;
+        }
+        logTrace("go-live-page", "stream_end_api_response", {
+          traceId,
+          ok: response.ok,
+          status: response.status,
+          payload,
         });
 
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || "Failed to end stream");
+          throw new Error(payload.error || "Failed to end stream");
         }
 
-        return response.json();
+        return payload;
       };
 
       let assetData = await fetchAssetData();
@@ -357,14 +381,56 @@ export default function MuxGoLivePage() {
       while ((!assetData.assetId || !assetData.playbackId) && attempt < pollAttempts) {
         attempt += 1;
         console.log(`Recording not ready, retrying (${attempt}/${pollAttempts})...`);
+        logTrace("go-live-page", "stream_end_retry_poll", {
+          traceId,
+          attempt,
+          pollAttempts,
+          assetData,
+        });
         await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
         assetData = await fetchAssetData();
         console.log("Asset data from Mux:", assetData);
       }
 
       // End stream in Convex (mark as ended)
-      await endStream({
-        streamId: activeStream._id,
+      logTrace("go-live-page", "convex_end_stream_mutation_start", {
+        traceId,
+        livestreamId: activeStream._id,
+        streamId: activeStream.streamId,
+        assetId: assetData.assetId,
+        playbackId: assetData.playbackId,
+      });
+      try {
+        await endStream({
+          streamId: activeStream._id,
+          assetId: assetData.assetId,
+          playbackId: assetData.playbackId,
+          duration: assetData.duration,
+          traceId,
+        });
+      } catch (error) {
+        if (!isTraceIdValidatorError(error)) {
+          throw error;
+        }
+
+        logTrace("go-live-page", "convex_end_stream_retry_without_traceId", {
+          traceId,
+          error: String(error),
+          livestreamId: activeStream._id,
+          assetId: assetData.assetId,
+          playbackId: assetData.playbackId,
+        });
+        await endStream({
+          streamId: activeStream._id,
+          assetId: assetData.assetId,
+          playbackId: assetData.playbackId,
+          duration: assetData.duration,
+        });
+      }
+      logTrace("go-live-page", "convex_end_stream_mutation_success", {
+        traceId,
+        livestreamId: activeStream._id,
+        streamId: activeStream.streamId,
         assetId: assetData.assetId,
         playbackId: assetData.playbackId,
         duration: assetData.duration,
@@ -373,16 +439,33 @@ export default function MuxGoLivePage() {
       // Show appropriate message based on what we found
       if (assetData.assetId && assetData.playbackId) {
         console.log("Recording ready immediately!");
+        logTrace("go-live-page", "end_stream_ready_immediately", {
+          traceId,
+          assetId: assetData.assetId,
+          playbackId: assetData.playbackId,
+        });
         alert("Stream ended! Your recording has been saved to MY LIBRARY.");
       } else if (assetData.assetId) {
         console.log("Asset created, still processing...");
+        logTrace("go-live-page", "end_stream_processing", {
+          traceId,
+          assetId: assetData.assetId,
+          playbackId: assetData.playbackId,
+        });
         alert("Stream ended! Recording is processing and will appear in MY LIBRARY when ready.");
       } else {
         // No asset found during polling - webhook will handle it
         console.log("Asset not found during polling. Webhook will save it when ready.");
+        logTrace("go-live-page", "end_stream_no_asset_found", {
+          traceId,
+        });
         alert("Stream ended! Recording will appear in MY LIBRARY once Mux finishes processing (usually within a few minutes).");
       }
     } catch (error) {
+      logTrace("go-live-page", "end_stream_error", {
+        traceId,
+        error: error instanceof Error ? error.message : String(error),
+      });
       console.error("Failed to end stream:", error);
       alert(error instanceof Error ? error.message : "Failed to end stream");
     }
@@ -531,6 +614,20 @@ export default function MuxGoLivePage() {
                   {isLoading ? "Going Live..." : "Confirm & Go Live"}
                 </button>
               </div>
+
+              {/* Silent mode toggle */}
+              <label className="flex items-center justify-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={silentMode}
+                  onChange={(e) => setSilentMode(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-8 h-4 bg-zinc-700 rounded-full peer-checked:bg-[#c4ff0e] transition-colors relative">
+                  <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${silentMode ? "translate-x-4" : ""}`} />
+                </div>
+                <span className="text-xs text-zinc-500">Silent (no notifications)</span>
+              </label>
 
               <p className="text-center text-xs text-zinc-500">
                 Make sure you can see video and hear audio before going live
