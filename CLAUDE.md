@@ -298,6 +298,11 @@ CLAUDE_API_KEY=                   # For AI event discovery
 
 **Never commit secrets.** Use Vercel environment variables for deployments.
 
+### Test Account (Apple App Review)
+- Email: `illscience+testuser@gmail.com`
+- Username: `testuser`
+- Password: `123@abcDJSNEAK`
+
 ## Deployment
 
 - Platform: Vercel

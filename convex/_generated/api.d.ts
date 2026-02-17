@@ -14,6 +14,7 @@ import type {
   FunctionReference,
 } from "convex/server";
 import type * as adminSettings from "../adminSettings.js";
+import type * as authDebug from "../authDebug.js";
 import type * as bidding from "../bidding.js";
 import type * as chat from "../chat.js";
 import type * as crons from "../crons.js";
@@ -39,6 +40,7 @@ import type * as videos from "../videos.js";
  */
 declare const fullApi: ApiFromModules<{
   adminSettings: typeof adminSettings;
+  authDebug: typeof authDebug;
   bidding: typeof bidding;
   chat: typeof chat;
   crons: typeof crons;

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Platform,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -72,9 +74,89 @@ export default function SignInScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeProvider, setActiveProvider] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
   const { refresh } = useFAPIAuth();
 
   useWarmUpBrowser();
+
+  const handleEmailPasswordPress = useCallback(async () => {
+    if (isEmailSubmitting || isSubmitting) return;
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setErrorMessage("Please enter your email and password");
+      return;
+    }
+
+    setIsEmailSubmitting(true);
+    setErrorMessage("");
+
+    try {
+      // Step 1: Create sign-in with identifier
+      const createResp = await clerkFetch("/v1/client/sign_ins", {
+        method: "POST",
+        body: `identifier=${encodeURIComponent(trimmedEmail)}`,
+      });
+      const createData = await createResp.json();
+
+      if (createData?.errors?.[0]?.code === "session_exists") {
+        await refresh();
+        router.back();
+        return;
+      }
+
+      if (createData?.errors?.length) {
+        const code = createData.errors[0].code;
+        if (code === "form_identifier_not_found") {
+          setErrorMessage("No account found with that email");
+        } else {
+          setErrorMessage(getErrorMessage(createData));
+        }
+        return;
+      }
+
+      const signInId = createData?.response?.id;
+      if (!signInId) {
+        setErrorMessage("Failed to start sign-in");
+        return;
+      }
+
+      // Step 2: Attempt first factor with password
+      const attemptResp = await clerkFetch(
+        `/v1/client/sign_ins/${signInId}/attempt_first_factor`,
+        {
+          method: "POST",
+          body: `strategy=password&password=${encodeURIComponent(password)}`,
+        }
+      );
+      const attemptData = await attemptResp.json();
+
+      if (attemptData?.errors?.length) {
+        const code = attemptData.errors[0].code;
+        if (code === "form_password_incorrect") {
+          setErrorMessage("Incorrect password");
+        } else {
+          setErrorMessage(getErrorMessage(attemptData));
+        }
+        return;
+      }
+
+      const sessionId = attemptData?.response?.created_session_id;
+      if (sessionId) {
+        await refresh();
+        router.back();
+      } else {
+        setErrorMessage("Sign in incomplete - please try again");
+      }
+    } catch (error) {
+      console.error("Email sign-in error:", error);
+      setErrorMessage(getErrorMessage(error));
+    } finally {
+      setIsEmailSubmitting(false);
+    }
+  }, [email, password, isEmailSubmitting, isSubmitting, refresh, router]);
 
   const handleSSOPress = useCallback(
     async (strategy) => {
@@ -166,59 +248,120 @@ export default function SignInScreen() {
     [isSubmitting, refresh, router]
   );
 
+  const isBusy = isSubmitting || isEmailSubmitting;
+
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: "#000",
-        paddingTop: insets.top + 16,
-        paddingHorizontal: 20,
-      }}
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: "#000" }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View
         style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
-          alignItems: "center",
+          flex: 1,
+          paddingTop: insets.top + 16,
+          paddingHorizontal: 20,
         }}
       >
-        <Text style={{ color: "#fff", fontSize: 28, fontWeight: "700" }}>
-          Sign in
-        </Text>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={{ color: "#9ACD32", fontSize: 16 }}>Close</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={{ marginTop: 32, gap: 16 }}>
-        <Text style={{ color: "#999", fontSize: 14 }}>
-          Continue with your preferred provider to join the chat.
-        </Text>
-
-        <TouchableOpacity
-          onPress={() => handleSSOPress("oauth_google")}
-          disabled={isSubmitting}
+        <View
           style={{
-            height: 52,
-            borderRadius: 12,
-            backgroundColor: "#9ACD32",
+            flexDirection: "row",
+            justifyContent: "space-between",
             alignItems: "center",
-            justifyContent: "center",
           }}
         >
-          {activeProvider === "oauth_google" ? (
-            <ActivityIndicator color="#000" />
-          ) : (
-            <Text style={{ color: "#000", fontWeight: "700" }}>
-              Continue with Google
-            </Text>
-          )}
-        </TouchableOpacity>
+          <Text style={{ color: "#fff", fontSize: 28, fontWeight: "700" }}>
+            Sign in
+          </Text>
+          <TouchableOpacity onPress={() => router.back()}>
+            <Text style={{ color: "#9ACD32", fontSize: 16 }}>Close</Text>
+          </TouchableOpacity>
+        </View>
 
-        {Platform.OS === "ios" ? (
+        <View style={{ marginTop: 32, gap: 16 }}>
+          <Text style={{ color: "#999", fontSize: 14 }}>
+            Sign in with your email or continue with a provider.
+          </Text>
+
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            placeholder="Email"
+            placeholderTextColor="#666"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!isSubmitting}
+            style={{
+              height: 52,
+              borderRadius: 12,
+              backgroundColor: "#1a1a1a",
+              borderWidth: 1,
+              borderColor: "#333",
+              paddingHorizontal: 16,
+              color: "#fff",
+              fontSize: 16,
+            }}
+          />
+
+          <TextInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Password"
+            placeholderTextColor="#666"
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            editable={!isSubmitting}
+            returnKeyType="go"
+            onSubmitEditing={handleEmailPasswordPress}
+            style={{
+              height: 52,
+              borderRadius: 12,
+              backgroundColor: "#1a1a1a",
+              borderWidth: 1,
+              borderColor: "#333",
+              paddingHorizontal: 16,
+              color: "#fff",
+              fontSize: 16,
+            }}
+          />
+
           <TouchableOpacity
-            onPress={() => handleSSOPress("oauth_apple")}
-            disabled={isSubmitting}
+            onPress={handleEmailPasswordPress}
+            disabled={isBusy}
+            style={{
+              height: 52,
+              borderRadius: 12,
+              backgroundColor: "#9ACD32",
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: isBusy ? 0.6 : 1,
+            }}
+          >
+            {isEmailSubmitting ? (
+              <ActivityIndicator color="#000" />
+            ) : (
+              <Text style={{ color: "#000", fontWeight: "700", fontSize: 16 }}>
+                Sign In
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <View style={{ flex: 1, height: 1, backgroundColor: "#333" }} />
+            <Text style={{ color: "#666", fontSize: 13 }}>or</Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: "#333" }} />
+          </View>
+
+          <TouchableOpacity
+            onPress={() => handleSSOPress("oauth_google")}
+            disabled={isBusy}
             style={{
               height: 52,
               borderRadius: 12,
@@ -227,28 +370,50 @@ export default function SignInScreen() {
               borderColor: "#333",
               alignItems: "center",
               justifyContent: "center",
+              opacity: isBusy ? 0.6 : 1,
             }}
           >
-            {activeProvider === "oauth_apple" ? (
+            {activeProvider === "oauth_google" ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={{ color: "#fff", fontWeight: "700" }}>
-                Continue with Apple
+                Continue with Google
               </Text>
             )}
           </TouchableOpacity>
-        ) : null}
 
-        {errorMessage ? (
-          <Text style={{ color: "#DC2626", fontSize: 13 }}>
-            {errorMessage}
-          </Text>
-        ) : null}
+          {Platform.OS === "ios" ? (
+            <TouchableOpacity
+              onPress={() => handleSSOPress("oauth_apple")}
+              disabled={isBusy}
+              style={{
+                height: 52,
+                borderRadius: 12,
+                backgroundColor: "#1a1a1a",
+                borderWidth: 1,
+                borderColor: "#333",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: isBusy ? 0.6 : 1,
+              }}
+            >
+              {activeProvider === "oauth_apple" ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={{ color: "#fff", fontWeight: "700" }}>
+                  Continue with Apple
+                </Text>
+              )}
+            </TouchableOpacity>
+          ) : null}
 
-        <Text style={{ color: "#666", fontSize: 12 }}>
-          This will open a secure browser window to complete sign-in.
-        </Text>
+          {errorMessage ? (
+            <Text style={{ color: "#DC2626", fontSize: 13 }}>
+              {errorMessage}
+            </Text>
+          ) : null}
+        </View>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
