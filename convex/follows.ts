@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthenticatedUser, getOptionalAuthenticatedUser } from "./adminSettings";
+import { createNotification } from "./notifications";
 
 // Follow a user
 export const followUser = mutation({
@@ -26,6 +27,20 @@ export const followUser = mutation({
     await ctx.db.insert("follows", {
       followerId,
       followingId: args.followingId,
+    });
+
+    // Create follow notification for the user being followed
+    const followerUser = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", followerId))
+      .first();
+
+    await createNotification(ctx, {
+      userId: args.followingId,
+      type: "follow",
+      fromUserId: followerId,
+      fromUserName: followerUser?.alias ?? "Someone",
+      fromAvatarUrl: followerUser?.selectedAvatar ?? followerUser?.imageUrl,
     });
 
     return { success: true, message: "Followed successfully" };

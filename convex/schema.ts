@@ -10,6 +10,7 @@ export default defineSchema({
     body: v.string(),
     imageStorageId: v.optional(v.id("_storage")),
     imageMimeType: v.optional(v.string()),
+    replyToId: v.optional(v.id("messages")),
   }),
 
   messageLoves: defineTable({
@@ -263,4 +264,21 @@ export default defineSchema({
   })
     .index("by_owner", ["ownerId"])
     .index("by_session", ["stripeSessionId"]),
+
+  // Notifications
+  notifications: defineTable({
+    userId: v.string(),           // Clerk ID of recipient
+    type: v.string(),             // "mention" | "follow" | "go_live"
+    isRead: v.boolean(),
+    createdAt: v.number(),
+    // Who triggered it
+    fromUserId: v.optional(v.string()),
+    fromUserName: v.optional(v.string()),
+    fromAvatarUrl: v.optional(v.string()),
+    // Context references
+    messageId: v.optional(v.id("messages")),
+    livestreamId: v.optional(v.id("livestreams")),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_read", ["userId", "isRead"]),
 });

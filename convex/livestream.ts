@@ -3,6 +3,7 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import { ADMIN_LIBRARY_USER_ID, requireAdmin, getAuthenticatedUser } from "./adminSettings";
 import { logConvexTrace } from "./debugTrace";
 import { upsertMuxRecording } from "./recordingIngest";
+import { createNotification } from "./notifications";
 
 // Get the current active stream
 export const getActiveStream = query({
@@ -168,6 +169,7 @@ export const startStream = mutation({
     playbackId: v.optional(v.string()),
     playbackUrl: v.optional(v.string()),
     rtmpIngestUrl: v.optional(v.string()),
+    silent: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     // SECURITY: Only admins can start streams
@@ -234,6 +236,21 @@ export const startStream = mutation({
       title: args.title,
       streamId: args.streamId,
     });
+
+    // Send go_live notifications to all users (unless silent)
+    if (!args.silent) {
+      const allUsers = await ctx.db.query("users").collect();
+      for (const u of allUsers) {
+        await createNotification(ctx, {
+          userId: u.clerkId,
+          type: "go_live",
+          fromUserId: userId,
+          fromUserName: userName,
+          fromAvatarUrl: user?.selectedAvatar ?? user?.imageUrl,
+          livestreamId: newStreamId,
+        });
+      }
+    }
 
     return newStreamId;
   },

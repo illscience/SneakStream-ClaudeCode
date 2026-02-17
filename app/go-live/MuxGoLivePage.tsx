@@ -45,6 +45,7 @@ export default function MuxGoLivePage() {
   const [streamStatus, setStreamStatus] = useState<"waiting" | "connected" | "error">("waiting");
   const [editingTitle, setEditingTitle] = useState("");
   const [isTitleEditing, setIsTitleEditing] = useState(false);
+  const [silentMode, setSilentMode] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -315,6 +316,7 @@ export default function MuxGoLivePage() {
         playbackId: previewStream.playbackId,
         playbackUrl: previewStream.playbackUrl,
         rtmpIngestUrl: previewStream.rtmpIngestUrl,
+        silent: silentMode || undefined,
       });
       setStreamStep("live");
       // Keep previewStream so video continues playing
@@ -612,6 +614,20 @@ export default function MuxGoLivePage() {
                   {isLoading ? "Going Live..." : "Confirm & Go Live"}
                 </button>
               </div>
+
+              {/* Silent mode toggle */}
+              <label className="flex items-center justify-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={silentMode}
+                  onChange={(e) => setSilentMode(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-8 h-4 bg-zinc-700 rounded-full peer-checked:bg-[#c4ff0e] transition-colors relative">
+                  <div className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${silentMode ? "translate-x-4" : ""}`} />
+                </div>
+                <span className="text-xs text-zinc-500">Silent (no notifications)</span>
+              </label>
 
               <p className="text-center text-xs text-zinc-500">
                 Make sure you can see video and hear audio before going live
