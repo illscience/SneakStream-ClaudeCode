@@ -81,12 +81,18 @@ export default function NotificationBell() {
   const notifications = useQuery(api.notifications.getNotifications);
   const markAllAsRead = useMutation(api.notifications.markAllAsRead);
 
-  // Mark all as read when drawer opens with unread notifications
+  // Track whether the drawer was opened (so we know to mark as read on close)
+  const wasOpenRef = useRef(false);
+
   useEffect(() => {
-    if (open && notifications && notifications.some((n) => !n.isRead)) {
+    if (open) {
+      wasOpenRef.current = true;
+    } else if (wasOpenRef.current) {
+      // Drawer just closed — mark all as read
+      wasOpenRef.current = false;
       markAllAsRead();
     }
-  }, [open, notifications, markAllAsRead]);
+  }, [open, markAllAsRead]);
 
   // Close on click outside
   useEffect(() => {
