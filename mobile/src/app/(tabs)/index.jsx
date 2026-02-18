@@ -2,7 +2,9 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   ScrollView,
+  Modal,
   Dimensions,
   TextInput,
   ActivityIndicator,
@@ -25,6 +27,11 @@ import {
   Volume2,
   VolumeX,
   Inbox,
+  MessageSquare,
+  UserPlus,
+  Reply,
+  Radio,
+  X,
 } from "lucide-react-native";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, usePaginatedQuery, useConvexAuth } from "convex/react";
@@ -126,6 +133,9 @@ export default function Index() {
   const [isEmotePickerOpen, setIsEmotePickerOpen] = useState(false);
   const [isHeartAnimating, setIsHeartAnimating] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [loveAnimatingId, setLoveAnimatingId] = useState(null);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const lastTapRef = useRef({ messageId: null, time: 0 });
   const [currentTime, setCurrentTime] = useState(0);
   const [hasSyncedPlayback, setHasSyncedPlayback] = useState(false);
   const scrollViewRef = useRef(null);
@@ -143,6 +153,10 @@ export default function Index() {
   const unreadCount = useQuery(
     api.notifications.getUnreadCount,
     isConvexAuthenticated ? {} : "skip"
+  );
+  const notifications = useQuery(
+    api.notifications.getNotifications,
+    isConvexAuthenticated && isNotificationsOpen ? {} : "skip"
   );
 
   // Paginated messages - loads 15 at a time, newest first for display
@@ -179,6 +193,8 @@ export default function Index() {
   const generateUploadUrl = useMutation(api.chat.generateUploadUrl);
   const incrementHeart = useMutation(api.videos.incrementHeartCount);
   const upsertUser = useMutation(api.users.upsertUser);
+  const loveMessage = useMutation(api.chat.loveMessage);
+  const markAllAsRead = useMutation(api.notifications.markAllAsRead);
 
   // Sync FAPI user profile to Convex (same as web app does on login)
   const userSyncedRef = useRef(false);
@@ -302,6 +318,35 @@ export default function Index() {
       console.error("Heart error:", error);
     }
   }, [heartVideoId, incrementHeart]);
+
+  const handleMessageTap = useCallback((messageId) => {
+    const now = Date.now();
+    const last = lastTapRef.current;
+
+    if (last.messageId === messageId && now - last.time < 300) {
+      // Double tap detected
+      lastTapRef.current = { messageId: null, time: 0 };
+      if (!canSendChat) return;
+
+      setLoveAnimatingId(messageId);
+      setTimeout(() => setLoveAnimatingId(null), 600);
+
+      loveMessage({ messageId }).catch((error) => {
+        console.error("[Chat] loveMessage failed:", error?.message || error);
+      });
+    } else {
+      lastTapRef.current = { messageId, time: now };
+    }
+  }, [canSendChat, loveMessage]);
+
+  const handleOpenNotifications = useCallback(() => {
+    setIsNotificationsOpen(true);
+  }, []);
+
+  const handleCloseNotifications = useCallback(() => {
+    setIsNotificationsOpen(false);
+    markAllAsRead().catch((e) => console.error("[Notifications] markAllAsRead failed:", e));
+  }, [markAllAsRead]);
 
   const handleSendMessage = useCallback(async () => {
     console.log("[Chat] handleSendMessage — isSignedIn:", isSignedIn, "isConvexAuthenticated:", isConvexAuthenticated, "isSending:", isSending, "msg:", chatMessage.trim().substring(0, 20));
@@ -534,6 +579,7 @@ export default function Index() {
 
             {isSignedIn && isConvexAuthenticated && (
               <TouchableOpacity
+                onPress={handleOpenNotifications}
                 activeOpacity={0.7}
                 style={{
                   width: 40,
@@ -1052,7 +1098,11 @@ export default function Index() {
                 }
 
                 return (
-                <View key={msg._id} style={{ marginBottom: index < messages.length - 1 ? 20 : 0 }}>
+                <Pressable
+                  key={msg._id}
+                  onPress={() => handleMessageTap(msg._id)}
+                  style={{ marginBottom: index < messages.length - 1 ? 20 : 0, position: "relative" }}
+                >
                 <View style={{ flexDirection: "row" }}>
                   <View
                     style={{
@@ -1142,7 +1192,25 @@ export default function Index() {
                     )}
                   </View>
                 </View>
-              </View>
+
+                {/* Double-tap heart animation overlay */}
+                {loveAnimatingId === msg._id && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    <Heart size={48} color="#DC2626" fill="#DC2626" style={{ opacity: 0.85 }} />
+                  </View>
+                )}
+              </Pressable>
                 );
               })}
 
@@ -1168,6 +1236,144 @@ export default function Index() {
           )}
         </View>
       </ScrollView>
+
+      {/* Notifications Modal */}
+      <Modal
+        visible={isNotificationsOpen}
+        animationType="slide"
+        transparent
+        onRequestClose={handleCloseNotifications}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }}>
+          <Pressable
+            onPress={handleCloseNotifications}
+            style={{ height: insets.top + 60 }}
+          />
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "#111",
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              overflow: "hidden",
+            }}
+          >
+            {/* Modal Header */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingHorizontal: 20,
+                paddingVertical: 16,
+                borderBottomWidth: 1,
+                borderBottomColor: "#222",
+              }}
+            >
+              <Text style={{ color: "#fff", fontSize: 20, fontWeight: "700" }}>Notifications</Text>
+              <TouchableOpacity onPress={handleCloseNotifications}>
+                <X size={24} color="#999" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Notification List */}
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}>
+              {!notifications ? (
+                <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                  <ActivityIndicator size="large" color="#9ACD32" />
+                </View>
+              ) : notifications.length === 0 ? (
+                <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                  <Inbox size={48} color="#333" />
+                  <Text style={{ color: "#666", marginTop: 12, fontSize: 16 }}>No notifications yet</Text>
+                </View>
+              ) : (
+                notifications.map((notif) => {
+                  const isUnread = !notif.isRead;
+                  const NotifIcon =
+                    notif.type === "mention" ? MessageSquare
+                    : notif.type === "follow" ? UserPlus
+                    : notif.type === "reply" ? Reply
+                    : notif.type === "go_live" ? Radio
+                    : Inbox;
+                  const iconColor =
+                    notif.type === "mention" ? "#60a5fa"
+                    : notif.type === "follow" ? "#c4ff0e"
+                    : notif.type === "reply" ? "#c084fc"
+                    : notif.type === "go_live" ? "#ef4444"
+                    : "#a1a1aa";
+                  const label =
+                    notif.type === "mention" ? "mentioned you"
+                    : notif.type === "follow" ? "followed you"
+                    : notif.type === "reply" ? "replied to you"
+                    : notif.type === "go_live" ? "went live"
+                    : "notification";
+
+                  return (
+                    <View
+                      key={notif._id}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: 20,
+                        paddingVertical: 14,
+                        backgroundColor: isUnread ? "rgba(39,39,42,0.3)" : "transparent",
+                        borderBottomWidth: 1,
+                        borderBottomColor: "#1a1a1a",
+                      }}
+                    >
+                      {/* Unread dot */}
+                      <View style={{ width: 8, marginRight: 10 }}>
+                        {isUnread && (
+                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#c4ff0e" }} />
+                        )}
+                      </View>
+
+                      {/* Avatar or icon */}
+                      {notif.fromAvatarUrl ? (
+                        <Image
+                          source={{ uri: notif.fromAvatarUrl }}
+                          style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12 }}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View
+                          style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: 18,
+                            backgroundColor: "#222",
+                            justifyContent: "center",
+                            alignItems: "center",
+                            marginRight: 12,
+                          }}
+                        >
+                          <NotifIcon size={18} color={iconColor} />
+                        </View>
+                      )}
+
+                      {/* Content */}
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: isUnread ? "#fff" : "#999", fontSize: 14, lineHeight: 20 }}>
+                          <Text style={{ fontWeight: "700", color: isUnread ? "#c4ff0e" : "#999" }}>
+                            {notif.fromUserName || "Someone"}
+                          </Text>
+                          {" "}{label}
+                        </Text>
+                        <Text style={{ color: "#555", fontSize: 12, marginTop: 2 }}>
+                          {new Date(notif.createdAt).toLocaleDateString()}
+                        </Text>
+                      </View>
+
+                      <NotifIcon size={16} color={iconColor} />
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingAnimatedView>
   );
 }
