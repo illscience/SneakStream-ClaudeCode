@@ -22,6 +22,9 @@ import {
   Smile,
   Send,
   LogIn,
+  Volume2,
+  VolumeX,
+  Inbox,
 } from "lucide-react-native";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useMutation, usePaginatedQuery, useConvexAuth } from "convex/react";
@@ -122,6 +125,7 @@ export default function Index() {
   const [isSending, setIsSending] = useState(false);
   const [isEmotePickerOpen, setIsEmotePickerOpen] = useState(false);
   const [isHeartAnimating, setIsHeartAnimating] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [hasSyncedPlayback, setHasSyncedPlayback] = useState(false);
   const scrollViewRef = useRef(null);
@@ -136,6 +140,10 @@ export default function Index() {
   const defaultVideo = useQuery(api.videos.getDefaultVideo);
   const publicVideos = useQuery(api.videos.getPublicVideos, { limit: 1 });
   const activeStream = useQuery(api.livestream.getActiveStream);
+  const unreadCount = useQuery(
+    api.notifications.getUnreadCount,
+    isConvexAuthenticated ? {} : "skip"
+  );
 
   // Paginated messages - loads 15 at a time, newest first for display
   const {
@@ -198,6 +206,12 @@ export default function Index() {
     player.volume = 1.0;
     player.play();
   });
+
+  // Sync muted state to player
+  useEffect(() => {
+    if (!player) return;
+    player.muted = isMuted;
+  }, [player, isMuted]);
 
   // Update current time periodically
   useEffect(() => {
@@ -473,23 +487,87 @@ export default function Index() {
             </Text>
           </View>
 
-          {/* Live indicator */}
-          {isLive && (
-            <View
+          {/* Right side: LIVE badge + Mute + Notifications */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            {isLive && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: "#DC2626",
+                  paddingHorizontal: 10,
+                  paddingVertical: 5,
+                  borderRadius: 20,
+                  gap: 5,
+                }}
+              >
+                <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#fff" }} />
+                <Text style={{ color: "#fff", fontWeight: "700", fontSize: 11 }}>LIVE</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              onPress={() => setIsMuted((m) => !m)}
+              activeOpacity={0.7}
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: "#DC2626",
-                paddingHorizontal: 12,
-                paddingVertical: 6,
+                height: 40,
                 borderRadius: 20,
+                backgroundColor: isMuted ? "#DC2626" : "rgba(39,39,42,0.85)",
+                justifyContent: "center",
+                alignItems: "center",
+                flexDirection: "row",
+                paddingHorizontal: 12,
                 gap: 6,
               }}
             >
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#fff" }} />
-              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 12 }}>LIVE</Text>
-            </View>
-          )}
+              {isMuted ? (
+                <>
+                  <VolumeX size={20} color="#fff" />
+                  <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700", letterSpacing: 0.5 }}>
+                    MUTED
+                  </Text>
+                </>
+              ) : (
+                <Volume2 size={20} color="#fff" />
+              )}
+            </TouchableOpacity>
+
+            {isSignedIn && isConvexAuthenticated && (
+              <TouchableOpacity
+                activeOpacity={0.7}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: "rgba(39,39,42,0.85)",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Inbox size={20} color="#fff" />
+                {typeof unreadCount === "number" && unreadCount > 0 && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: -2,
+                      right: -2,
+                      minWidth: 18,
+                      height: 18,
+                      borderRadius: 9,
+                      backgroundColor: "#DC2626",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      paddingHorizontal: 4,
+                    }}
+                  >
+                    <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* Video Section */}
@@ -545,16 +623,14 @@ export default function Index() {
                 position: "absolute",
                 top: 12,
                 right: 12,
-                flexDirection: "column",
-                gap: 12,
               }}
             >
               <TouchableOpacity
                 style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 24,
-                  backgroundColor: "rgba(0,0,0,0.5)",
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: "rgba(39,39,42,0.85)",
                   justifyContent: "center",
                   alignItems: "center",
                 }}
