@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
-import { Inbox, MessageSquare, UserPlus, Radio, X, Reply } from "lucide-react";
+import { Inbox, MessageSquare, UserPlus, Radio, X, Reply, Crown } from "lucide-react";
 
 function formatRelativeTime(timestamp: number): string {
   const now = Date.now();
@@ -30,6 +30,8 @@ function NotificationIcon({ type }: { type: string }) {
       return <Reply className="w-4 h-4 text-purple-400" />;
     case "go_live":
       return <Radio className="w-4 h-4 text-red-500" />;
+    case "vip_access":
+      return <Crown className="w-4 h-4 text-amber-400" />;
     default:
       return <Inbox className="w-4 h-4 text-zinc-400" />;
   }
@@ -67,6 +69,12 @@ function notificationText(notification: {
         <>
           <span className="font-semibold text-white">{name}</span>{" "}
           went live
+        </>
+      );
+    case "vip_access":
+      return (
+        <>
+          You&apos;re on the guest list! No cover charge for you.
         </>
       );
     default:

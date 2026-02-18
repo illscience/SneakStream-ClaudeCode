@@ -63,7 +63,7 @@ export async function createNotification(
   ctx: MutationCtx,
   args: {
     userId: string;
-    type: "mention" | "follow" | "go_live" | "reply";
+    type: "mention" | "follow" | "go_live" | "reply" | "vip_access";
     fromUserId?: string;
     fromUserName?: string;
     fromAvatarUrl?: string;

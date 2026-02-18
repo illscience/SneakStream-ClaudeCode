@@ -36,6 +36,12 @@ export function PPVGate({
     userId ? {} : "skip"
   );
 
+  // VIP bypass - defaultVIP users can view any paid content
+  const isVIP = useQuery(
+    api.users.isCurrentUserVIP,
+    userId ? {} : "skip"
+  );
+
   // Show loading state while auth is loading
   if (!isLoaded) {
     return (
@@ -45,8 +51,8 @@ export function PPVGate({
     );
   }
 
-  // If user has entitlement OR is admin, show the content
-  if (isSignedIn && (hasEntitlement || isAdmin)) {
+  // If user has entitlement, is admin, or is VIP, show the content
+  if (isSignedIn && (hasEntitlement || isAdmin || isVIP)) {
     return <>{children}</>;
   }
 

@@ -249,6 +249,18 @@ export const startStream = mutation({
           fromAvatarUrl: user?.selectedAvatar ?? user?.imageUrl,
           livestreamId: newStreamId,
         });
+
+        // Send VIP guest-list notification to defaultVIP users
+        if (u.isDefaultVIP === true) {
+          await createNotification(ctx, {
+            userId: u.clerkId,
+            type: "vip_access",
+            fromUserId: userId,
+            fromUserName: userName,
+            fromAvatarUrl: user?.selectedAvatar ?? user?.imageUrl,
+            livestreamId: newStreamId,
+          });
+        }
       }
     }
 

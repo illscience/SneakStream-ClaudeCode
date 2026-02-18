@@ -35,6 +35,12 @@ export function LivestreamPPVGate({
     userId ? {} : "skip"
   );
 
+  // VIP bypass - defaultVIP users can view any paid content
+  const isVIP = useQuery(
+    api.users.isCurrentUserVIP,
+    userId ? {} : "skip"
+  );
+
   const handlePurchase = async () => {
     if (!isSignedIn) return;
 
@@ -70,8 +76,8 @@ export function LivestreamPPVGate({
     );
   }
 
-  // User has access - show content (entitlement OR admin)
-  if (isSignedIn && (hasEntitlement || isAdmin)) {
+  // User has access - show content (entitlement OR admin OR VIP)
+  if (isSignedIn && (hasEntitlement || isAdmin || isVIP)) {
     return <>{children}</>;
   }
 

@@ -43,17 +43,23 @@ export async function POST(request: NextRequest) {
 
     // Check if this is a PPV video
     if (video.visibility === "ppv") {
-      // Check bundled entitlement (includes linked livestream access)
+      // Check bundled entitlement (includes linked livestream access + VIP bypass)
       const hasAccess = await convex.query(api.entitlements.hasBundledEntitlement, {
         userId,
         videoId: videoId as Id<"videos">,
       });
 
       if (!hasAccess) {
-        return NextResponse.json(
-          { error: "You do not have access to this video" },
-          { status: 403 }
-        );
+        // Also check if user is admin or defaultVIP (server-side safety net)
+        const user = await convex.query(api.users.getUserByClerkId, { clerkId: userId });
+        const isPrivileged = user?.isAdmin === true || user?.isDefaultVIP === true;
+
+        if (!isPrivileged) {
+          return NextResponse.json(
+            { error: "You do not have access to this video" },
+            { status: 403 }
+          );
+        }
       }
     }
 
