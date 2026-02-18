@@ -138,6 +138,13 @@ export const hasBundledEntitlement = query({
     livestreamId: v.optional(v.id("livestreams")),
   },
   handler: async (ctx, { userId, videoId, livestreamId }) => {
+    // 0. VIP bypass - defaultVIP users have access to all paid content
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", userId))
+      .first();
+    if (user?.isDefaultVIP === true) return true;
+
     // 1. Check direct video entitlement
     if (videoId) {
       const videoEntitlement = await ctx.db

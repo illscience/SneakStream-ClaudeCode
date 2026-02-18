@@ -226,25 +226,29 @@ export default function MainNav() {
           })}
         </nav>
 
-        <div className="hidden items-center gap-4 lg:flex">
-          <SignedOut>
-            <SignInButton mode="modal">
-              <button className="rounded-full border border-white/20 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/10">
-                Sign In
-              </button>
-            </SignInButton>
-          </SignedOut>
-
+        <div className="flex items-center gap-4">
           <SignedIn>
             <NotificationBell />
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: "h-10 w-10",
-                },
-              }}
-            />
+            <div className="hidden lg:block">
+              <UserButton
+                appearance={{
+                  elements: {
+                    avatarBox: "h-10 w-10",
+                  },
+                }}
+              />
+            </div>
           </SignedIn>
+
+          <SignedOut>
+            <div className="hidden lg:block">
+              <SignInButton mode="modal">
+                <button className="rounded-full border border-white/20 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/10">
+                  Sign In
+                </button>
+              </SignInButton>
+            </div>
+          </SignedOut>
         </div>
       </div>
 
@@ -310,10 +314,7 @@ export default function MainNav() {
             <SignedIn>
               <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-200">
                 <span>Account</span>
-                <div className="flex items-center gap-3">
-                  <NotificationBell />
-                  <UserButton appearance={{ elements: { avatarBox: "h-9 w-9" } }} />
-                </div>
+                <UserButton appearance={{ elements: { avatarBox: "h-9 w-9" } }} />
               </div>
             </SignedIn>
           </div>

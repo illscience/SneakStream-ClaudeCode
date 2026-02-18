@@ -253,6 +253,64 @@ export const searchUsersByAlias = query({
   },
 });
 
+// Check if the current user is a defaultVIP
+export const isCurrentUserVIP = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return false;
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", identity.subject))
+      .first();
+
+    return user?.isDefaultVIP === true;
+  },
+});
+
+// Admin: set defaultVIP status for a user
+export const setDefaultVIP = mutation({
+  args: {
+    targetClerkId: v.string(),
+    isDefaultVIP: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    const targetUser = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.targetClerkId))
+      .first();
+
+    if (!targetUser) {
+      throw new Error("User not found");
+    }
+
+    await ctx.db.patch(targetUser._id, { isDefaultVIP: args.isDefaultVIP });
+  },
+});
+
+// Admin: get all defaultVIP users
+export const getDefaultVIPUsers = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+
+    const vipUsers = await ctx.db
+      .query("users")
+      .withIndex("by_isDefaultVIP", (q) => q.eq("isDefaultVIP", true))
+      .collect();
+
+    return vipUsers.map((user) => ({
+      clerkId: user.clerkId,
+      alias: user.alias,
+      email: user.email,
+      imageUrl: user.selectedAvatar ?? user.imageUrl,
+    }));
+  },
+});
+
 // Admin-only migration: backfill users from messages
 export const backfillUsersFromMessages = mutation({
   args: {},

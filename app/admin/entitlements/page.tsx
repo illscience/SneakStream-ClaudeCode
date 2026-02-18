@@ -21,6 +21,7 @@ import {
   Lock,
   AlertCircle,
   Zap,
+  Crown,
 } from "lucide-react";
 
 export default function EntitlementsAdminPage() {
@@ -51,6 +52,10 @@ export default function EntitlementsAdminPage() {
   const [ppvVisibility, setPpvVisibility] = useState<string>("public");
   const [ppvPrice, setPpvPrice] = useState<string>("");
   const [isUpdatingPPV, setIsUpdatingPPV] = useState(false);
+
+  // VIP management state
+  const [vipSearchTerm, setVipSearchTerm] = useState("");
+  const [isSettingVIP, setIsSettingVIP] = useState<string | null>(null);
 
   // Active livestream quick toggle state
   const [isTogglingActive, setIsTogglingActive] = useState(false);
@@ -84,6 +89,19 @@ export default function EntitlementsAdminPage() {
     isAdmin && user?.id ? { limit: 100 } : "skip"
   );
 
+  // VIP queries
+  const vipUsers = useQuery(
+    api.users.getDefaultVIPUsers,
+    isAdmin && user?.id ? {} : "skip"
+  );
+
+  const vipSearchResults = useQuery(
+    api.adminSettings.searchUsersForAdmin,
+    isAdmin && user?.id && vipSearchTerm.trim().length > 0
+      ? { searchTerm: vipSearchTerm }
+      : "skip"
+  );
+
   // Active livestream for quick toggle
   const activeStream = useQuery(api.livestream.getActiveStream);
 
@@ -100,6 +118,7 @@ export default function EntitlementsAdminPage() {
   const revokeEntitlement = useMutation(api.entitlements.adminRevokeEntitlement);
   const updateVideoPPV = useMutation(api.entitlements.adminUpdateVideoPPV);
   const updateLivestreamPPV = useMutation(api.entitlements.adminUpdateLivestreamPPV);
+  const setDefaultVIP = useMutation(api.users.setDefaultVIP);
 
   // Redirect if not admin
   useEffect(() => {
@@ -220,6 +239,27 @@ export default function EntitlementsAdminPage() {
       );
     } finally {
       setIsTogglingActive(false);
+    }
+  };
+
+  const handleSetVIP = async (targetClerkId: string, isVIP: boolean) => {
+    if (!user?.id) return;
+
+    setIsSettingVIP(targetClerkId);
+    try {
+      await setDefaultVIP({ targetClerkId, isDefaultVIP: isVIP });
+      showNotification(
+        isVIP ? "User granted VIP access" : "VIP access removed",
+        "success"
+      );
+      setVipSearchTerm("");
+    } catch (error) {
+      showNotification(
+        error instanceof Error ? error.message : "Failed to update VIP status",
+        "error"
+      );
+    } finally {
+      setIsSettingVIP(null);
     }
   };
 
@@ -378,6 +418,105 @@ export default function EntitlementsAdminPage() {
               </div>
             </section>
           )}
+
+          {/* Default VIP Users Section */}
+          <section className="bg-zinc-900 border border-amber-800/50 rounded-xl p-6">
+            <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
+              <Crown className="w-5 h-5 text-amber-400" />
+              Default VIP Users
+            </h2>
+            <p className="text-sm text-zinc-500 mb-4">
+              VIP users bypass all PPV paywalls without needing individual entitlements.
+            </p>
+
+            {/* VIP User Search */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-zinc-400 mb-2">
+                Add VIP User
+              </label>
+              <div className="relative max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                <input
+                  value={vipSearchTerm}
+                  onChange={(e) => setVipSearchTerm(e.target.value)}
+                  placeholder="Search by alias or email"
+                  className="w-full rounded-lg border border-zinc-800 bg-zinc-950 py-3 pl-10 pr-4 text-sm text-white focus:border-amber-400 focus:outline-none"
+                />
+                {vipSearchResults && vipSearchResults.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-10 max-h-48 overflow-y-auto">
+                    {vipSearchResults.map((result) => {
+                      const alreadyVIP = vipUsers?.some(
+                        (v) => v.clerkId === result.clerkId
+                      );
+                      return (
+                        <button
+                          key={result.clerkId}
+                          onClick={() =>
+                            !alreadyVIP &&
+                            handleSetVIP(result.clerkId, true)
+                          }
+                          disabled={
+                            alreadyVIP || isSettingVIP === result.clerkId
+                          }
+                          className="w-full text-left px-4 py-2 hover:bg-zinc-700 first:rounded-t-lg last:rounded-b-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-between"
+                        >
+                          <div>
+                            <p className="font-medium">{result.alias}</p>
+                            <p className="text-xs text-zinc-500">
+                              {result.email || "No email"}
+                            </p>
+                          </div>
+                          {alreadyVIP ? (
+                            <span className="text-xs text-amber-400 font-medium">
+                              Already VIP
+                            </span>
+                          ) : isSettingVIP === result.clerkId ? (
+                            <span className="text-xs text-zinc-400">
+                              Adding...
+                            </span>
+                          ) : (
+                            <Crown className="w-4 h-4 text-amber-400" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Current VIP Users List */}
+            {!vipUsers || vipUsers.length === 0 ? (
+              <p className="text-sm text-zinc-500">No VIP users yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {vipUsers.map((vip) => (
+                  <div
+                    key={vip.clerkId}
+                    className="flex items-center justify-between bg-zinc-800/50 border border-amber-900/30 rounded-lg px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Crown className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium text-sm">{vip.alias}</p>
+                        <p className="text-xs text-zinc-500">
+                          {vip.email || vip.clerkId}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleSetVIP(vip.clerkId, false)}
+                      disabled={isSettingVIP === vip.clerkId}
+                      className="text-red-400 hover:text-red-300 disabled:opacity-50 p-1"
+                      title="Remove VIP access"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
 
           {/* Grant Entitlement Section */}
           <section className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">

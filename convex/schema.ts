@@ -28,11 +28,13 @@ export default defineSchema({
     imageUrl: v.optional(v.string()),
     selectedAvatar: v.optional(v.string()),
     isAdmin: v.optional(v.boolean()),
+    isDefaultVIP: v.optional(v.boolean()),
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_email", ["email"])
     .index("by_alias", ["alias"])
-    .index("by_isAdmin", ["isAdmin"]),
+    .index("by_isAdmin", ["isAdmin"])
+    .index("by_isDefaultVIP", ["isDefaultVIP"]),
 
   follows: defineTable({
     followerId: v.string(), // Clerk user ID of the follower
