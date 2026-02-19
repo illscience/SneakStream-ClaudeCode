@@ -229,19 +229,6 @@ export default function Home() {
 
           {/* Side Action Buttons - Mobile */}
           <div className="lg:hidden absolute right-4 bottom-24 flex flex-col gap-3">
-            <SignedIn>
-              {activeStream ? (
-                <ClipShareButton
-                  livestreamId={activeStream._id}
-                  streamTitle={activeStream.title}
-                />
-              ) : defaultVideo?.assetId && defaultVideo.provider === "mux" ? (
-                <ClipShareButton
-                  videoId={defaultVideo._id}
-                  streamTitle={defaultVideo.title}
-                />
-              ) : null}
-            </SignedIn>
             <button
               onClick={handleHeart}
               className={`bg-red-600 rounded-xl flex flex-col items-center justify-center hover:bg-red-700 transition-all px-3 py-2 ${

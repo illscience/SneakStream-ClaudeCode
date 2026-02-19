@@ -8,6 +8,7 @@ interface ClipShareButtonProps {
   livestreamId?: Id<"livestreams">;
   videoId?: Id<"videos">;
   streamTitle?: string;
+  compact?: boolean;
 }
 
 type ClipState =
@@ -21,6 +22,7 @@ export default function ClipShareButton({
   livestreamId,
   videoId,
   streamTitle,
+  compact = false,
 }: ClipShareButtonProps) {
   const [state, setState] = useState<ClipState>({ phase: "idle" });
   const [showPanel, setShowPanel] = useState(false);
@@ -178,19 +180,26 @@ export default function ClipShareButton({
       <button
         onClick={state.phase === "idle" ? createClip : () => setShowPanel(!showPanel)}
         disabled={state.phase === "creating"}
-        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full font-semibold hover:from-purple-500 hover:to-pink-500 transition-all shadow-lg shadow-purple-900/30 disabled:opacity-60"
+        className={compact
+          ? "relative flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition-all disabled:opacity-60"
+          : "flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full font-semibold hover:from-purple-500 hover:to-pink-500 transition-all shadow-lg shadow-purple-900/30 disabled:opacity-60"
+        }
+        title="Clip last 15 seconds"
       >
         {state.phase === "creating" ? (
-          <Loader2 className="w-4 h-4 animate-spin" />
+          <Loader2 className={compact ? "w-4 h-4 animate-spin" : "w-4 h-4 animate-spin"} />
         ) : (
           <Scissors className="w-4 h-4" />
         )}
-        <span className="text-sm">Clip It</span>
+        {!compact && <span className="text-sm">Clip It</span>}
       </button>
 
       {/* Share panel */}
       {showPanel && state.phase !== "idle" && (
-        <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 w-72 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl p-4 z-50">
+        <div className={compact
+          ? "absolute top-full mt-3 right-0 w-72 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl p-4 z-50"
+          : "absolute bottom-full mb-3 left-1/2 -translate-x-1/2 w-72 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl p-4 z-50"
+        }>
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-sm font-bold text-white">
               {state.phase === "ready" ? "Clip Ready!" : "Creating Clip..."}
@@ -300,8 +309,12 @@ export default function ClipShareButton({
             </div>
           )}
 
-          {/* Arrow pointing down */}
-          <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-zinc-900 border-r border-b border-zinc-700 rotate-45" />
+          {/* Arrow */}
+          {compact ? (
+            <div className="absolute -top-2 right-4 w-4 h-4 bg-zinc-900 border-l border-t border-zinc-700 rotate-45" />
+          ) : (
+            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-zinc-900 border-r border-b border-zinc-700 rotate-45" />
+          )}
         </div>
       )}
     </div>
