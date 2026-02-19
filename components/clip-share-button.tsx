@@ -100,12 +100,12 @@ export default function ClipShareButton({
   }, [state]);
 
   const igCaption = streamTitle
-    ? `${streamTitle} @sneakhouseparty`
-    : "@sneakhouseparty";
+    ? `${streamTitle} @sneakhouseparty\nLive on www.sneakstream.xyz`
+    : "@sneakhouseparty\nLive on www.sneakstream.xyz";
 
   const shareText = streamTitle
-    ? `Check out this clip from ${streamTitle}!`
-    : "Check out this clip!";
+    ? `Check out this clip from ${streamTitle}! Live on www.sneakstream.xyz`
+    : "Check out this clip! Live on www.sneakstream.xyz";
 
   const [igCopied, setIgCopied] = useState(false);
 
@@ -143,19 +143,37 @@ export default function ClipShareButton({
         break;
       }
       case "copy": {
-        await navigator.clipboard.writeText(url);
+        await navigator.clipboard.writeText(`${shareText}\n${url}`);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
         break;
       }
       case "native": {
-        if (navigator.share) {
-          try {
-            await navigator.share({ title: shareText, url });
-          } catch {
-            // User cancelled
+        // Try sharing the video file via native share sheet (mobile)
+        try {
+          const response = await fetch(`${url}?download=clip.mp4`);
+          const blob = await response.blob();
+          const file = new File([blob], "clip.mp4", { type: "video/mp4" });
+
+          if (navigator.canShare?.({ files: [file] })) {
+            await navigator.share({
+              text: shareText,
+              files: [file],
+            });
+            break;
           }
+        } catch {
+          // Share cancelled or failed — fall through to fallback
         }
+
+        // Fallback: download clip + copy share text (same as Instagram)
+        const dlLink = document.createElement("a");
+        dlLink.href = `${url}?download=clip.mp4`;
+        dlLink.download = "clip.mp4";
+        dlLink.click();
+        await navigator.clipboard.writeText(`${shareText}\n${url}`);
+        setIgCopied(true);
+        setTimeout(() => setIgCopied(false), 3000);
         break;
       }
       case "download": {
