@@ -440,6 +440,7 @@ export default function SyncedVideoPlayer({
       <video
         ref={videoRef}
         className="h-full w-full rounded-2xl bg-black object-cover"
+        autoPlay
         muted={isMuted}
         playsInline
         webkit-playsinline="true"

@@ -7,9 +7,10 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, use, useState, useCallback } from "react";
 import SyncedVideoPlayer from "../../components/SyncedVideoPlayer";
 import { Eye, Clock, Globe, Lock, Users, DollarSign } from "lucide-react";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, SignedIn } from "@clerk/nextjs";
 import { PPVGate } from "@/components/ppv";
 import MainNav from "@/components/navigation/MainNav";
+import ClipShareButton from "@/components/clip-share-button";
 
 export default function MuxWatchPage({
   params,
@@ -232,6 +233,15 @@ export default function MuxWatchPage({
                   </>
                 )}
               </div>
+
+              {video.assetId && video.provider === "mux" && (
+                <SignedIn>
+                  <ClipShareButton
+                    videoId={video._id}
+                    streamTitle={video.title}
+                  />
+                </SignedIn>
+              )}
             </div>
 
             {video.description && (

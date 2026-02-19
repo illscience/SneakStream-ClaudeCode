@@ -9,6 +9,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import LogoShimmer from "./LogoShimmer";
 import NotificationBell from "../notification-bell";
+import ClipShareButton from "../clip-share-button";
 
 interface NavLink {
   href: string;
@@ -36,6 +37,7 @@ export default function MainNav() {
   const pathname = usePathname();
   const { user } = useUser();
   const activeStream = useQuery(api.livestream.getActiveStream);
+  const defaultVideo = useQuery(api.videos.getDefaultVideo);
 
   // Check if current user is admin
   const isAdmin = useQuery(
@@ -228,6 +230,21 @@ export default function MainNav() {
 
         <div className="flex items-center gap-4">
           <SignedIn>
+            <div className="lg:hidden">
+              {activeStream ? (
+                <ClipShareButton
+                  livestreamId={activeStream._id}
+                  streamTitle={activeStream.title}
+                  compact
+                />
+              ) : defaultVideo?.assetId && defaultVideo.provider === "mux" ? (
+                <ClipShareButton
+                  videoId={defaultVideo._id}
+                  streamTitle={defaultVideo.title}
+                  compact
+                />
+              ) : null}
+            </div>
             <NotificationBell />
             <div className="hidden lg:block">
               <UserButton
