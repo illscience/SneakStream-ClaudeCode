@@ -5,7 +5,8 @@ import { Scissors, X, Download, Check, Loader2 } from "lucide-react";
 import { Id } from "@/convex/_generated/dataModel";
 
 interface ClipShareButtonProps {
-  livestreamId: Id<"livestreams">;
+  livestreamId?: Id<"livestreams">;
+  videoId?: Id<"videos">;
   streamTitle?: string;
 }
 
@@ -18,6 +19,7 @@ type ClipState =
 
 export default function ClipShareButton({
   livestreamId,
+  videoId,
   streamTitle,
 }: ClipShareButtonProps) {
   const [state, setState] = useState<ClipState>({ phase: "idle" });
@@ -28,11 +30,19 @@ export default function ClipShareButton({
     setState({ phase: "creating" });
     setShowPanel(true);
 
+    // Grab current playback position from the video element
+    const videoEl = document.querySelector("video");
+    const currentTime = videoEl ? videoEl.currentTime : undefined;
+
     try {
+      const payload = livestreamId
+        ? { livestreamId }
+        : { videoId, currentTime };
+
       const res = await fetch("/api/clips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ livestreamId }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -46,7 +56,7 @@ export default function ClipShareButton({
     } catch {
       setState({ phase: "error", message: "Network error" });
     }
-  }, [livestreamId]);
+  }, [livestreamId, videoId]);
 
   // Poll for clip readiness
   useEffect(() => {
@@ -89,7 +99,7 @@ export default function ClipShareButton({
 
   const shareText = streamTitle
     ? `Check out this clip from ${streamTitle}!`
-    : "Check out this live stream clip!";
+    : "Check out this clip!";
 
   const handleShare = async (platform: string) => {
     if (state.phase !== "ready") return;

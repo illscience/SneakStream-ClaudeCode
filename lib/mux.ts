@@ -182,6 +182,12 @@ export interface MuxAssetPlaybackId {
   policy: string;
 }
 
+export interface MuxStaticRenditionFile {
+  name: string;
+  resolution: string;
+  status: "preparing" | "ready" | "skipped" | "errored";
+}
+
 export interface MuxAssetData {
   id: string;
   status: string;
@@ -193,6 +199,9 @@ export interface MuxAssetData {
   master?: {
     status: "preparing" | "ready";
     url?: string;
+  };
+  static_renditions?: {
+    files: MuxStaticRenditionFile[];
   };
 }
 

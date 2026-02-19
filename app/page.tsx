@@ -229,14 +229,19 @@ export default function Home() {
 
           {/* Side Action Buttons - Mobile */}
           <div className="lg:hidden absolute right-4 bottom-24 flex flex-col gap-3">
-            {activeStream && (
-              <SignedIn>
+            <SignedIn>
+              {activeStream ? (
                 <ClipShareButton
                   livestreamId={activeStream._id}
                   streamTitle={activeStream.title}
                 />
-              </SignedIn>
-            )}
+              ) : defaultVideo?.assetId && defaultVideo.provider === "mux" ? (
+                <ClipShareButton
+                  videoId={defaultVideo._id}
+                  streamTitle={defaultVideo.title}
+                />
+              ) : null}
+            </SignedIn>
             <button
               onClick={handleHeart}
               className={`bg-red-600 rounded-xl flex flex-col items-center justify-center hover:bg-red-700 transition-all px-3 py-2 ${
@@ -292,14 +297,19 @@ export default function Home() {
                     <span className="text-sm">Share</span>
                   </button>
 
-                  {activeStream && (
-                    <SignedIn>
+                  <SignedIn>
+                    {activeStream ? (
                       <ClipShareButton
                         livestreamId={activeStream._id}
                         streamTitle={activeStream.title}
                       />
-                    </SignedIn>
-                  )}
+                    ) : defaultVideo?.assetId && defaultVideo.provider === "mux" ? (
+                      <ClipShareButton
+                        videoId={defaultVideo._id}
+                        streamTitle={defaultVideo.title}
+                      />
+                    ) : null}
+                  </SignedIn>
 
                   {/* Video Timer - only show for default video */}
                   {!activeStream && defaultVideo?.startTime !== undefined && defaultVideo?.duration && (
