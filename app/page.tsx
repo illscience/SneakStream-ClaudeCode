@@ -5,6 +5,7 @@ import SyncedVideoPlayer from "./components/SyncedVideoPlayer";
 import VideoTimer from "./components/VideoTimer";
 import MainNav from "@/components/navigation/MainNav";
 import LiveChat from "./components/LiveChat";
+import ClipShareButton from "@/components/clip-share-button";
 import { LivestreamPPVGate } from "@/components/ppv/LivestreamPPVGate";
 import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
@@ -228,6 +229,14 @@ export default function Home() {
 
           {/* Side Action Buttons - Mobile */}
           <div className="lg:hidden absolute right-4 bottom-24 flex flex-col gap-3">
+            {activeStream && (
+              <SignedIn>
+                <ClipShareButton
+                  livestreamId={activeStream._id}
+                  streamTitle={activeStream.title}
+                />
+              </SignedIn>
+            )}
             <button
               onClick={handleHeart}
               className={`bg-red-600 rounded-xl flex flex-col items-center justify-center hover:bg-red-700 transition-all px-3 py-2 ${
@@ -282,6 +291,15 @@ export default function Home() {
                     <Share2 className="w-4 h-4" />
                     <span className="text-sm">Share</span>
                   </button>
+
+                  {activeStream && (
+                    <SignedIn>
+                      <ClipShareButton
+                        livestreamId={activeStream._id}
+                        streamTitle={activeStream.title}
+                      />
+                    </SignedIn>
+                  )}
 
                   {/* Video Timer - only show for default video */}
                   {!activeStream && defaultVideo?.startTime !== undefined && defaultVideo?.duration && (

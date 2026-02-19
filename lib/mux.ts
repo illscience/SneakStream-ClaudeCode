@@ -314,6 +314,39 @@ export interface MuxViewerData {
   }>;
 }
 
+export interface MuxClipResult {
+  assetId: string;
+  playbackId?: string;
+  status: string;
+}
+
+export async function createClipFromAsset(
+  sourceAssetId: string,
+  startTime: number,
+  endTime: number
+): Promise<MuxClipResult> {
+  const asset = await muxRequest<MuxAssetData>("/video/v1/assets", {
+    method: "POST",
+    json: {
+      input: [
+        {
+          url: `mux://assets/${sourceAssetId}`,
+          start_time: startTime,
+          end_time: endTime,
+        },
+      ],
+      playback_policy: ["public"],
+      static_renditions: [{ resolution: "1080p" }],
+    },
+  });
+
+  return {
+    assetId: asset.id,
+    playbackId: asset.playback_ids?.find((p) => p.policy === "public")?.id,
+    status: asset.status,
+  };
+}
+
 export async function getCurrentViewers(playbackId: string): Promise<number> {
   try {
     const response = await muxRequest<MuxViewerData>(
