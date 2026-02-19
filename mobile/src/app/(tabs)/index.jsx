@@ -41,6 +41,7 @@ import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedV
 import { useRouter } from "expo-router";
 import { useFAPIAuth } from "@/lib/fapi-auth";
 import AuctionPanel from "@/components/AuctionPanel";
+import LogoShimmer from "@/components/LogoShimmer";
 import * as ImagePicker from "expo-image-picker";
 
 const EMOTE_TOKEN_PATTERN = /^:emote:([^\s]+)$/;
@@ -326,17 +327,19 @@ export default function Index() {
     if (last.messageId === messageId && now - last.time < 300) {
       // Double tap detected
       lastTapRef.current = { messageId: null, time: 0 };
-      if (!canSendChat) return;
-
-      setLoveAnimatingId(messageId);
-      setTimeout(() => setLoveAnimatingId(null), 600);
-
-      loveMessage({ messageId }).catch((error) => {
-        console.error("[Chat] loveMessage failed:", error?.message || error);
-      });
+      handleLoveMessage(messageId);
     } else {
       lastTapRef.current = { messageId, time: now };
     }
+  }, [canSendChat, loveMessage]);
+
+  const handleLoveMessage = useCallback((messageId) => {
+    if (!canSendChat) return;
+    setLoveAnimatingId(messageId);
+    setTimeout(() => setLoveAnimatingId(null), 600);
+    loveMessage({ messageId }).catch((error) => {
+      console.error("[Chat] loveMessage failed:", error?.message || error);
+    });
   }, [canSendChat, loveMessage]);
 
   const handleOpenNotifications = useCallback(() => {
@@ -506,31 +509,7 @@ export default function Index() {
             paddingBottom: 16,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            {/* Colorful logo grid */}
-            <View style={{ marginRight: 12 }}>
-              <View style={{ flexDirection: "row", gap: 4, marginBottom: 4 }}>
-                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#E91E63" }} />
-                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#2196F3" }} />
-                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#00BCD4" }} />
-              </View>
-              <View style={{ flexDirection: "row", gap: 4, marginBottom: 4 }}>
-                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#4CAF50" }} />
-                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#8BC34A" }} />
-                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#FFC107" }} />
-              </View>
-              <View style={{ flexDirection: "row", gap: 4 }}>
-                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#FF9800" }} />
-                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#9C27B0" }} />
-                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: "#673AB7" }} />
-              </View>
-            </View>
-
-            <Text style={{ fontSize: 28, fontWeight: "700", color: "#fff" }}>
-              <Text style={{ color: "#fff" }}>dj</Text>
-              <Text style={{ color: "#E91E63" }}>sneak</Text>
-            </Text>
-          </View>
+          <LogoShimmer />
 
           {/* Right side: LIVE badge + Mute + Notifications */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -1172,24 +1151,24 @@ export default function Index() {
                     ) : null}
 
                     {/* Likes */}
-                    {msg.loveCount > 0 && (
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          backgroundColor: "#DC2626",
-                          paddingHorizontal: 12,
-                          paddingVertical: 6,
-                          borderRadius: 16,
-                          alignSelf: "flex-start",
-                        }}
-                      >
-                        <Heart size={14} color="#fff" fill="#fff" />
-                        <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginLeft: 6 }}>
-                          {msg.loveCount}
-                        </Text>
-                      </View>
-                    )}
+                    <TouchableOpacity
+                      onPress={() => handleLoveMessage(msg._id)}
+                      activeOpacity={0.7}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        backgroundColor: msg.loveCount > 0 ? "#DC2626" : "rgba(39,39,42,0.6)",
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 16,
+                        alignSelf: "flex-start",
+                      }}
+                    >
+                      <Heart size={14} color="#fff" fill={msg.loveCount > 0 ? "#fff" : "none"} />
+                      <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginLeft: 6 }}>
+                        {msg.loveCount || 0}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
