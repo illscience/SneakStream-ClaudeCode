@@ -33,7 +33,7 @@
 				"EXPO_PUBLIC_CONVEX_URL": "https://resilient-spider-207.convex.cloud",
 				"EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsuc25lYWtzdHJlYW0ueHl6JA",
 				"EXPO_PUBLIC_WEB_BASE_URL": "https://www.sneakstream.xyz",
-			"EXPO_PUBLIC_EMOTE_BASE_URL": "https://www.sneakstream.xyz"
+				"EXPO_PUBLIC_EMOTE_BASE_URL": "https://sneakstream.xyz"
 			}
 		}
 	},
