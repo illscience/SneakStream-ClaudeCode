@@ -433,6 +433,24 @@ export const updateStreamPrice = mutation({
   },
 });
 
+// Update stream playback URL (admin only, used for testing live transitions)
+export const updateStreamPlaybackUrl = mutation({
+  args: {
+    streamId: v.id("livestreams"),
+    playbackUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    const stream = await ctx.db.get(args.streamId);
+    if (!stream) throw new Error("Stream not found");
+
+    await ctx.db.patch(args.streamId, {
+      playbackUrl: args.playbackUrl,
+    });
+  },
+});
+
 // Clear recordingVideoId from a livestream (used when deleting recording video)
 export const clearRecordingVideoId = internalMutation({
   args: {

@@ -282,6 +282,29 @@ When mobile auth/chat/auction issues occur, verify in order:
 - Mock Convex calls for deterministic tests
 - Set `MUX_LIVE_TEST=1` to run live Mux verification suite (requires valid `MUX_TOKEN_ID` and `MUX_TOKEN_SECRET`)
 
+### Interactive Test Scripts
+
+Interactive shell scripts that drive Convex state changes while the user visually verifies behavior on the simulator. These are invaluable for testing flows that span multiple state transitions and require manual observation.
+
+**Available scripts:**
+
+| Script | What it tests | When to use |
+|--------|--------------|-------------|
+| `./scripts/test-video-transitions.sh` | Video state: replay → PPV gate → purchase → live → replay | After changes to video player, PPV gate, livestream queries, playback state, or entitlement logic |
+| `./scripts/test-ppv-mobile.sh` | PPV purchase flow (setup/reset/status/cleanup) | Quick PPV gate testing without full transition walkthrough |
+
+**Conventions for test scripts:**
+- All scripts support ESC to abort with automatic cleanup (end streams, revoke entitlements)
+- Scripts use `npx convex run` with admin identity — require `npx convex dev` running
+- Each step pauses for visual verification with clear "look for" instructions
+- Scripts clean up after themselves (no leftover streams or entitlements)
+
+**When building new features**, consider whether an interactive test script would help verify the feature end-to-end on the simulator. Good candidates:
+- Flows with multiple state transitions (e.g. auction open → bid → win → payment)
+- Features that depend on real-time Convex reactivity
+- Interactions between mobile and web API endpoints
+- Anything involving auth state changes or entitlement gating
+
 ## Environment Variables
 
 Required in `.env.local`:
