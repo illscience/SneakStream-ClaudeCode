@@ -47,6 +47,7 @@ import * as Clipboard from "expo-clipboard";
 import { TextInputWrapper } from "expo-paste-input";
 
 const EMOTE_TOKEN_PATTERN = /^:emote:([^\s]+)$/;
+const TIP_PATTERN = /^:tip:(.+)$/;
 const CRATE_PURCHASE_PATTERN = /^:crate_purchase:(.+)$/;
 const AUCTION_PATTERN = /^:auction:(.+)$/;
 const EMOTE_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
@@ -155,6 +156,27 @@ const parseAuctionToken = (body) => {
     return {
       type: parsed.type,
       amount: parsed.amount,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const TIP_EMOJI_MAP = { fire: "\u{1F525}", heart: "\u2764\uFE0F", rocket: "\u{1F680}", clap: "\u{1F44F}" };
+
+const parseTipToken = (body) => {
+  if (typeof body !== "string") return null;
+  const match = body.trim().match(TIP_PATTERN);
+  if (!match) return null;
+
+  try {
+    const parsed = JSON.parse(match[1]);
+    if (!parsed || typeof parsed !== "object") return null;
+    if (typeof parsed.amount !== "number") return null;
+    return {
+      amount: parsed.amount,
+      emoji: parsed.emoji || null,
+      message: parsed.message || null,
     };
   } catch {
     return null;
@@ -1117,11 +1139,83 @@ export default function Index() {
               {messages.map((msg, index) => {
                 const rawBody = typeof msg.body === "string" ? msg.body : "";
                 const emoteUri = getEmoteUriFromBody(rawBody);
+                const tipData = parseTipToken(rawBody);
                 const cratePurchase = parseCratePurchaseToken(rawBody);
                 const auctionEvent = parseAuctionToken(rawBody);
                 const isGifUpload =
                   msg.imageMimeType === "image/gif" ||
                   (typeof msg.imageUrl === "string" && msg.imageUrl.toLowerCase().includes(".gif"));
+
+                if (tipData) {
+                  return (
+                    <View key={msg._id} style={{ marginBottom: index < messages.length - 1 ? 20 : 0 }}>
+                      <View
+                        style={{
+                          backgroundColor: "rgba(196, 255, 14, 0.12)",
+                          borderColor: "rgba(196, 255, 14, 0.4)",
+                          borderWidth: 1,
+                          borderRadius: 12,
+                          paddingHorizontal: 12,
+                          paddingVertical: 10,
+                          flexDirection: "row",
+                          alignItems: "flex-start",
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 20,
+                            backgroundColor: "#c4ff0e",
+                            justifyContent: "center",
+                            alignItems: "center",
+                            marginRight: 10,
+                          }}
+                        >
+                          <Text style={{ fontSize: 20, color: "#000", fontWeight: "700" }}>$</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
+                            <Text style={{ color: "#c4ff0e", fontWeight: "700", fontSize: 14 }}>
+                              {msg.userName || "Someone"}
+                            </Text>
+                            <Text style={{ color: "#fff", fontSize: 14 }}> tipped </Text>
+                            <View
+                              style={{
+                                backgroundColor: "#c4ff0e",
+                                borderRadius: 12,
+                                paddingHorizontal: 8,
+                                paddingVertical: 2,
+                              }}
+                            >
+                              <Text style={{ color: "#000", fontWeight: "700", fontSize: 13 }}>
+                                ${(tipData.amount / 100).toFixed(2)}
+                              </Text>
+                            </View>
+                            {tipData.emoji && TIP_EMOJI_MAP[tipData.emoji] ? (
+                              <Text style={{ fontSize: 20 }}>{TIP_EMOJI_MAP[tipData.emoji]}</Text>
+                            ) : null}
+                          </View>
+                          {tipData.message ? (
+                            <View
+                              style={{
+                                marginTop: 6,
+                                backgroundColor: "rgba(0,0,0,0.3)",
+                                borderRadius: 8,
+                                paddingHorizontal: 10,
+                                paddingVertical: 6,
+                              }}
+                            >
+                              <Text style={{ color: "#fff", fontSize: 13, fontStyle: "italic" }}>
+                                "{tipData.message}"
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
+                      </View>
+                    </View>
+                  );
+                }
 
                 if (cratePurchase) {
                   return (
