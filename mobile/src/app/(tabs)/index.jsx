@@ -43,6 +43,8 @@ import { useFAPIAuth } from "@/lib/fapi-auth";
 import AuctionPanel from "@/components/AuctionPanel";
 import LogoShimmer from "@/components/LogoShimmer";
 import * as ImagePicker from "expo-image-picker";
+import * as Clipboard from "expo-clipboard";
+import { TextInputWrapper } from "expo-paste-input";
 
 const EMOTE_TOKEN_PATTERN = /^:emote:([^\s]+)$/;
 const CRATE_PURCHASE_PATTERN = /^:crate_purchase:(.+)$/;
@@ -520,6 +522,73 @@ export default function Index() {
     }
   }, [canSendChat, isSending, chatMessage, generateUploadUrl, sendMessage]);
 
+  const handlePaste = useCallback(async (payload) => {
+    if (payload.type !== "images" || !payload.uris?.length) return;
+
+    // iOS stores copied URLs as public.url (not public.plain-text), so
+    // hasStringAsync() misses them. Check for URLs first, then plain text.
+    // If either exists, paste as text instead of uploading the image
+    // representation that iOS may have resolved from the URL.
+    const clipboardUrl = await Clipboard.getUrlAsync();
+    if (clipboardUrl) {
+      setChatMessage((prev) => prev + clipboardUrl);
+      return;
+    }
+    const clipboardText = await Clipboard.getStringAsync();
+    if (clipboardText) {
+      setChatMessage((prev) => prev + clipboardText);
+      return;
+    }
+
+    if (!canSendChat || isSending) return;
+
+    const uri = payload.uris[0];
+
+    try {
+      const localFileResponse = await fetch(uri);
+      const localFileBlob = await localFileResponse.blob();
+
+      if (localFileBlob.size > MAX_CHAT_IMAGE_SIZE_BYTES) {
+        Alert.alert("Image too large", "Please choose an image under 8MB.");
+        return;
+      }
+
+      setIsSending(true);
+      const mimeType = inferImageMimeType({ uri }, localFileBlob.type);
+      const { uploadUrl } = await generateUploadUrl({});
+      const uploadResponse = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": mimeType },
+        body: localFileBlob,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`Upload failed with status ${uploadResponse.status}`);
+      }
+
+      const uploadPayload = await uploadResponse.json();
+      const storageId = uploadPayload?.storageId;
+      if (!storageId) {
+        throw new Error("Upload response missing storageId");
+      }
+
+      const messageText = chatMessage.trim();
+      await sendMessage({
+        body: messageText || "",
+        imageStorageId: storageId,
+        imageMimeType: mimeType,
+      });
+      if (messageText) {
+        setChatMessage("");
+      }
+    } catch (error) {
+      console.error("[Chat] failed to upload pasted image:", error?.message || error);
+      Alert.alert("Upload failed", "We could not send that image. Please try again.");
+    } finally {
+      setIsSending(false);
+    }
+  }, [canSendChat, isSending, chatMessage, generateUploadUrl, sendMessage]);
+
   const videoTitle = currentVideo?.title || "Loading...";
   // Heart count always comes from the video record (not the livestream object)
   const heartVideo = playbackState?.video || defaultVideo || publicVideos?.[0];
@@ -923,25 +992,28 @@ export default function Index() {
                     <Smile size={20} color={isEmotePickerOpen ? "#000" : "#999"} />
                   </TouchableOpacity>
 
-                  <TextInput
-                    value={chatMessage}
-                    onChangeText={setChatMessage}
-                    placeholder="Type a message..."
-                    placeholderTextColor="#666"
-                    style={{
-                      flex: 1,
-                      height: 48,
-                      backgroundColor: "#2a2a2a",
-                      borderRadius: 12,
-                      paddingHorizontal: 16,
-                      color: "#fff",
-                      fontSize: 14,
-                      marginRight: 8,
-                    }}
-                    returnKeyType="send"
-                    onSubmitEditing={handleSendMessage}
-                    editable={!isSending}
-                  />
+                  <TextInputWrapper
+                    onPaste={handlePaste}
+                    style={{ flex: 1, marginRight: 8 }}
+                  >
+                    <TextInput
+                      value={chatMessage}
+                      onChangeText={setChatMessage}
+                      placeholder="Type a message..."
+                      placeholderTextColor="#666"
+                      style={{
+                        height: 48,
+                        backgroundColor: "#2a2a2a",
+                        borderRadius: 12,
+                        paddingHorizontal: 16,
+                        color: "#fff",
+                        fontSize: 14,
+                      }}
+                      returnKeyType="send"
+                      onSubmitEditing={handleSendMessage}
+                      editable={!isSending}
+                    />
+                  </TextInputWrapper>
 
                   <TouchableOpacity
                     onPress={handleSendMessage}
