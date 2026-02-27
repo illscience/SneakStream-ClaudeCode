@@ -52,6 +52,55 @@ const DEFAULT_EMOTE_BASE_URL = "https://www.dreaminaudio.xyz";
 const EMOTE_IDS = Array.from({ length: 65 }, (_, index) => `image${index}.png`);
 const MAX_CHAT_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;
 
+const GIF_URL_PATTERN =
+  /https?:\/\/[^\s]+\.gif(\?[^\s]*)?|https?:\/\/(media\.giphy\.com|giphy\.com|media\.tenor\.com|tenor\.com|imgur\.com|i\.imgur\.com)\/[^\s]+/gi;
+
+const normalizeGifUrl = (rawUrl) => {
+  try {
+    const url = new URL(rawUrl);
+    const host = url.hostname.replace(/^www\./, "");
+    const path = url.pathname;
+    const lastSegment = path.split("/").filter(Boolean).pop() ?? "";
+
+    if (path.toLowerCase().endsWith(".gif")) {
+      return rawUrl;
+    }
+
+    if (host === "giphy.com" || host === "media.giphy.com") {
+      const id =
+        (path.match(/\/media\/([^/]+)/)?.[1] ?? lastSegment.split("-").pop()) || "";
+      return id ? `https://media.giphy.com/media/${id}/giphy.gif` : rawUrl;
+    }
+
+    if (host === "tenor.com" || host === "media.tenor.com") {
+      const itemId = url.searchParams.get("itemid");
+      const id = itemId ?? lastSegment.split("-").pop();
+      return id ? `https://media.tenor.com/${id}/tenor.gif` : rawUrl;
+    }
+
+    if (host === "imgur.com") {
+      return lastSegment ? `https://i.imgur.com/${lastSegment}.gif` : rawUrl;
+    }
+
+    if (host === "i.imgur.com") {
+      return rawUrl;
+    }
+
+    return rawUrl;
+  } catch {
+    return rawUrl;
+  }
+};
+
+const extractGifUrls = (body) => {
+  const matches = body.match(GIF_URL_PATTERN) ?? [];
+  const urls = Array.from(
+    new Set(matches.map((match) => normalizeGifUrl(match.trim())))
+  ).filter(Boolean);
+  const text = body.replace(GIF_URL_PATTERN, " ").replace(/\s{2,}/g, " ").trim();
+  return { text, urls };
+};
+
 const emoteBaseUrl = (
   process.env.EXPO_PUBLIC_EMOTE_BASE_URL ||
   process.env.EXPO_PUBLIC_APP_URL ||
@@ -1129,11 +1178,32 @@ export default function Index() {
                       </View>
                     ) : null}
 
-                    {rawBody && !emoteUri ? (
-                      <Text style={{ color: "#fff", fontSize: 15, lineHeight: 22, marginBottom: 8 }}>
-                        {rawBody}
-                      </Text>
-                    ) : null}
+                    {rawBody && !emoteUri ? (() => {
+                      const { text, urls: gifUrls } = extractGifUrls(rawBody);
+                      return (
+                        <>
+                          {text ? (
+                            <Text style={{ color: "#fff", fontSize: 15, lineHeight: 22, marginBottom: 8 }}>
+                              {text}
+                            </Text>
+                          ) : null}
+                          {gifUrls.map((gifUrl) => (
+                            <View key={gifUrl} style={{ marginBottom: 8 }}>
+                              <Image
+                                source={{ uri: gifUrl }}
+                                style={{
+                                  width: "100%",
+                                  maxWidth: 280,
+                                  height: 200,
+                                  borderRadius: 12,
+                                }}
+                                contentFit="contain"
+                              />
+                            </View>
+                          ))}
+                        </>
+                      );
+                    })() : null}
 
                     {msg.imageUrl ? (
                       <View style={{ marginBottom: 8 }}>
