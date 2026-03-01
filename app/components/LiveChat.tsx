@@ -60,6 +60,43 @@ const extractGifUrls = (body: string) => {
   return { text, urls }
 }
 
+const formatReplyBody = (body: string): string => {
+  if (!body) return ""
+  const tipMatch = body.match(/^:tip:(.+)$/)
+  if (tipMatch) {
+    try {
+      const parsed = JSON.parse(tipMatch[1])
+      if (parsed && typeof parsed.amount === "number") {
+        return `Tipped $${(parsed.amount / 100).toFixed(2)}`
+      }
+    } catch {}
+    return "Tipped"
+  }
+  const crateMatch = body.match(/^:crate_purchase:(.+)$/)
+  if (crateMatch) {
+    try {
+      const parsed = JSON.parse(crateMatch[1])
+      if (parsed && typeof parsed.amount === "number") {
+        return `Added a track to their crate for $${Math.round(parsed.amount / 100)}`
+      }
+    } catch {}
+    return "Crate purchase"
+  }
+  const auctionMatch = body.match(/^:auction:(.+)$/)
+  if (auctionMatch) {
+    try {
+      const parsed = JSON.parse(auctionMatch[1])
+      if (parsed && typeof parsed.amount === "number") {
+        const verb = parsed.type === "auction_won" ? "Won the auction for" : parsed.type === "outbid" ? "Outbid with" : "Placed a bid of"
+        return `${verb} $${Math.round(parsed.amount / 100)}`
+      }
+    } catch {}
+    return "Auction bid"
+  }
+  if (/^:emote:[^\s]+$/.test(body)) return "Sent an emote"
+  return body
+}
+
 interface LiveChatProps {
   livestreamId?: Id<"livestreams">
   streamStartedAt?: number
@@ -713,7 +750,7 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
                                 setReplyingTo({
                                   id: message._id,
                                   userName: message.userName || message.user || "Anonymous",
-                                  body: rawBody,
+                                  body: `Tipped $${(tipData.amount / 100).toFixed(2)}`,
                                 })
                                 textareaRef.current?.focus()
                               }}
@@ -852,7 +889,7 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
                       <div className="min-w-0">
                         <span className="text-xs font-semibold text-[#c4ff0e]">{message.replyTo.userName}</span>
                         <p className="text-xs text-zinc-400 truncate max-w-[240px]">
-                          {message.replyTo.body}
+                          {formatReplyBody(message.replyTo.body)}
                         </p>
                       </div>
                     </div>

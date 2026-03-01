@@ -165,6 +165,44 @@ const parseAuctionToken = (body) => {
 
 const TIP_EMOJI_MAP = { fire: "\u{1F525}", heart: "\u2764\uFE0F", rocket: "\u{1F680}", clap: "\u{1F44F}" };
 
+const formatReplyBody = (body) => {
+  if (typeof body !== "string") return "";
+  const tipMatch = body.trim().match(TIP_PATTERN);
+  if (tipMatch) {
+    try {
+      const parsed = JSON.parse(tipMatch[1]);
+      if (parsed && typeof parsed.amount === "number") {
+        return `Tipped $${(parsed.amount / 100).toFixed(2)}`;
+      }
+    } catch {}
+    return "Tipped";
+  }
+  const crateMatch = body.trim().match(CRATE_PURCHASE_PATTERN);
+  if (crateMatch) {
+    try {
+      const parsed = JSON.parse(crateMatch[1]);
+      if (parsed && typeof parsed.amount === "number") {
+        return `Added a track to their crate for $${Math.round(parsed.amount / 100)}`;
+      }
+    } catch {}
+    return "Crate purchase";
+  }
+  const auctionMatch = body.trim().match(AUCTION_PATTERN);
+  if (auctionMatch) {
+    try {
+      const parsed = JSON.parse(auctionMatch[1]);
+      if (parsed && typeof parsed.amount === "number") {
+        const verb = parsed.type === "auction_won" ? "Won the auction for" : parsed.type === "outbid" ? "Outbid with" : "Placed a bid of";
+        return `${verb} $${Math.round(parsed.amount / 100)}`;
+      }
+    } catch {}
+    return "Auction bid";
+  }
+  const emoteMatch = body.trim().match(EMOTE_TOKEN_PATTERN);
+  if (emoteMatch) return "Sent an emote";
+  return body;
+};
+
 const parseTipToken = (body) => {
   if (typeof body !== "string") return null;
   const match = body.trim().match(TIP_PATTERN);
@@ -1179,6 +1217,12 @@ export default function Index() {
                           <Text style={{ fontSize: 20, color: "#000", fontWeight: "700" }}>$</Text>
                         </View>
                         <View style={{ flex: 1 }}>
+                          {msg.replyTo && (
+                            <View style={{ borderLeftWidth: 2, borderLeftColor: "rgba(196,255,14,0.5)", backgroundColor: "rgba(39,39,42,0.5)", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6, marginBottom: 6 }}>
+                              <Text style={{ fontSize: 12, fontWeight: "700", color: "#c4ff0e" }}>{msg.replyTo.userName}</Text>
+                              <Text style={{ fontSize: 12, color: "#aaa" }} numberOfLines={1}>{formatReplyBody(msg.replyTo.body)}</Text>
+                            </View>
+                          )}
                           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
                             <Text style={{ color: "#c4ff0e", fontWeight: "700", fontSize: 14 }}>
                               {msg.userName || "Someone"}
@@ -1332,6 +1376,13 @@ export default function Index() {
                         · {new Date(msg._creationTime).toLocaleDateString()}
                       </Text>
                     </View>
+
+                    {msg.replyTo && (
+                      <View style={{ borderLeftWidth: 2, borderLeftColor: "rgba(196,255,14,0.5)", backgroundColor: "rgba(39,39,42,0.5)", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6, marginBottom: 6 }}>
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: "#c4ff0e" }}>{msg.replyTo.userName}</Text>
+                        <Text style={{ fontSize: 12, color: "#aaa" }} numberOfLines={1}>{formatReplyBody(msg.replyTo.body)}</Text>
+                      </View>
+                    )}
 
                     {emoteUri ? (
                       <View style={{ marginBottom: 8 }}>
