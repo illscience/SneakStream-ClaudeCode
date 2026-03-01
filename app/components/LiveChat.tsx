@@ -11,6 +11,42 @@ import { DollarSign, Disc3, Heart, Image as ImageIcon, Loader2, MessageSquare, R
 import { TipModal } from "@/components/tips"
 import { AuctionPanel } from "@/components/bidding"
 
+/** Return a human-readable summary for tokenized chat bodies (:tip:, :crate_purchase:, :auction:, :emote:). */
+function formatTokenizedBody(body: string): string | null {
+  const tipMatch = body.match(/^:tip:(.+)$/)
+  if (tipMatch) {
+    try {
+      const d = JSON.parse(tipMatch[1]) as { amount?: number; message?: string }
+      const dollars = d.amount ? `$${(d.amount / 100).toFixed(2)}` : ""
+      return d.message ? `Tipped ${dollars} — ${d.message}` : `Tipped ${dollars}`
+    } catch { /* fall through */ }
+  }
+
+  const crateMatch = body.match(/^:crate_purchase:(.+)$/)
+  if (crateMatch) {
+    try {
+      const d = JSON.parse(crateMatch[1]) as { amount?: number }
+      return d.amount ? `Purchased a crate for $${(d.amount / 100).toFixed(2)}` : "Purchased a crate"
+    } catch { /* fall through */ }
+  }
+
+  const auctionMatch = body.match(/^:auction:(.+)$/)
+  if (auctionMatch) {
+    try {
+      const d = JSON.parse(auctionMatch[1]) as { type?: string; amount?: number }
+      const dollars = d.amount ? `$${(d.amount / 100).toFixed(2)}` : ""
+      if (d.type === "bid") return `Bid ${dollars}`
+      if (d.type === "outbid") return `Was outbid at ${dollars}`
+      if (d.type === "won") return `Won the auction at ${dollars}`
+      return `Auction: ${dollars}`
+    } catch { /* fall through */ }
+  }
+
+  if (/^:emote:[^\s]+$/.test(body)) return "Sent an emote"
+
+  return null
+}
+
 const GIF_URL_PATTERN =
   /https?:\/\/[^\s]+\.gif(\?[^\s]*)?|https?:\/\/(media\.giphy\.com|giphy\.com|media\.tenor\.com|tenor\.com|imgur\.com|i\.imgur\.com)\/[^\s]+/gi
 
@@ -852,7 +888,7 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
                       <div className="min-w-0">
                         <span className="text-xs font-semibold text-[#c4ff0e]">{message.replyTo.userName}</span>
                         <p className="text-xs text-zinc-400 truncate max-w-[240px]">
-                          {message.replyTo.body}
+                          {formatTokenizedBody(message.replyTo.body) ?? message.replyTo.body}
                         </p>
                       </div>
                     </div>
