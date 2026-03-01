@@ -250,8 +250,12 @@ export default function Index() {
   const [loveAnimatingId, setLoveAnimatingId] = useState(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const lastTapRef = useRef({ messageId: null, time: 0 });
+  const videoTapRef = useRef(0);
+  const [videoHeartVisible, setVideoHeartVisible] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [hasSyncedPlayback, setHasSyncedPlayback] = useState(false);
+  const videoViewRef = useRef(null);
   const scrollViewRef = useRef(null);
   const [contentHeight, setContentHeight] = useState(0);
   const [scrollViewHeight, setScrollViewHeight] = useState(0);
@@ -439,6 +443,18 @@ export default function Index() {
       console.error("Heart error:", error);
     }
   }, [heartVideoId, incrementHeart]);
+
+  const handleVideoDoubleTap = useCallback(() => {
+    const now = Date.now();
+    if (now - videoTapRef.current < 300) {
+      videoTapRef.current = 0;
+      setVideoHeartVisible(true);
+      setTimeout(() => setVideoHeartVisible(false), 600);
+      handleHeart();
+    } else {
+      videoTapRef.current = now;
+    }
+  }, [handleHeart]);
 
   const handleMessageTap = useCallback((messageId) => {
     const now = Date.now();
@@ -810,7 +826,8 @@ export default function Index() {
           </View>
 
           {/* Video Player */}
-          <View
+          <Pressable
+            onPress={handleVideoDoubleTap}
             style={{
               position: "relative",
               width: "100%",
@@ -820,6 +837,7 @@ export default function Index() {
           >
             {videoSource ? (
               <VideoView
+                ref={videoViewRef}
                 player={player}
                 style={{ width: "100%", height: "100%" }}
                 contentFit="contain"
@@ -832,6 +850,24 @@ export default function Index() {
               </View>
             )}
 
+            {/* Double-tap heart animation */}
+            {videoHeartVisible && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  pointerEvents: "none",
+                }}
+              >
+                <Heart size={72} color="#DC2626" fill="#DC2626" style={{ opacity: 0.85 }} />
+              </View>
+            )}
+
             {/* Video Overlay Controls */}
             <View
               style={{
@@ -841,6 +877,8 @@ export default function Index() {
               }}
             >
               <TouchableOpacity
+                onPress={() => setIsFullscreen(true)}
+                activeOpacity={0.7}
                 style={{
                   width: 44,
                   height: 44,
@@ -875,7 +913,7 @@ export default function Index() {
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Pressable>
 
           {/* Progress Bar */}
           <View style={{ padding: 20, alignItems: "center" }}>
@@ -1514,6 +1552,79 @@ export default function Index() {
           )}
         </View>
       </ScrollView>
+
+      {/* Fullscreen Video Modal */}
+      <Modal
+        visible={isFullscreen}
+        animationType="fade"
+        supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
+        onRequestClose={() => setIsFullscreen(false)}
+      >
+        <Pressable
+          onPress={handleVideoDoubleTap}
+          style={{ flex: 1, backgroundColor: "#000" }}
+        >
+          <VideoView
+            player={player}
+            style={{ flex: 1 }}
+            contentFit="contain"
+            nativeControls={false}
+          />
+          {/* Double-tap heart animation */}
+          {videoHeartVisible && (
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                justifyContent: "center",
+                alignItems: "center",
+                pointerEvents: "none",
+              }}
+            >
+              <Heart size={96} color="#DC2626" fill="#DC2626" style={{ opacity: 0.85 }} />
+            </View>
+          )}
+          {/* Close button */}
+          <TouchableOpacity
+            onPress={() => setIsFullscreen(false)}
+            activeOpacity={0.7}
+            style={{
+              position: "absolute",
+              top: insets.top + 12,
+              right: 16,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: "rgba(0,0,0,0.6)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <X size={24} color="#fff" />
+          </TouchableOpacity>
+          {/* Mute button */}
+          <TouchableOpacity
+            onPress={() => setIsMuted((m) => !m)}
+            activeOpacity={0.7}
+            style={{
+              position: "absolute",
+              top: insets.top + 12,
+              left: 16,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: isMuted ? "#DC2626" : "rgba(0,0,0,0.6)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            {isMuted ? <VolumeX size={22} color="#fff" /> : <Volume2 size={22} color="#fff" />}
+          </TouchableOpacity>
+        </Pressable>
+      </Modal>
 
       {/* Notifications Modal */}
       <Modal
