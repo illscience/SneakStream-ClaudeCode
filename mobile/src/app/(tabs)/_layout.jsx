@@ -3,6 +3,9 @@ import { Film, Radio, User } from "lucide-react-native";
 import { Image, Platform, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFAPIAuth } from "@/lib/fapi-auth";
+import { createContext, useRef, useState, useCallback } from "react";
+
+export const ScrollToTopContext = createContext({ route: null, count: 0 });
 
 function ProfileTabIcon({ color, focused }) {
   const { isSignedIn, user } = useFAPIAuth();
@@ -35,7 +38,24 @@ export default function TabsLayout() {
   const tabBarBottomPadding = Platform.OS === "ios" ? Math.max(insets.bottom, 4) : 6;
   const tabBarHeight = Platform.OS === "ios" ? 48 + tabBarBottomPadding : 56;
 
+  const [scrollToTopSignal, setScrollToTopSignal] = useState({ route: null, count: 0 });
+  const lastTapRef = useRef({});
+
+  const makeDoubleTapListener = useCallback((routeName) => ({
+    tabPress: () => {
+      const now = Date.now();
+      const last = lastTapRef.current[routeName] || 0;
+      if (now - last < 300) {
+        setScrollToTopSignal((prev) => ({ route: routeName, count: prev.count + 1 }));
+        lastTapRef.current[routeName] = 0;
+      } else {
+        lastTapRef.current[routeName] = now;
+      }
+    },
+  }), []);
+
   return (
+    <ScrollToTopContext.Provider value={scrollToTopSignal}>
     <Tabs
       screenOptions={{
         headerShown: false,
@@ -62,6 +82,7 @@ export default function TabsLayout() {
           title: "Now Playing",
           tabBarIcon: ({ color }) => <Radio color={color} size={22} />,
         }}
+        listeners={makeDoubleTapListener("index")}
       />
       <Tabs.Screen
         name="past-shows"
@@ -69,6 +90,7 @@ export default function TabsLayout() {
           title: "Past Shows",
           tabBarIcon: ({ color }) => <Film color={color} size={22} />,
         }}
+        listeners={makeDoubleTapListener("past-shows")}
       />
       <Tabs.Screen
         name="profile"
@@ -80,5 +102,6 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+    </ScrollToTopContext.Provider>
   );
 }

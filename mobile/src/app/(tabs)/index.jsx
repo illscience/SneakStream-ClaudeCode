@@ -33,7 +33,7 @@ import {
   Radio,
   X,
 } from "lucide-react-native";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useContext } from "react";
 import { useQuery, useMutation, usePaginatedQuery, useConvexAuth } from "convex/react";
 import { api } from "convex/_generated/api";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -42,6 +42,7 @@ import { useRouter } from "expo-router";
 import { useFAPIAuth } from "@/lib/fapi-auth";
 import AuctionPanel from "@/components/AuctionPanel";
 import ClipShareButton from "@/components/ClipShareButton";
+import { ScrollToTopContext } from "./_layout";
 import LogoShimmer from "@/components/LogoShimmer";
 import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
@@ -254,6 +255,13 @@ export default function Index() {
   const scrollViewRef = useRef(null);
   const [contentHeight, setContentHeight] = useState(0);
   const [scrollViewHeight, setScrollViewHeight] = useState(0);
+
+  const scrollToTopSignal = useContext(ScrollToTopContext);
+  useEffect(() => {
+    if (scrollToTopSignal.route === "index" && scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ y: 0, animated: true });
+    }
+  }, [scrollToTopSignal.count]);
 
   const { width } = Dimensions.get("window");
   const videoHeight = width * (9 / 16);
