@@ -322,28 +322,14 @@ export default function ClipShareButton({
 
             {/* Loading state */}
             {(phase === "creating" || phase === "processing") && (
-              <View style={{ alignItems: "center", paddingVertical: 32 }}>
-                <View
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 24,
-                    borderWidth: 3,
-                    borderColor: "#9333ea",
-                    borderTopColor: "transparent",
-                  }}
-                >
-                  <ActivityIndicator
-                    size="large"
-                    color="#9333ea"
-                    style={{ position: "absolute", top: -3, left: -3 }}
-                  />
-                </View>
+              <View style={{ alignItems: "center", paddingVertical: 24 }}>
+                <ActivityIndicator size="large" color="#9333ea" />
                 <Text
                   style={{
-                    color: "#999",
-                    fontSize: 13,
-                    marginTop: 16,
+                    color: "#aaa",
+                    fontSize: 14,
+                    fontWeight: "500",
+                    marginTop: 14,
                     textAlign: "center",
                   }}
                 >
