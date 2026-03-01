@@ -470,13 +470,19 @@ export default function Index() {
   }, [canSendChat, loveMessage]);
 
   const handleLoveMessage = useCallback((messageId) => {
-    if (!canSendChat) return;
+    if (!canSendChat) {
+      Alert.alert("Sign in required", "You need to sign in to like messages.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign in", onPress: () => router.push("/sign-in") },
+      ]);
+      return;
+    }
     setLoveAnimatingId(messageId);
     setTimeout(() => setLoveAnimatingId(null), 600);
     loveMessage({ messageId }).catch((error) => {
       console.error("[Chat] loveMessage failed:", error?.message || error);
     });
-  }, [canSendChat, loveMessage]);
+  }, [canSendChat, loveMessage, router]);
 
   const handleOpenNotifications = useCallback(() => {
     setIsNotificationsOpen(true);
