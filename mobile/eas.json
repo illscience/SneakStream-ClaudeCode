@@ -1,0 +1,48 @@
+{
+	"cli": {
+		"version": ">= 15.0.15",
+		"appVersionSource": "remote"
+	},
+	"build": {
+		"development": {
+			"developmentClient": true,
+			"distribution": "internal",
+			"node": "20.18.0",
+			"env": {
+				"NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+			}
+		},
+		"development-simulator": {
+			"developmentClient": true,
+			"distribution": "internal",
+			"ios": {
+				"simulator": true
+			}
+		},
+		"preview": {
+			"distribution": "internal",
+			"env": {
+				"NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+			}
+		},
+		"production": {
+			"autoIncrement": true,
+			"distribution": "store",
+			"env": {
+				"NPM_CONFIG_LEGACY_PEER_DEPS": "true",
+				"EXPO_PUBLIC_CONVEX_URL": "https://resilient-spider-207.convex.cloud",
+				"EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsuc25lYWtzdHJlYW0ueHl6JA",
+				"EXPO_PUBLIC_WEB_BASE_URL": "https://www.sneakstream.xyz",
+				"EXPO_PUBLIC_EMOTE_BASE_URL": "https://sneakstream.xyz"
+			}
+		}
+	},
+	"submit": {
+		"production": {
+			"ios": {
+				"appleId": "illscience@gmail.com",
+				"ascAppId": "6757837115"
+			}
+		}
+	}
+}

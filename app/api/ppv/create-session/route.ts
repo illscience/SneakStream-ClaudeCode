@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { videoId, livestreamId } = body;
+    const { videoId, livestreamId, successUrl: mobileSuccessUrl, cancelUrl: mobileCancelUrl } = body;
 
     // Must specify one content type
     if (!videoId && !livestreamId) {
@@ -63,8 +63,8 @@ export async function POST(request: NextRequest) {
         livestreamTitle: livestream.title,
         price: livestream.price,
         buyerId: userId,
-        successUrl: `${origin}/?purchased=true`,
-        cancelUrl: `${origin}/?canceled=true`,
+        successUrl: mobileSuccessUrl || `${origin}/?purchased=true`,
+        cancelUrl: mobileCancelUrl || `${origin}/?canceled=true`,
       });
 
       // Create pending purchase in Convex
@@ -113,8 +113,8 @@ export async function POST(request: NextRequest) {
       videoTitle: video.title,
       price: video.price,
       buyerId: userId,
-      successUrl: `${origin}/watch/${videoId}?purchased=true`,
-      cancelUrl: `${origin}/watch/${videoId}?canceled=true`,
+      successUrl: mobileSuccessUrl || `${origin}/watch/${videoId}?purchased=true`,
+      cancelUrl: mobileCancelUrl || `${origin}/watch/${videoId}?canceled=true`,
     });
 
     // Create pending purchase in Convex
