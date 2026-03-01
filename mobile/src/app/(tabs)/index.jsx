@@ -1488,24 +1488,54 @@ export default function Index() {
                     ) : null}
 
                     {/* Likes */}
-                    <TouchableOpacity
-                      onPress={() => handleLoveMessage(msg._id)}
-                      activeOpacity={0.7}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        backgroundColor: msg.loveCount > 0 ? "#DC2626" : "rgba(39,39,42,0.6)",
-                        paddingHorizontal: 12,
-                        paddingVertical: 6,
-                        borderRadius: 16,
-                        alignSelf: "flex-start",
-                      }}
-                    >
-                      <Heart size={14} color="#fff" fill={msg.loveCount > 0 ? "#fff" : "none"} />
-                      <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginLeft: 6 }}>
-                        {msg.loveCount || 0}
-                      </Text>
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <TouchableOpacity
+                        onPress={() => handleLoveMessage(msg._id)}
+                        activeOpacity={0.7}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          backgroundColor: msg.loveCount > 0 ? "#DC2626" : "rgba(39,39,42,0.6)",
+                          paddingHorizontal: 12,
+                          paddingVertical: 6,
+                          borderRadius: 16,
+                        }}
+                      >
+                        <Heart size={14} color="#fff" fill={msg.loveCount > 0 ? "#fff" : "none"} />
+                        <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginLeft: 6 }}>
+                          {msg.loveCount || 0}
+                        </Text>
+                      </TouchableOpacity>
+                      {msg.recentLovers?.length > 0 && (
+                        <View style={{ flexDirection: "row", alignItems: "center" }}>
+                          {msg.recentLovers.map((lover) => (
+                            <View
+                              key={`${msg._id}-${lover.clerkId}`}
+                              style={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: 10,
+                                backgroundColor: "#27272a",
+                                borderWidth: 1,
+                                borderColor: "#18181b",
+                                overflow: "hidden",
+                                marginLeft: -4,
+                                justifyContent: "center",
+                                alignItems: "center",
+                              }}
+                            >
+                              {lover.avatarUrl ? (
+                                <Image source={{ uri: lover.avatarUrl }} style={{ width: 20, height: 20 }} contentFit="cover" />
+                              ) : (
+                                <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>
+                                  {(lover.alias || "U").charAt(0).toUpperCase()}
+                                </Text>
+                              )}
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
                   </View>
                 </View>
 
