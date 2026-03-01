@@ -20,7 +20,7 @@ import * as Clipboard from "expo-clipboard";
 let MediaLibrary;
 try { MediaLibrary = require("expo-media-library"); } catch {}
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { authorizedWebFetch } from "@/lib/web-api";
+import { authorizedWebFetch, publicWebFetch } from "@/lib/web-api";
 
 /**
  * State machine phases (mirrors web clip-share-button.tsx):
@@ -58,6 +58,12 @@ export default function ClipShareButton({
     ? `Check out this clip from ${streamTitle}! Live on www.sneakstream.xyz`
     : "Check out this clip! Live on www.sneakstream.xyz";
 
+  const apiFetch = useCallback(({ path, init }) => {
+    return sessionId
+      ? authorizedWebFetch({ sessionId, path, init })
+      : publicWebFetch({ path, init });
+  }, [sessionId]);
+
   const createClip = useCallback(async () => {
     setPhase("creating");
     setShowPanel(true);
@@ -69,8 +75,7 @@ export default function ClipShareButton({
         ? { livestreamId }
         : { videoId, currentTime };
 
-      const res = await authorizedWebFetch({
-        sessionId,
+      const res = await apiFetch({
         path: "/api/clips",
         init: {
           method: "POST",
@@ -78,21 +83,27 @@ export default function ClipShareButton({
         },
       });
 
+      console.log("[Clip] POST response status:", res.status);
+
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const text = await res.text().catch(() => "");
+        let errorMsg = "Failed to create clip";
+        try { errorMsg = JSON.parse(text)?.error || errorMsg; } catch {}
+        console.log("[Clip] POST error:", res.status, text.slice(0, 200));
         setPhase("error");
-        setErrorMessage(data.error || "Failed to create clip");
+        setErrorMessage(errorMsg);
         return;
       }
 
       const data = await res.json();
       setClipAssetId(data.clipAssetId);
       setPhase("processing");
-    } catch {
+    } catch (e) {
+      console.error("[Clip] createClip error:", e?.message || e);
       setPhase("error");
       setErrorMessage("Network error");
     }
-  }, [livestreamId, videoId, currentTime, sessionId]);
+  }, [livestreamId, videoId, currentTime, apiFetch]);
 
   // Poll for clip readiness
   useEffect(() => {
@@ -102,8 +113,7 @@ export default function ClipShareButton({
 
     const poll = async () => {
       try {
-        const res = await authorizedWebFetch({
-          sessionId,
+        const res = await apiFetch({
           path: `/api/clips?clipAssetId=${clipAssetId}`,
           init: { method: "GET" },
         });
@@ -133,7 +143,7 @@ export default function ClipShareButton({
       cancelled = true;
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [phase, clipAssetId, sessionId]);
+  }, [phase, clipAssetId, apiFetch]);
 
   const downloadToCache = useCallback(async (url) => {
     console.log("[Clip] downloadToCache url:", url);

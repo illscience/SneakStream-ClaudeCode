@@ -671,17 +671,15 @@ export default function Index() {
               </View>
             )}
 
-            {isSignedIn && isConvexAuthenticated && (
-              <ClipShareButton
-                livestreamId={activeStream?._id}
-                videoId={heartVideoId}
-                currentTime={currentTime}
-                streamTitle={videoTitle}
-                sessionId={sessionId}
-                isLive={isLive}
-                provider={currentVideo?.provider}
-              />
-            )}
+            <ClipShareButton
+              livestreamId={activeStream?._id}
+              videoId={heartVideoId}
+              currentTime={currentTime}
+              streamTitle={videoTitle}
+              sessionId={sessionId}
+              isLive={isLive}
+              provider={currentVideo?.provider}
+            />
 
             <TouchableOpacity
               onPress={() => setIsMuted((m) => !m)}

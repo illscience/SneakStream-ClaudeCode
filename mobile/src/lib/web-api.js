@@ -40,6 +40,15 @@ const getSessionJwt = async (sessionId) => {
   return jwt;
 };
 
+export const publicWebFetch = async ({ path, init = {} }) => {
+  const headers = new Headers(init.headers || {});
+  if (init.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  headers.set("Accept", "application/json");
+  return fetch(getWebUrl(path), { ...init, headers });
+};
+
 export const authorizedWebFetch = async ({ sessionId, path, init = {} }) => {
   const token = await getSessionJwt(sessionId);
   const headers = new Headers(init.headers || {});

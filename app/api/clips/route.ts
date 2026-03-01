@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthedConvexClient } from "@/lib/convexServer";
+import { ConvexHttpClient } from "convex/browser";
 import { createClipFromAsset, getLiveStream, getAsset } from "@/lib/mux";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 
 const CLIP_DURATION_SECONDS = 15;
 
+function getConvexClient() {
+  return new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+}
+
 // Resolve source asset ID and clip time window.
 // Supports both live streams (via livestreamId) and VOD (via videoId).
 async function resolveClipSource(
-  client: Awaited<ReturnType<typeof getAuthedConvexClient>>["client"],
+  client: ConvexHttpClient,
   body: { livestreamId?: string; videoId?: string; currentTime?: number }
 ): Promise<{ assetId: string; startTime: number; endTime: number }> {
   // --- Live stream path ---
@@ -79,7 +83,7 @@ async function resolveClipSource(
 export async function POST(request: NextRequest) {
   try {
     console.log("[clips POST] Starting clip creation...");
-    const { client } = await getAuthedConvexClient();
+    const client = getConvexClient();
     const body = await request.json();
     console.log("[clips POST] Request body:", body);
 
@@ -111,13 +115,6 @@ export async function POST(request: NextRequest) {
 
     const errorStr = String(error);
 
-    if (
-      errorStr.includes("Unauthorized") ||
-      errorStr.includes("Not authenticated")
-    ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     console.error("[clips POST] Error:", error);
     return NextResponse.json(
       { error: "Failed to create clip", details: errorStr },
@@ -129,8 +126,6 @@ export async function POST(request: NextRequest) {
 // GET: Check clip status and return download/share URL when ready
 export async function GET(request: NextRequest) {
   try {
-    await getAuthedConvexClient();
-
     const { searchParams } = new URL(request.url);
     const clipAssetId = searchParams.get("clipAssetId");
 
@@ -184,18 +179,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ status: "preparing" });
   } catch (error) {
-    const errorStr = String(error);
-
-    if (
-      errorStr.includes("Unauthorized") ||
-      errorStr.includes("Not authenticated")
-    ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     console.error("[clips GET] Error:", error);
     return NextResponse.json(
-      { error: "Failed to check clip status", details: errorStr },
+      { error: "Failed to check clip status", details: String(error) },
       { status: 500 }
     );
   }
