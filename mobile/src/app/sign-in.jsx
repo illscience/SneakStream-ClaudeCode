@@ -10,15 +10,11 @@ import {
 } from "react-native";
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
-import * as SecureStore from "expo-secure-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { useFAPIAuth } from "@/lib/fapi-auth";
+import { useFAPIAuth, clerkFetch } from "@/lib/fapi-auth";
 
 WebBrowser.maybeCompleteAuthSession();
-
-const CLERK_FRONTEND_API = "https://clerk.sneakstream.xyz";
-const CLIENT_JWT_KEY = "__clerk_client_jwt";
 
 const getErrorMessage = (error) => {
   if (!error) return "Sign in failed";
@@ -27,36 +23,6 @@ const getErrorMessage = (error) => {
   if (error?.message) return error.message;
   return "Sign in failed";
 };
-
-async function clerkFetch(path, options = {}) {
-  const jwt = await SecureStore.getItemAsync(CLIENT_JWT_KEY, {
-    keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
-  });
-
-  const url = new URL(`${CLERK_FRONTEND_API}${path}`);
-  url.searchParams.append("_is_native", "1");
-  url.searchParams.append("_clerk_js_version", "5");
-
-  const resp = await fetch(url.toString(), {
-    credentials: "omit",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      authorization: jwt || "",
-      "x-mobile": "1",
-      ...options.headers,
-    },
-    ...options,
-  });
-
-  const newJwt = resp.headers.get("authorization");
-  if (newJwt) {
-    await SecureStore.setItemAsync(CLIENT_JWT_KEY, newJwt, {
-      keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
-    });
-  }
-
-  return resp;
-}
 
 const useWarmUpBrowser = () => {
   useEffect(() => {

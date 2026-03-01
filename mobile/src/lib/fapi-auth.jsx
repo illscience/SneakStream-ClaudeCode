@@ -6,7 +6,33 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import * as SecureStore from "expo-secure-store";
 
-const CLERK_FRONTEND_API = "https://clerk.sneakstream.xyz";
+function resolveClerkFrontendApi() {
+  // 1. Explicit override
+  const explicit = process.env.EXPO_PUBLIC_CLERK_FRONTEND_API;
+  if (explicit) return explicit;
+
+  // 2. Derive from publishable key (format: pk_{env}_{base64(domain$)})
+  const pk = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  if (pk) {
+    try {
+      const parts = pk.split("_");
+      // base64 payload is the last segment
+      const decoded = atob(parts[parts.length - 1]);
+      // Strip trailing '$' that Clerk appends
+      const domain = decoded.replace(/\$$/, "");
+      if (domain) return `https://${domain}`;
+    } catch (e) {
+      console.warn("[fapi-auth] Could not decode publishable key:", e);
+    }
+  }
+
+  // 3. Safety-net fallback
+  return "https://clerk.sneakstream.xyz";
+}
+
+const CLERK_FRONTEND_API = resolveClerkFrontendApi();
+console.log("[fapi-auth] CLERK_FRONTEND_API resolved to:", CLERK_FRONTEND_API);
+
 const CLIENT_JWT_KEY = "__clerk_client_jwt";
 
 const AuthContext = createContext({
