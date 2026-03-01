@@ -41,6 +41,7 @@ import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedV
 import { useRouter } from "expo-router";
 import { useFAPIAuth } from "@/lib/fapi-auth";
 import AuctionPanel from "@/components/AuctionPanel";
+import ClipShareButton from "@/components/ClipShareButton";
 import LogoShimmer from "@/components/LogoShimmer";
 import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
@@ -200,7 +201,7 @@ const inferImageMimeType = (asset, fallbackMimeType) => {
 export default function Index() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { isSignedIn, user } = useFAPIAuth();
+  const { isSignedIn, user, sessionId } = useFAPIAuth();
   const { isAuthenticated: isConvexAuthenticated, isLoading: isConvexAuthLoading } = useConvexAuth();
   const [chatMessage, setChatMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -651,7 +652,7 @@ export default function Index() {
         >
           <LogoShimmer />
 
-          {/* Right side: LIVE badge + Mute + Notifications */}
+          {/* Right side: LIVE badge + Clip + Mute + Notifications */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             {isLive && (
               <View
@@ -670,27 +671,32 @@ export default function Index() {
               </View>
             )}
 
+            {isSignedIn && isConvexAuthenticated && (
+              <ClipShareButton
+                livestreamId={activeStream?._id}
+                videoId={heartVideoId}
+                currentTime={currentTime}
+                streamTitle={videoTitle}
+                sessionId={sessionId}
+                isLive={isLive}
+                provider={currentVideo?.provider}
+              />
+            )}
+
             <TouchableOpacity
               onPress={() => setIsMuted((m) => !m)}
               activeOpacity={0.7}
               style={{
+                width: 40,
                 height: 40,
                 borderRadius: 20,
                 backgroundColor: isMuted ? "#DC2626" : "rgba(39,39,42,0.85)",
                 justifyContent: "center",
                 alignItems: "center",
-                flexDirection: "row",
-                paddingHorizontal: 12,
-                gap: 6,
               }}
             >
               {isMuted ? (
-                <>
-                  <VolumeX size={20} color="#fff" />
-                  <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700", letterSpacing: 0.5 }}>
-                    MUTED
-                  </Text>
-                </>
+                <VolumeX size={20} color="#fff" />
               ) : (
                 <Volume2 size={20} color="#fff" />
               )}
