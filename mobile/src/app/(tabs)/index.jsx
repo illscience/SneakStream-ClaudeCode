@@ -259,6 +259,7 @@ export default function Index() {
   const scrollViewRef = useRef(null);
   const [contentHeight, setContentHeight] = useState(0);
   const [scrollViewHeight, setScrollViewHeight] = useState(0);
+  const [replyingTo, setReplyingTo] = useState(null); // { id, userName, body }
 
   const scrollToTopSignal = useContext(ScrollToTopContext);
   useEffect(() => {
@@ -501,13 +502,17 @@ export default function Index() {
     }
 
     const body = chatMessage.trim();
+    const currentReply = replyingTo;
     setChatMessage("");
     setIsEmotePickerOpen(false);
+    setReplyingTo(null);
     setIsSending(true);
 
     try {
       console.log("[Chat] calling sendMessage mutation with body:", body.substring(0, 30));
-      await sendMessage({ body });
+      const args = { body };
+      if (currentReply?.id) args.replyToId = currentReply.id;
+      await sendMessage(args);
       console.log("[Chat] sendMessage SUCCESS");
     } catch (error) {
       console.error("[Chat] sendMessage FAILED:", error?.message || error);
@@ -515,7 +520,7 @@ export default function Index() {
     } finally {
       setIsSending(false);
     }
-  }, [chatMessage, isSending, isSignedIn, isConvexAuthenticated, canSendChat, sendMessage]);
+  }, [chatMessage, isSending, isSignedIn, isConvexAuthenticated, canSendChat, sendMessage, replyingTo]);
 
   const handleToggleEmotePicker = useCallback(() => {
     if (!canSendChat || isSending) return;
@@ -539,6 +544,7 @@ export default function Index() {
   const handlePickPhoto = useCallback(async () => {
     if (!canSendChat || isSending) return;
     setIsEmotePickerOpen(false);
+    const currentReply = replyingTo;
 
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -597,24 +603,28 @@ export default function Index() {
       }
 
       const messageText = chatMessage.trim();
-      await sendMessage({
+      const sendArgs = {
         body: messageText || "",
         imageStorageId: storageId,
         imageMimeType: mimeType,
-      });
+      };
+      if (currentReply?.id) sendArgs.replyToId = currentReply.id;
+      await sendMessage(sendArgs);
       if (messageText) {
         setChatMessage("");
       }
+      setReplyingTo(null);
     } catch (error) {
       console.error("[Chat] failed to upload photo:", error?.message || error);
       Alert.alert("Upload failed", "We could not send that photo. Please try again.");
     } finally {
       setIsSending(false);
     }
-  }, [canSendChat, isSending, chatMessage, generateUploadUrl, sendMessage]);
+  }, [canSendChat, isSending, chatMessage, generateUploadUrl, sendMessage, replyingTo]);
 
   const handlePaste = useCallback(async (payload) => {
     if (payload.type !== "images" || !payload.uris?.length) return;
+    const currentReply = replyingTo;
 
     // iOS stores copied URLs as public.url (not public.plain-text), so
     // hasStringAsync() misses them. Check for URLs first, then plain text.
@@ -664,21 +674,24 @@ export default function Index() {
       }
 
       const messageText = chatMessage.trim();
-      await sendMessage({
+      const sendArgs = {
         body: messageText || "",
         imageStorageId: storageId,
         imageMimeType: mimeType,
-      });
+      };
+      if (currentReply?.id) sendArgs.replyToId = currentReply.id;
+      await sendMessage(sendArgs);
       if (messageText) {
         setChatMessage("");
       }
+      setReplyingTo(null);
     } catch (error) {
       console.error("[Chat] failed to upload pasted image:", error?.message || error);
       Alert.alert("Upload failed", "We could not send that image. Please try again.");
     } finally {
       setIsSending(false);
     }
-  }, [canSendChat, isSending, chatMessage, generateUploadUrl, sendMessage]);
+  }, [canSendChat, isSending, chatMessage, generateUploadUrl, sendMessage, replyingTo]);
 
   const videoTitle = currentVideo?.title || "Loading...";
   // Heart count always comes from the video record (not the livestream object)
@@ -1073,6 +1086,36 @@ export default function Index() {
           {isSignedIn ? (
             canSendChat ? (
               <>
+                {replyingTo && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      backgroundColor: "rgba(39,39,42,0.6)",
+                      borderLeftWidth: 3,
+                      borderLeftColor: "#9ACD32",
+                      borderRadius: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, color: "#9ACD32", fontWeight: "700" }}>
+                        Replying to {replyingTo.userName}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: "#888" }} numberOfLines={1}>
+                        {formatReplyBody(replyingTo.body)}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setReplyingTo(null)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <X size={16} color="#888" />
+                    </TouchableOpacity>
+                  </View>
+                )}
                 <View style={{ flexDirection: "row", alignItems: "center", marginBottom: isEmotePickerOpen ? 12 : 24 }}>
                   <TouchableOpacity
                     onPress={handlePickPhoto}
@@ -1313,6 +1356,40 @@ export default function Index() {
                           ) : null}
                         </View>
                       </View>
+                      {/* Actions row for tip */}
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 }}>
+                        <TouchableOpacity
+                          onPress={() => handleLoveMessage(msg._id)}
+                          activeOpacity={0.7}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            backgroundColor: msg.loveCount > 0 ? "#DC2626" : "rgba(39,39,42,0.6)",
+                            paddingHorizontal: 10,
+                            paddingVertical: 5,
+                            borderRadius: 14,
+                          }}
+                        >
+                          <Heart size={12} color="#fff" fill={msg.loveCount > 0 ? "#fff" : "none"} />
+                          <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700", marginLeft: 4 }}>
+                            {msg.loveCount || 0}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => setReplyingTo({ id: msg._id, userName: msg.userName || "Someone", body: rawBody })}
+                          activeOpacity={0.7}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            backgroundColor: "rgba(39,39,42,0.6)",
+                            paddingHorizontal: 8,
+                            paddingVertical: 5,
+                            borderRadius: 14,
+                          }}
+                        >
+                          <Reply size={12} color="#999" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   );
                 }
@@ -1493,7 +1570,7 @@ export default function Index() {
                       </View>
                     ) : null}
 
-                    {/* Likes */}
+                    {/* Likes & Reply */}
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <TouchableOpacity
                         onPress={() => handleLoveMessage(msg._id)}
@@ -1511,6 +1588,20 @@ export default function Index() {
                         <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginLeft: 6 }}>
                           {msg.loveCount || 0}
                         </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => setReplyingTo({ id: msg._id, userName: msg.userName || msg.user || "User", body: rawBody })}
+                        activeOpacity={0.7}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          backgroundColor: "rgba(39,39,42,0.6)",
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 16,
+                        }}
+                      >
+                        <Reply size={14} color="#999" />
                       </TouchableOpacity>
                       {msg.recentLovers?.length > 0 && (
                         <View style={{ flexDirection: "row", alignItems: "center" }}>
