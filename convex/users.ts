@@ -4,20 +4,25 @@ import { v } from "convex/values";
 import { getAuthenticatedUser, requireAdmin } from "./adminSettings";
 
 // Internal mutation to make a user admin by email (for CLI use)
+// Patches ALL user records matching the email (handles multiple Clerk instances)
 export const makeAdminByEmail = internalMutation({
   args: {
     email: v.string(),
   },
   handler: async (ctx, args) => {
     const users = await ctx.db.query("users").collect();
-    const user = users.find(u => u.email?.toLowerCase() === args.email.toLowerCase());
+    const matches = users.filter(u => u.email?.toLowerCase() === args.email.toLowerCase());
 
-    if (!user) {
+    if (matches.length === 0) {
       throw new Error(`User not found with email: ${args.email}`);
     }
 
-    await ctx.db.patch(user._id, { isAdmin: true });
-    return { success: true, alias: user.alias, clerkId: user.clerkId };
+    const results = [];
+    for (const user of matches) {
+      await ctx.db.patch(user._id, { isAdmin: true });
+      results.push({ alias: user.alias, clerkId: user.clerkId });
+    }
+    return { success: true, patched: results };
   },
 });
 

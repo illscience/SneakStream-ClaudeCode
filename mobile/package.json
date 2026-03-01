@@ -5,7 +5,9 @@
   "scripts": {
     "postinstall": "patch-package",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "dev": "mv -f .env.local.bak .env.local 2>/dev/null; npx expo start --ios --clear",
+    "prod": "[ -f .env.local ] && mv .env.local .env.local.bak; npx expo start --ios --clear"
   },
   "dependencies": {
     "@clerk/clerk-expo": "^2.4.1",
@@ -52,10 +54,13 @@
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.7",
     "expo-location": "~19.0.8",
+    "expo-media-library": "~18.2.1",
     "expo-notifications": "~0.32.16",
+    "expo-paste-input": "^0.1.8",
     "expo-router": "~6.0.21",
     "expo-secure-store": "~15.0.8",
     "expo-sensors": "~15.0.8",
+    "expo-sharing": "~14.0.8",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
     "expo-symbols": "~1.0.8",
