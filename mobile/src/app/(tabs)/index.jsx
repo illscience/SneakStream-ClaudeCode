@@ -36,7 +36,7 @@ import {
 import { useState, useRef, useCallback, useEffect, useContext } from "react";
 import { useQuery, useMutation, usePaginatedQuery, useConvexAuth } from "convex/react";
 import { api } from "convex/_generated/api";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { useVideoPlayer, VideoView, VideoAirPlayButton } from "expo-video";
 import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedView";
 import { useRouter } from "expo-router";
 import { useFAPIAuth } from "@/lib/fapi-auth";
@@ -1623,6 +1623,22 @@ export default function Index() {
           >
             {isMuted ? <VolumeX size={22} color="#fff" /> : <Volume2 size={22} color="#fff" />}
           </TouchableOpacity>
+          {/* AirPlay button */}
+          <View
+            style={{
+              position: "absolute",
+              top: insets.top + 12,
+              left: 72,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: "rgba(0,0,0,0.6)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <VideoAirPlayButton tint="white" activeTint="#9ACD32" style={{ width: 30, height: 30 }} />
+          </View>
         </Pressable>
       </Modal>
 
