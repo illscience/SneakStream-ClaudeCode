@@ -6,6 +6,7 @@ import { api } from "../../convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { MessageSquare, UserPlus, Radio, Bell, Reply } from "lucide-react";
 import MainNav from "@/components/navigation/MainNav";
+import Link from "next/link";
 
 function formatRelativeTime(timestamp: number): string {
   const now = Date.now();
@@ -146,14 +147,24 @@ export default function NotificationsPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {notifications.map((notification) => (
-              <div
+            {notifications.map((notification) => {
+              const hasMessageLink = Boolean(
+                notification.messageId &&
+                  (notification.type === "mention" || notification.type === "reply")
+              )
+              const Wrapper = hasMessageLink ? Link : "div"
+              const wrapperProps = hasMessageLink
+                ? { href: `/?scrollTo=${notification.messageId}` }
+                : {}
+              return (
+              <Wrapper
                 key={notification._id}
+                {...(wrapperProps as any)}
                 className={`flex items-start gap-3 p-4 rounded-xl border transition-colors ${
                   notification.isRead
                     ? "bg-zinc-900/50 border-zinc-800/50 opacity-70"
                     : "bg-zinc-900 border-zinc-800"
-                }`}
+                }${hasMessageLink ? " cursor-pointer hover:border-zinc-600" : ""}`}
               >
                 {/* Unread indicator */}
                 <div className="flex-shrink-0 pt-1">
@@ -193,8 +204,9 @@ export default function NotificationsPage() {
                     {formatRelativeTime(notification.createdAt)}
                   </p>
                 </div>
-              </div>
-            ))}
+              </Wrapper>
+              )
+            })}
           </div>
         )}
       </main>

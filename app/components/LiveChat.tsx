@@ -117,6 +117,9 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
   const [showMentionPopup, setShowMentionPopup] = useState(false)
   const [mentionPosition, setMentionPosition] = useState<number | null>(null)
   const [replyingTo, setReplyingTo] = useState<{ id: string; userName: string; body: string } | null>(null)
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null)
+  const scrollTargetRef = useRef<string | null>(null)
+  const scrollAttemptsRef = useRef(0)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const hasSyncedUserRef = useRef(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -401,6 +404,53 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
     return () => observer.disconnect()
   }, [status, loadMore])
 
+  // Listen for "chat:scrollToMessage" custom events from notification clicks
+  useEffect(() => {
+    const handleScrollToMessage = (e: Event) => {
+      const messageId = (e as CustomEvent).detail?.messageId
+      if (!messageId) return
+
+      scrollAttemptsRef.current = 0
+      scrollTargetRef.current = messageId
+
+      // Try immediate scroll if already rendered
+      const el = document.querySelector(`[data-message-id="${messageId}"]`)
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" })
+        setHighlightedMessageId(messageId)
+        scrollTargetRef.current = null
+        setTimeout(() => setHighlightedMessageId(null), 2000)
+      } else if (status === "CanLoadMore") {
+        // Message not loaded yet — trigger load more
+        loadMore(30)
+      }
+    }
+    window.addEventListener("chat:scrollToMessage", handleScrollToMessage)
+    return () => window.removeEventListener("chat:scrollToMessage", handleScrollToMessage)
+  }, [status, loadMore])
+
+  // After messages update, check if our scroll target has appeared
+  useEffect(() => {
+    const targetId = scrollTargetRef.current
+    if (!targetId) return
+
+    const el = document.querySelector(`[data-message-id="${targetId}"]`)
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" })
+      setHighlightedMessageId(targetId)
+      scrollTargetRef.current = null
+      scrollAttemptsRef.current = 0
+      setTimeout(() => setHighlightedMessageId(null), 2000)
+    } else if (status === "CanLoadMore" && scrollAttemptsRef.current < 10) {
+      scrollAttemptsRef.current += 1
+      loadMore(30)
+    } else {
+      // Give up — message too old or doesn't exist
+      scrollTargetRef.current = null
+      scrollAttemptsRef.current = 0
+    }
+  }, [messages, status, loadMore])
+
   return (
     <div className="flex flex-col touch-pan-y">
       <div className="flex items-center gap-2 mb-4">
@@ -683,7 +733,8 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
               return (
                 <div
                   key={message._id}
-                  className="group relative overflow-hidden rounded-xl border border-[#c4ff0e]/40 bg-gradient-to-r from-[#c4ff0e]/20 via-zinc-900 to-[#ff00ff]/20 p-4"
+                  data-message-id={message._id}
+                  className={`group relative overflow-hidden rounded-xl border border-[#c4ff0e]/40 bg-gradient-to-r from-[#c4ff0e]/20 via-zinc-900 to-[#ff00ff]/20 p-4 transition-shadow duration-500${highlightedMessageId === message._id ? " ring-2 ring-[#c4ff0e] shadow-[0_0_12px_rgba(196,255,14,0.4)]" : ""}`}
                 >
                   {/* Sparkle effect */}
                   <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTAiIGN5PSIxMCIgcj0iMSIgZmlsbD0icmdiYSgxOTYsMjU1LDE0LDAuMykiLz48L3N2Zz4=')] opacity-50" />
@@ -786,7 +837,7 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
             // Render crate purchase message
             if (crateData) {
               return (
-                <div key={message._id} className="flex items-center gap-3">
+                <div key={message._id} data-message-id={message._id} className={`flex items-center gap-3 transition-shadow duration-500 rounded-xl${highlightedMessageId === message._id ? " ring-2 ring-[#c4ff0e] shadow-[0_0_12px_rgba(196,255,14,0.4)]" : ""}`}>
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#ff00ff] text-white">
                     <Disc3 className="h-4 w-4" />
                   </div>
@@ -809,7 +860,7 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
               const isWon = auctionData.type === "auction_won"
               const isOutbid = auctionData.type === "outbid"
               return (
-                <div key={message._id} className="flex items-center gap-3">
+                <div key={message._id} data-message-id={message._id} className={`flex items-center gap-3 transition-shadow duration-500 rounded-xl${highlightedMessageId === message._id ? " ring-2 ring-[#c4ff0e] shadow-[0_0_12px_rgba(196,255,14,0.4)]" : ""}`}>
                   <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
                     isWon ? "bg-[#c4ff0e] text-black" : "bg-[#ff00ff] text-white"
                   }`}>
@@ -838,7 +889,7 @@ export default function LiveChat({ livestreamId, streamStartedAt }: LiveChatProp
             }
 
             return (
-              <div key={message._id} className="flex gap-3 group">
+              <div key={message._id} data-message-id={message._id} className={`flex gap-3 group transition-shadow duration-500 rounded-xl${highlightedMessageId === message._id ? " ring-2 ring-[#c4ff0e] shadow-[0_0_12px_rgba(196,255,14,0.4)]" : ""}`}>
                 <div className="w-10 h-10 rounded-full border-2 border-[#ff00ff] flex-shrink-0 overflow-hidden flex items-center justify-center bg-black/40 text-[#c4ff0e] font-semibold"
                   style={{ boxShadow: "0 0 8px rgba(255, 0, 255, 0.4)" }}>
                   {message.avatarUrl ? (

@@ -172,14 +172,30 @@ export default function NotificationBell() {
               </div>
             ) : (
               <div>
-                {notifications.map((notification) => (
-                  <div
+                {notifications.map((notification) => {
+                  const hasMessageLink = Boolean(
+                    notification.messageId &&
+                      (notification.type === "mention" || notification.type === "reply")
+                  )
+                  return (
+                  <button
                     key={notification._id}
-                    className={`flex items-start gap-2.5 px-4 py-3 border-b border-zinc-800/50 transition-colors ${
+                    type="button"
+                    disabled={!hasMessageLink}
+                    onClick={() => {
+                      if (!hasMessageLink) return
+                      setOpen(false)
+                      window.dispatchEvent(
+                        new CustomEvent("chat:scrollToMessage", {
+                          detail: { messageId: notification.messageId },
+                        })
+                      )
+                    }}
+                    className={`w-full text-left flex items-start gap-2.5 px-4 py-3 border-b border-zinc-800/50 transition-colors ${
                       notification.isRead
                         ? "opacity-60"
                         : "bg-zinc-800/30"
-                    }`}
+                    }${hasMessageLink ? " cursor-pointer hover:bg-zinc-800/60" : " cursor-default"}`}
                   >
                     {/* Unread dot */}
                     <div className="flex-shrink-0 pt-1.5">
@@ -219,8 +235,9 @@ export default function NotificationBell() {
                         {formatRelativeTime(notification.createdAt)}
                       </p>
                     </div>
-                  </div>
-                ))}
+                  </button>
+                  )
+                })}
               </div>
             )}
           </div>

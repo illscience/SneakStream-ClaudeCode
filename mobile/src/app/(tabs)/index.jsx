@@ -216,6 +216,10 @@ export default function Index() {
   const scrollViewRef = useRef(null);
   const [contentHeight, setContentHeight] = useState(0);
   const [scrollViewHeight, setScrollViewHeight] = useState(0);
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null);
+  const scrollTargetRef = useRef(null);
+  const scrollAttemptsRef = useRef(0);
+  const messageLayoutsRef = useRef({});
 
   const { width } = Dimensions.get("window");
   const videoHeight = width * (9 / 16);
@@ -255,6 +259,34 @@ export default function Index() {
       loadMore(15);
     }
   }, [canLoadMore, isLoadingMore, loadMore]);
+
+  // After messages update, check if scroll-to target has appeared
+  useEffect(() => {
+    const targetId = scrollTargetRef.current;
+    if (!targetId || !messages) return;
+
+    const found = messages.some((m) => m._id === targetId);
+    if (found) {
+      // Delay briefly so onLayout fires for the new messages
+      setTimeout(() => {
+        const yOffset = messageLayoutsRef.current[targetId];
+        if (yOffset != null && scrollViewRef.current) {
+          scrollViewRef.current.scrollTo({ y: yOffset, animated: true });
+        }
+        setHighlightedMessageId(targetId);
+        scrollTargetRef.current = null;
+        scrollAttemptsRef.current = 0;
+        setTimeout(() => setHighlightedMessageId(null), 2000);
+      }, 300);
+    } else if (canLoadMore && !isLoadingMore && scrollAttemptsRef.current < 10) {
+      scrollAttemptsRef.current += 1;
+      loadMore(15);
+    } else {
+      // Give up
+      scrollTargetRef.current = null;
+      scrollAttemptsRef.current = 0;
+    }
+  }, [messages, canLoadMore, isLoadingMore, loadMore]);
 
   const isLive = !!activeStream?.playbackUrl;
 
@@ -424,6 +456,14 @@ export default function Index() {
     setIsNotificationsOpen(false);
     markAllAsRead().catch((e) => console.error("[Notifications] markAllAsRead failed:", e));
   }, [markAllAsRead]);
+
+  const handleNotificationTap = useCallback((notif) => {
+    if (!notif.messageId) return;
+    if (notif.type !== "mention" && notif.type !== "reply") return;
+    scrollTargetRef.current = notif.messageId;
+    scrollAttemptsRef.current = 0;
+    handleCloseNotifications();
+  }, [handleCloseNotifications]);
 
   const handleSendMessage = useCallback(async () => {
     console.log("[Chat] handleSendMessage — isSignedIn:", isSignedIn, "isConvexAuthenticated:", isConvexAuthenticated, "isSending:", isSending, "msg:", chatMessage.trim().substring(0, 20));
@@ -1152,12 +1192,16 @@ export default function Index() {
 
                 if (tipData) {
                   return (
-                    <View key={msg._id} style={{ marginBottom: index < messages.length - 1 ? 20 : 0 }}>
+                    <View
+                      key={msg._id}
+                      onLayout={(e) => { messageLayoutsRef.current[msg._id] = e.nativeEvent.layout.y; }}
+                      style={{ marginBottom: index < messages.length - 1 ? 20 : 0 }}
+                    >
                       <View
                         style={{
                           backgroundColor: "rgba(196, 255, 14, 0.12)",
-                          borderColor: "rgba(196, 255, 14, 0.4)",
-                          borderWidth: 1,
+                          borderColor: highlightedMessageId === msg._id ? "#c4ff0e" : "rgba(196, 255, 14, 0.4)",
+                          borderWidth: highlightedMessageId === msg._id ? 2 : 1,
                           borderRadius: 12,
                           paddingHorizontal: 12,
                           paddingVertical: 10,
@@ -1223,7 +1267,14 @@ export default function Index() {
 
                 if (cratePurchase) {
                   return (
-                    <View key={msg._id} style={{ marginBottom: index < messages.length - 1 ? 20 : 0 }}>
+                    <View
+                      key={msg._id}
+                      onLayout={(e) => { messageLayoutsRef.current[msg._id] = e.nativeEvent.layout.y; }}
+                      style={{
+                        marginBottom: index < messages.length - 1 ? 20 : 0,
+                        ...(highlightedMessageId === msg._id ? { borderWidth: 2, borderColor: "#c4ff0e", borderRadius: 12 } : {}),
+                      }}
+                    >
                       <View
                         style={{
                           backgroundColor: "#3b0764",
@@ -1261,7 +1312,14 @@ export default function Index() {
                       : "placed a bid of";
 
                   return (
-                    <View key={msg._id} style={{ marginBottom: index < messages.length - 1 ? 20 : 0 }}>
+                    <View
+                      key={msg._id}
+                      onLayout={(e) => { messageLayoutsRef.current[msg._id] = e.nativeEvent.layout.y; }}
+                      style={{
+                        marginBottom: index < messages.length - 1 ? 20 : 0,
+                        ...(highlightedMessageId === msg._id ? { borderWidth: 2, borderColor: "#c4ff0e", borderRadius: 12 } : {}),
+                      }}
+                    >
                       <View
                         style={{
                           backgroundColor: isWon ? "#274e13" : "#3b0764",
@@ -1299,7 +1357,12 @@ export default function Index() {
                 <Pressable
                   key={msg._id}
                   onPress={() => handleMessageTap(msg._id)}
-                  style={{ marginBottom: index < messages.length - 1 ? 20 : 0, position: "relative" }}
+                  onLayout={(e) => { messageLayoutsRef.current[msg._id] = e.nativeEvent.layout.y; }}
+                  style={{
+                    marginBottom: index < messages.length - 1 ? 20 : 0,
+                    position: "relative",
+                    ...(highlightedMessageId === msg._id ? { borderWidth: 2, borderColor: "#c4ff0e", borderRadius: 12, paddingHorizontal: 4 } : {}),
+                  }}
                 >
                 <View style={{ flexDirection: "row" }}>
                   <View
@@ -1509,6 +1572,7 @@ export default function Index() {
               ) : (
                 notifications.map((notif) => {
                   const isUnread = !notif.isRead;
+                  const hasMessageLink = notif.messageId && (notif.type === "mention" || notif.type === "reply");
                   const NotifIcon =
                     notif.type === "mention" ? MessageSquare
                     : notif.type === "follow" ? UserPlus
@@ -1529,8 +1593,9 @@ export default function Index() {
                     : "notification";
 
                   return (
-                    <View
+                    <Pressable
                       key={notif._id}
+                      onPress={() => hasMessageLink && handleNotificationTap(notif)}
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
@@ -1585,7 +1650,7 @@ export default function Index() {
                       </View>
 
                       <NotifIcon size={16} color={iconColor} />
-                    </View>
+                    </Pressable>
                   );
                 })
               )}

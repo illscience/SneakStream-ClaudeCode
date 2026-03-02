@@ -11,6 +11,7 @@ import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 export default function Home() {
@@ -19,6 +20,24 @@ export default function Home() {
   const [isMuted, setIsMuted] = useState(true);
   const [isDesktop, setIsDesktop] = useState(false);
   const [viewerCount, setViewerCount] = useState<number>(0);
+
+  // Handle ?scrollTo=messageId from notification links
+  const searchParams = useSearchParams();
+  const scrollToMessageId = searchParams.get("scrollTo");
+  useEffect(() => {
+    if (!scrollToMessageId) return;
+    // Delay to allow LiveChat to mount
+    const timer = setTimeout(() => {
+      window.dispatchEvent(
+        new CustomEvent("chat:scrollToMessage", {
+          detail: { messageId: scrollToMessageId },
+        })
+      );
+      // Clean up the URL without a full navigation
+      window.history.replaceState({}, "", "/");
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [scrollToMessageId]);
 
   // Check screen size for responsive layout
   useEffect(() => {
