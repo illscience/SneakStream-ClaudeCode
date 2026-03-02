@@ -33,15 +33,16 @@ import {
   Radio,
   X,
 } from "lucide-react-native";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useContext } from "react";
 import { useQuery, useMutation, usePaginatedQuery, useConvexAuth } from "convex/react";
 import { api } from "convex/_generated/api";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { useVideoPlayer, VideoView, VideoAirPlayButton } from "expo-video";
 import KeyboardAvoidingAnimatedView from "@/components/KeyboardAvoidingAnimatedView";
 import { useRouter } from "expo-router";
 import { useFAPIAuth } from "@/lib/fapi-auth";
 import AuctionPanel from "@/components/AuctionPanel";
 import ClipShareButton from "@/components/ClipShareButton";
+import { ScrollToTopContext } from "./_layout";
 import LogoShimmer from "@/components/LogoShimmer";
 import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
@@ -165,6 +166,44 @@ const parseAuctionToken = (body) => {
 
 const TIP_EMOJI_MAP = { fire: "\u{1F525}", heart: "\u2764\uFE0F", rocket: "\u{1F680}", clap: "\u{1F44F}" };
 
+const formatReplyBody = (body) => {
+  if (typeof body !== "string") return "";
+  const tipMatch = body.trim().match(TIP_PATTERN);
+  if (tipMatch) {
+    try {
+      const parsed = JSON.parse(tipMatch[1]);
+      if (parsed && typeof parsed.amount === "number") {
+        return `Tipped $${(parsed.amount / 100).toFixed(2)}`;
+      }
+    } catch {}
+    return "Tipped";
+  }
+  const crateMatch = body.trim().match(CRATE_PURCHASE_PATTERN);
+  if (crateMatch) {
+    try {
+      const parsed = JSON.parse(crateMatch[1]);
+      if (parsed && typeof parsed.amount === "number") {
+        return `Added a track to their crate for $${Math.round(parsed.amount / 100)}`;
+      }
+    } catch {}
+    return "Crate purchase";
+  }
+  const auctionMatch = body.trim().match(AUCTION_PATTERN);
+  if (auctionMatch) {
+    try {
+      const parsed = JSON.parse(auctionMatch[1]);
+      if (parsed && typeof parsed.amount === "number") {
+        const verb = parsed.type === "auction_won" ? "Won the auction for" : parsed.type === "outbid" ? "Outbid with" : "Placed a bid of";
+        return `${verb} $${Math.round(parsed.amount / 100)}`;
+      }
+    } catch {}
+    return "Auction bid";
+  }
+  const emoteMatch = body.trim().match(EMOTE_TOKEN_PATTERN);
+  if (emoteMatch) return "Sent an emote";
+  return body;
+};
+
 const parseTipToken = (body) => {
   if (typeof body !== "string") return null;
   const match = body.trim().match(TIP_PATTERN);
@@ -211,15 +250,27 @@ export default function Index() {
   const [loveAnimatingId, setLoveAnimatingId] = useState(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const lastTapRef = useRef({ messageId: null, time: 0 });
+  const videoTapRef = useRef(0);
+  const [videoHeartVisible, setVideoHeartVisible] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [hasSyncedPlayback, setHasSyncedPlayback] = useState(false);
+  const videoViewRef = useRef(null);
   const scrollViewRef = useRef(null);
   const [contentHeight, setContentHeight] = useState(0);
   const [scrollViewHeight, setScrollViewHeight] = useState(0);
+  const [replyingTo, setReplyingTo] = useState(null); // { id, userName, body }
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const scrollTargetRef = useRef(null);
   const scrollAttemptsRef = useRef(0);
   const messageLayoutsRef = useRef({});
+
+  const scrollToTopSignal = useContext(ScrollToTopContext);
+  useEffect(() => {
+    if (scrollToTopSignal.route === "index" && scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ y: 0, animated: true });
+    }
+  }, [scrollToTopSignal.count]);
 
   const { width } = Dimensions.get("window");
   const videoHeight = width * (9 / 16);
@@ -426,6 +477,18 @@ export default function Index() {
     }
   }, [heartVideoId, incrementHeart]);
 
+  const handleVideoDoubleTap = useCallback(() => {
+    const now = Date.now();
+    if (now - videoTapRef.current < 300) {
+      videoTapRef.current = 0;
+      setVideoHeartVisible(true);
+      setTimeout(() => setVideoHeartVisible(false), 600);
+      handleHeart();
+    } else {
+      videoTapRef.current = now;
+    }
+  }, [handleHeart]);
+
   const handleMessageTap = useCallback((messageId) => {
     const now = Date.now();
     const last = lastTapRef.current;
@@ -440,13 +503,19 @@ export default function Index() {
   }, [canSendChat, loveMessage]);
 
   const handleLoveMessage = useCallback((messageId) => {
-    if (!canSendChat) return;
+    if (!canSendChat) {
+      Alert.alert("Sign in required", "You need to sign in to like messages.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign in", onPress: () => router.push("/sign-in") },
+      ]);
+      return;
+    }
     setLoveAnimatingId(messageId);
     setTimeout(() => setLoveAnimatingId(null), 600);
     loveMessage({ messageId }).catch((error) => {
       console.error("[Chat] loveMessage failed:", error?.message || error);
     });
-  }, [canSendChat, loveMessage]);
+  }, [canSendChat, loveMessage, router]);
 
   const handleOpenNotifications = useCallback(() => {
     setIsNotificationsOpen(true);
@@ -473,13 +542,17 @@ export default function Index() {
     }
 
     const body = chatMessage.trim();
+    const currentReply = replyingTo;
     setChatMessage("");
     setIsEmotePickerOpen(false);
+    setReplyingTo(null);
     setIsSending(true);
 
     try {
       console.log("[Chat] calling sendMessage mutation with body:", body.substring(0, 30));
-      await sendMessage({ body });
+      const args = { body };
+      if (currentReply?.id) args.replyToId = currentReply.id;
+      await sendMessage(args);
       console.log("[Chat] sendMessage SUCCESS");
     } catch (error) {
       console.error("[Chat] sendMessage FAILED:", error?.message || error);
@@ -487,7 +560,7 @@ export default function Index() {
     } finally {
       setIsSending(false);
     }
-  }, [chatMessage, isSending, isSignedIn, isConvexAuthenticated, canSendChat, sendMessage]);
+  }, [chatMessage, isSending, isSignedIn, isConvexAuthenticated, canSendChat, sendMessage, replyingTo]);
 
   const handleToggleEmotePicker = useCallback(() => {
     if (!canSendChat || isSending) return;
@@ -511,6 +584,7 @@ export default function Index() {
   const handlePickPhoto = useCallback(async () => {
     if (!canSendChat || isSending) return;
     setIsEmotePickerOpen(false);
+    const currentReply = replyingTo;
 
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -569,24 +643,28 @@ export default function Index() {
       }
 
       const messageText = chatMessage.trim();
-      await sendMessage({
+      const sendArgs = {
         body: messageText || "",
         imageStorageId: storageId,
         imageMimeType: mimeType,
-      });
+      };
+      if (currentReply?.id) sendArgs.replyToId = currentReply.id;
+      await sendMessage(sendArgs);
       if (messageText) {
         setChatMessage("");
       }
+      setReplyingTo(null);
     } catch (error) {
       console.error("[Chat] failed to upload photo:", error?.message || error);
       Alert.alert("Upload failed", "We could not send that photo. Please try again.");
     } finally {
       setIsSending(false);
     }
-  }, [canSendChat, isSending, chatMessage, generateUploadUrl, sendMessage]);
+  }, [canSendChat, isSending, chatMessage, generateUploadUrl, sendMessage, replyingTo]);
 
   const handlePaste = useCallback(async (payload) => {
     if (payload.type !== "images" || !payload.uris?.length) return;
+    const currentReply = replyingTo;
 
     // iOS stores copied URLs as public.url (not public.plain-text), so
     // hasStringAsync() misses them. Check for URLs first, then plain text.
@@ -636,21 +714,24 @@ export default function Index() {
       }
 
       const messageText = chatMessage.trim();
-      await sendMessage({
+      const sendArgs = {
         body: messageText || "",
         imageStorageId: storageId,
         imageMimeType: mimeType,
-      });
+      };
+      if (currentReply?.id) sendArgs.replyToId = currentReply.id;
+      await sendMessage(sendArgs);
       if (messageText) {
         setChatMessage("");
       }
+      setReplyingTo(null);
     } catch (error) {
       console.error("[Chat] failed to upload pasted image:", error?.message || error);
       Alert.alert("Upload failed", "We could not send that image. Please try again.");
     } finally {
       setIsSending(false);
     }
-  }, [canSendChat, isSending, chatMessage, generateUploadUrl, sendMessage]);
+  }, [canSendChat, isSending, chatMessage, generateUploadUrl, sendMessage, replyingTo]);
 
   const videoTitle = currentVideo?.title || "Loading...";
   // Heart count always comes from the video record (not the livestream object)
@@ -804,7 +885,8 @@ export default function Index() {
           </View>
 
           {/* Video Player */}
-          <View
+          <Pressable
+            onPress={handleVideoDoubleTap}
             style={{
               position: "relative",
               width: "100%",
@@ -814,6 +896,7 @@ export default function Index() {
           >
             {videoSource ? (
               <VideoView
+                ref={videoViewRef}
                 player={player}
                 style={{ width: "100%", height: "100%" }}
                 contentFit="contain"
@@ -826,6 +909,24 @@ export default function Index() {
               </View>
             )}
 
+            {/* Double-tap heart animation */}
+            {videoHeartVisible && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  pointerEvents: "none",
+                }}
+              >
+                <Heart size={72} color="#DC2626" fill="#DC2626" style={{ opacity: 0.85 }} />
+              </View>
+            )}
+
             {/* Video Overlay Controls */}
             <View
               style={{
@@ -835,6 +936,8 @@ export default function Index() {
               }}
             >
               <TouchableOpacity
+                onPress={() => setIsFullscreen(true)}
+                activeOpacity={0.7}
                 style={{
                   width: 44,
                   height: 44,
@@ -869,7 +972,7 @@ export default function Index() {
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </Pressable>
 
           {/* Progress Bar */}
           <View style={{ padding: 20, alignItems: "center" }}>
@@ -1023,6 +1126,36 @@ export default function Index() {
           {isSignedIn ? (
             canSendChat ? (
               <>
+                {replyingTo && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      backgroundColor: "rgba(39,39,42,0.6)",
+                      borderLeftWidth: 3,
+                      borderLeftColor: "#9ACD32",
+                      borderRadius: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 12, color: "#9ACD32", fontWeight: "700" }}>
+                        Replying to {replyingTo.userName}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: "#888" }} numberOfLines={1}>
+                        {formatReplyBody(replyingTo.body)}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setReplyingTo(null)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <X size={16} color="#888" />
+                    </TouchableOpacity>
+                  </View>
+                )}
                 <View style={{ flexDirection: "row", alignItems: "center", marginBottom: isEmotePickerOpen ? 12 : 24 }}>
                   <TouchableOpacity
                     onPress={handlePickPhoto}
@@ -1223,6 +1356,12 @@ export default function Index() {
                           <Text style={{ fontSize: 20, color: "#000", fontWeight: "700" }}>$</Text>
                         </View>
                         <View style={{ flex: 1 }}>
+                          {msg.replyTo && (
+                            <View style={{ borderLeftWidth: 2, borderLeftColor: "rgba(196,255,14,0.5)", backgroundColor: "rgba(39,39,42,0.5)", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6, marginBottom: 6 }}>
+                              <Text style={{ fontSize: 12, fontWeight: "700", color: "#c4ff0e" }}>{msg.replyTo.userName}</Text>
+                              <Text style={{ fontSize: 12, color: "#aaa" }} numberOfLines={1}>{formatReplyBody(msg.replyTo.body)}</Text>
+                            </View>
+                          )}
                           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
                             <Text style={{ color: "#c4ff0e", fontWeight: "700", fontSize: 14 }}>
                               {msg.userName || "Someone"}
@@ -1260,6 +1399,40 @@ export default function Index() {
                             </View>
                           ) : null}
                         </View>
+                      </View>
+                      {/* Actions row for tip */}
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 }}>
+                        <TouchableOpacity
+                          onPress={() => handleLoveMessage(msg._id)}
+                          activeOpacity={0.7}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            backgroundColor: msg.loveCount > 0 ? "#DC2626" : "rgba(39,39,42,0.6)",
+                            paddingHorizontal: 10,
+                            paddingVertical: 5,
+                            borderRadius: 14,
+                          }}
+                        >
+                          <Heart size={12} color="#fff" fill={msg.loveCount > 0 ? "#fff" : "none"} />
+                          <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700", marginLeft: 4 }}>
+                            {msg.loveCount || 0}
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => setReplyingTo({ id: msg._id, userName: msg.userName || "Someone", body: rawBody })}
+                          activeOpacity={0.7}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            backgroundColor: "rgba(39,39,42,0.6)",
+                            paddingHorizontal: 8,
+                            paddingVertical: 5,
+                            borderRadius: 14,
+                          }}
+                        >
+                          <Reply size={12} color="#999" />
+                        </TouchableOpacity>
                       </View>
                     </View>
                   );
@@ -1396,6 +1569,13 @@ export default function Index() {
                       </Text>
                     </View>
 
+                    {msg.replyTo && (
+                      <View style={{ borderLeftWidth: 2, borderLeftColor: "rgba(196,255,14,0.5)", backgroundColor: "rgba(39,39,42,0.5)", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6, marginBottom: 6 }}>
+                        <Text style={{ fontSize: 12, fontWeight: "700", color: "#c4ff0e" }}>{msg.replyTo.userName}</Text>
+                        <Text style={{ fontSize: 12, color: "#aaa" }} numberOfLines={1}>{formatReplyBody(msg.replyTo.body)}</Text>
+                      </View>
+                    )}
+
                     {emoteUri ? (
                       <View style={{ marginBottom: 8 }}>
                         <Image
@@ -1453,25 +1633,69 @@ export default function Index() {
                       </View>
                     ) : null}
 
-                    {/* Likes */}
-                    <TouchableOpacity
-                      onPress={() => handleLoveMessage(msg._id)}
-                      activeOpacity={0.7}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        backgroundColor: msg.loveCount > 0 ? "#DC2626" : "rgba(39,39,42,0.6)",
-                        paddingHorizontal: 12,
-                        paddingVertical: 6,
-                        borderRadius: 16,
-                        alignSelf: "flex-start",
-                      }}
-                    >
-                      <Heart size={14} color="#fff" fill={msg.loveCount > 0 ? "#fff" : "none"} />
-                      <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginLeft: 6 }}>
-                        {msg.loveCount || 0}
-                      </Text>
-                    </TouchableOpacity>
+                    {/* Likes & Reply */}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <TouchableOpacity
+                        onPress={() => handleLoveMessage(msg._id)}
+                        activeOpacity={0.7}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          backgroundColor: msg.loveCount > 0 ? "#DC2626" : "rgba(39,39,42,0.6)",
+                          paddingHorizontal: 12,
+                          paddingVertical: 6,
+                          borderRadius: 16,
+                        }}
+                      >
+                        <Heart size={14} color="#fff" fill={msg.loveCount > 0 ? "#fff" : "none"} />
+                        <Text style={{ color: "#fff", fontSize: 14, fontWeight: "700", marginLeft: 6 }}>
+                          {msg.loveCount || 0}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => setReplyingTo({ id: msg._id, userName: msg.userName || msg.user || "User", body: rawBody })}
+                        activeOpacity={0.7}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          backgroundColor: "rgba(39,39,42,0.6)",
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 16,
+                        }}
+                      >
+                        <Reply size={14} color="#999" />
+                      </TouchableOpacity>
+                      {msg.recentLovers?.length > 0 && (
+                        <View style={{ flexDirection: "row", alignItems: "center" }}>
+                          {msg.recentLovers.map((lover) => (
+                            <View
+                              key={`${msg._id}-${lover.clerkId}`}
+                              style={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: 10,
+                                backgroundColor: "#27272a",
+                                borderWidth: 1,
+                                borderColor: "#18181b",
+                                overflow: "hidden",
+                                marginLeft: -4,
+                                justifyContent: "center",
+                                alignItems: "center",
+                              }}
+                            >
+                              {lover.avatarUrl ? (
+                                <Image source={{ uri: lover.avatarUrl }} style={{ width: 20, height: 20 }} contentFit="cover" />
+                              ) : (
+                                <Text style={{ color: "#fff", fontSize: 9, fontWeight: "700" }}>
+                                  {(lover.alias || "U").charAt(0).toUpperCase()}
+                                </Text>
+                              )}
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
                   </View>
                 </View>
 
@@ -1518,6 +1742,95 @@ export default function Index() {
           )}
         </View>
       </ScrollView>
+
+      {/* Fullscreen Video Modal */}
+      <Modal
+        visible={isFullscreen}
+        animationType="fade"
+        supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
+        onRequestClose={() => setIsFullscreen(false)}
+      >
+        <Pressable
+          onPress={handleVideoDoubleTap}
+          style={{ flex: 1, backgroundColor: "#000" }}
+        >
+          <VideoView
+            player={player}
+            style={{ flex: 1 }}
+            contentFit="contain"
+            nativeControls={false}
+          />
+          {/* Double-tap heart animation */}
+          {videoHeartVisible && (
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                justifyContent: "center",
+                alignItems: "center",
+                pointerEvents: "none",
+              }}
+            >
+              <Heart size={96} color="#DC2626" fill="#DC2626" style={{ opacity: 0.85 }} />
+            </View>
+          )}
+          {/* Close button */}
+          <TouchableOpacity
+            onPress={() => setIsFullscreen(false)}
+            activeOpacity={0.7}
+            style={{
+              position: "absolute",
+              top: insets.top + 12,
+              right: 16,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: "rgba(0,0,0,0.6)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <X size={24} color="#fff" />
+          </TouchableOpacity>
+          {/* Mute button */}
+          <TouchableOpacity
+            onPress={() => setIsMuted((m) => !m)}
+            activeOpacity={0.7}
+            style={{
+              position: "absolute",
+              top: insets.top + 12,
+              left: 16,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: isMuted ? "#DC2626" : "rgba(0,0,0,0.6)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            {isMuted ? <VolumeX size={22} color="#fff" /> : <Volume2 size={22} color="#fff" />}
+          </TouchableOpacity>
+          {/* AirPlay button */}
+          <View
+            style={{
+              position: "absolute",
+              top: insets.top + 12,
+              left: 72,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: "rgba(0,0,0,0.6)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <VideoAirPlayButton tint="white" activeTint="#9ACD32" style={{ width: 30, height: 30 }} />
+          </View>
+        </Pressable>
+      </Modal>
 
       {/* Notifications Modal */}
       <Modal

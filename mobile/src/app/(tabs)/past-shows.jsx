@@ -2,6 +2,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Eye, Film, Play, Clock } from "lucide-react-native";
 import { ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useContext, useEffect, useRef } from "react";
+import { ScrollToTopContext } from "./_layout";
 
 const PAST_SHOWS = [
   {
@@ -56,10 +58,19 @@ const PAST_SHOWS = [
 
 export default function PastShowsScreen() {
   const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef(null);
+  const scrollToTopSignal = useContext(ScrollToTopContext);
+
+  useEffect(() => {
+    if (scrollToTopSignal.route === "past-shows" && scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ y: 0, animated: true });
+    }
+  }, [scrollToTopSignal.count]);
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
       <ScrollView
+        ref={scrollViewRef}
         style={{ flex: 1 }}
         contentContainerStyle={{
           paddingTop: insets.top + 16,
