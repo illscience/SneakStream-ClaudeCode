@@ -257,13 +257,13 @@ export default function Index() {
   const [hasSyncedPlayback, setHasSyncedPlayback] = useState(false);
   const videoViewRef = useRef(null);
   const scrollViewRef = useRef(null);
-  const [contentHeight, setContentHeight] = useState(0);
-  const [scrollViewHeight, setScrollViewHeight] = useState(0);
   const [replyingTo, setReplyingTo] = useState(null); // { id, userName, body }
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
-  const scrollTargetRef = useRef(null);
-  const scrollAttemptsRef = useRef(0);
-  const messageLayoutsRef = useRef({});
+  const [scrollTargetId, setScrollTargetId] = useState(null);
+  const [expandedNotifId, setExpandedNotifId] = useState(null);
+  const chatInputRef = useRef(null);
+  const chatInputYRef = useRef(0);
+  const messageLayoutsRef = useRef({}); // {[msgId]: y} from onLayout
 
   const scrollToTopSignal = useContext(ScrollToTopContext);
   useEffect(() => {
@@ -311,33 +311,32 @@ export default function Index() {
     }
   }, [canLoadMore, isLoadingMore, loadMore]);
 
-  // After messages update, check if scroll-to target has appeared
-  useEffect(() => {
-    const targetId = scrollTargetRef.current;
-    if (!targetId || !messages) return;
+  // Check if scroll target is in the already-loaded messages
+  const scrollTargetInLoaded = scrollTargetId && messages?.some((m) => m._id === scrollTargetId);
 
-    const found = messages.some((m) => m._id === targetId);
-    if (found) {
-      // Delay briefly so onLayout fires for the new messages
-      setTimeout(() => {
-        const yOffset = messageLayoutsRef.current[targetId];
-        if (yOffset != null && scrollViewRef.current) {
-          scrollViewRef.current.scrollTo({ y: yOffset, animated: true });
-        }
-        setHighlightedMessageId(targetId);
-        scrollTargetRef.current = null;
-        scrollAttemptsRef.current = 0;
-        setTimeout(() => setHighlightedMessageId(null), 2000);
-      }, 300);
-    } else if (canLoadMore && !isLoadingMore && scrollAttemptsRef.current < 10) {
-      scrollAttemptsRef.current += 1;
-      loadMore(15);
-    } else {
-      // Give up
-      scrollTargetRef.current = null;
-      scrollAttemptsRef.current = 0;
-    }
-  }, [messages, canLoadMore, isLoadingMore, loadMore]);
+  // Derive expanded notification and fetch its referenced message
+  const expandedNotif = expandedNotifId && notifications?.find((n) => n._id === expandedNotifId);
+  const expandedMessageId = expandedNotif?.messageId || null;
+  const expandedMessage = useQuery(
+    api.chat.getMessageById,
+    expandedMessageId ? { messageId: expandedMessageId } : "skip"
+  );
+  const expandedMessageInLoaded = expandedMessageId && messages?.some((m) => m._id === expandedMessageId);
+
+  // If message is already loaded, scroll to it
+  useEffect(() => {
+    if (!scrollTargetId || !scrollTargetInLoaded) return;
+
+    setTimeout(() => {
+      const yPos = messageLayoutsRef.current[scrollTargetId];
+      if (yPos !== undefined && scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({ y: Math.max(0, yPos - 80), animated: true });
+      }
+      setHighlightedMessageId(scrollTargetId);
+      setScrollTargetId(null);
+      setTimeout(() => setHighlightedMessageId(null), 2000);
+    }, 150);
+  }, [scrollTargetId, scrollTargetInLoaded]);
 
   const isLive = !!activeStream?.playbackUrl;
 
@@ -523,23 +522,33 @@ export default function Index() {
 
   const handleCloseNotifications = useCallback(() => {
     setIsNotificationsOpen(false);
+    setExpandedNotifId(null);
     markAllAsRead().catch((e) => console.error("[Notifications] markAllAsRead failed:", e));
   }, [markAllAsRead]);
 
   const handleNotificationTap = useCallback((notif) => {
     if (!notif.messageId) return;
     if (notif.type !== "mention" && notif.type !== "reply") return;
-    scrollTargetRef.current = notif.messageId;
-    scrollAttemptsRef.current = 0;
-    handleCloseNotifications();
-  }, [handleCloseNotifications]);
+
+    if (expandedNotifId === notif._id) {
+      // Second tap on already-expanded notification
+      const inLoaded = messages?.some((m) => m._id === notif.messageId);
+      if (inLoaded) {
+        // Close drawer and scroll to the message in chat
+        handleCloseNotifications();
+        setTimeout(() => setScrollTargetId(notif.messageId), 100);
+      } else {
+        // Not in loaded set — just collapse
+        setExpandedNotifId(null);
+      }
+    } else {
+      // First tap — expand inline
+      setExpandedNotifId(notif._id);
+    }
+  }, [expandedNotifId, messages, handleCloseNotifications]);
 
   const handleSendMessage = useCallback(async () => {
-    console.log("[Chat] handleSendMessage — isSignedIn:", isSignedIn, "isConvexAuthenticated:", isConvexAuthenticated, "isSending:", isSending, "msg:", chatMessage.trim().substring(0, 20));
-    if (!chatMessage.trim() || isSending || !canSendChat) {
-      console.log("[Chat] blocked — empty:", !chatMessage.trim(), "sending:", isSending, "convexUnauthed:", !canSendChat);
-      return;
-    }
+    if (!chatMessage.trim() || isSending || !canSendChat) return;
 
     const body = chatMessage.trim();
     const currentReply = replyingTo;
@@ -549,13 +558,11 @@ export default function Index() {
     setIsSending(true);
 
     try {
-      console.log("[Chat] calling sendMessage mutation with body:", body.substring(0, 30));
       const args = { body };
       if (currentReply?.id) args.replyToId = currentReply.id;
       await sendMessage(args);
-      console.log("[Chat] sendMessage SUCCESS");
     } catch (error) {
-      console.error("[Chat] sendMessage FAILED:", error?.message || error);
+      console.error("[Chat] sendMessage failed:", error?.message || error);
       setChatMessage(body);
     } finally {
       setIsSending(false);
@@ -1041,6 +1048,7 @@ export default function Index() {
 
         {/* Live Chat Section */}
         <View
+          onLayout={(e) => { chatInputYRef.current = e.nativeEvent.layout.y; }}
           style={{
             marginHorizontal: 20,
             backgroundColor: "#1a1a1a",
@@ -1156,7 +1164,9 @@ export default function Index() {
                     </TouchableOpacity>
                   </View>
                 )}
-                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: isEmotePickerOpen ? 12 : 24 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", marginBottom: isEmotePickerOpen ? 12 : 24 }}
+                >
                   <TouchableOpacity
                     onPress={handlePickPhoto}
                     disabled={isSending || !canSendChat}
@@ -1196,6 +1206,7 @@ export default function Index() {
                     style={{ flex: 1, marginRight: 8 }}
                   >
                     <TextInput
+                      ref={chatInputRef}
                       value={chatMessage}
                       onChangeText={setChatMessage}
                       placeholder="Type a message..."
@@ -1905,65 +1916,217 @@ export default function Index() {
                     : notif.type === "go_live" ? "went live"
                     : "notification";
 
-                  return (
-                    <Pressable
-                      key={notif._id}
-                      onPress={() => hasMessageLink && handleNotificationTap(notif)}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingHorizontal: 20,
-                        paddingVertical: 14,
-                        backgroundColor: isUnread ? "rgba(39,39,42,0.3)" : "transparent",
-                        borderBottomWidth: 1,
-                        borderBottomColor: "#1a1a1a",
-                      }}
-                    >
-                      {/* Unread dot */}
-                      <View style={{ width: 8, marginRight: 10 }}>
-                        {isUnread && (
-                          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#c4ff0e" }} />
-                        )}
-                      </View>
+                  const isExpanded = expandedNotifId === notif._id;
+                  const msgForPreview = isExpanded ? expandedMessage : null;
+                  const canViewInChat = isExpanded && expandedMessageInLoaded;
 
-                      {/* Avatar or icon */}
-                      {notif.fromAvatarUrl ? (
-                        <Image
-                          source={{ uri: notif.fromAvatarUrl }}
-                          style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12 }}
-                          contentFit="cover"
-                        />
-                      ) : (
+                  return (
+                    <View key={notif._id}>
+                      <Pressable
+                        onPress={() => hasMessageLink && handleNotificationTap(notif)}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          paddingHorizontal: 20,
+                          paddingVertical: 14,
+                          backgroundColor: isExpanded ? "rgba(39,39,42,0.5)" : isUnread ? "rgba(39,39,42,0.3)" : "transparent",
+                          borderBottomWidth: isExpanded ? 0 : 1,
+                          borderBottomColor: "#1a1a1a",
+                        }}
+                      >
+                        {/* Unread dot */}
+                        <View style={{ width: 8, marginRight: 10 }}>
+                          {isUnread && (
+                            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "#c4ff0e" }} />
+                          )}
+                        </View>
+
+                        {/* Avatar or icon */}
+                        {notif.fromAvatarUrl ? (
+                          <Image
+                            source={{ uri: notif.fromAvatarUrl }}
+                            style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12 }}
+                            contentFit="cover"
+                          />
+                        ) : (
+                          <View
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: 18,
+                              backgroundColor: "#222",
+                              justifyContent: "center",
+                              alignItems: "center",
+                              marginRight: 12,
+                            }}
+                          >
+                            <NotifIcon size={18} color={iconColor} />
+                          </View>
+                        )}
+
+                        {/* Content */}
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: isUnread ? "#fff" : "#999", fontSize: 14, lineHeight: 20 }}>
+                            <Text style={{ fontWeight: "700", color: isUnread ? "#c4ff0e" : "#999" }}>
+                              {notif.fromUserName || "Someone"}
+                            </Text>
+                            {" "}{label}
+                          </Text>
+                          <Text style={{ color: "#555", fontSize: 12, marginTop: 2 }}>
+                            {new Date(notif.createdAt).toLocaleDateString()}
+                          </Text>
+                        </View>
+
+                        <NotifIcon size={16} color={iconColor} />
+                      </Pressable>
+
+                      {/* Expanded message card */}
+                      {isExpanded && (
                         <View
                           style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 18,
-                            backgroundColor: "#222",
-                            justifyContent: "center",
-                            alignItems: "center",
-                            marginRight: 12,
+                            marginHorizontal: 0,
+                            marginTop: 4,
+                            marginBottom: 8,
+                            backgroundColor: "#1a1a1f",
+                            borderRadius: 16,
+                            padding: 20,
                           }}
                         >
-                          <NotifIcon size={18} color={iconColor} />
+                          {!msgForPreview ? (
+                            <View style={{ alignItems: "center", paddingVertical: 20 }}>
+                              <ActivityIndicator size="small" color={iconColor} />
+                              <Text style={{ color: "#555", fontSize: 13, marginTop: 8 }}>Loading message...</Text>
+                            </View>
+                          ) : (
+                            <>
+                              {/* Sender row: avatar + name + date */}
+                              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
+                                <View
+                                  style={{
+                                    width: 44,
+                                    height: 44,
+                                    borderRadius: 22,
+                                    backgroundColor: "#9ACD32",
+                                    marginRight: 12,
+                                    overflow: "hidden",
+                                    justifyContent: "center",
+                                    alignItems: "center",
+                                  }}
+                                >
+                                  {msgForPreview.avatarUrl ? (
+                                    <Image source={{ uri: msgForPreview.avatarUrl }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                                  ) : (
+                                    <Text style={{ color: "#000", fontWeight: "800", fontSize: 18 }}>
+                                      {(msgForPreview.userName || "U")[0].toUpperCase()}
+                                    </Text>
+                                  )}
+                                </View>
+                                <View>
+                                  <Text style={{ color: "#fff", fontSize: 17, fontWeight: "700" }}>
+                                    {msgForPreview.userName || "User"}
+                                  </Text>
+                                  <Text style={{ color: "#666", fontSize: 13, marginTop: 1 }}>
+                                    {new Date(msgForPreview._creationTime).toLocaleDateString()}
+                                  </Text>
+                                </View>
+                              </View>
+
+                              {/* Message body */}
+                              {(() => {
+                                const body = typeof msgForPreview.body === "string" ? msgForPreview.body : "";
+                                const previewEmoteUri = getEmoteUriFromBody(body);
+                                if (previewEmoteUri) {
+                                  return (
+                                    <Image
+                                      source={{ uri: previewEmoteUri }}
+                                      style={{ width: 80, height: 80, borderRadius: 10, marginBottom: 16 }}
+                                      contentFit="contain"
+                                    />
+                                  );
+                                }
+                                const displayBody = formatReplyBody(body);
+                                if (!displayBody) return null;
+                                // Highlight @mentions in green
+                                const parts = displayBody.split(/(@\w+)/g);
+                                return (
+                                  <Text style={{ color: "#fff", fontSize: 18, fontWeight: "600", lineHeight: 26, marginBottom: 16 }}>
+                                    {parts.map((part, i) =>
+                                      part.startsWith("@") ? (
+                                        <Text key={i} style={{ color: "#9ACD32" }}>{part}</Text>
+                                      ) : (
+                                        <Text key={i}>{part}</Text>
+                                      )
+                                    )}
+                                  </Text>
+                                );
+                              })()}
+
+                              {/* Attached image */}
+                              {msgForPreview.imageUrl && (
+                                <Image
+                                  source={{ uri: msgForPreview.imageUrl }}
+                                  style={{ width: "100%", height: 160, borderRadius: 12, marginBottom: 16 }}
+                                  contentFit="cover"
+                                />
+                              )}
+
+                              {/* Divider */}
+                              <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.08)", marginBottom: 14 }} />
+
+                              {/* Action row: Reply + Go to Post */}
+                              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                                <TouchableOpacity
+                                  onPress={() => {
+                                    const replyBody = typeof msgForPreview.body === "string" ? msgForPreview.body : "";
+                                    handleCloseNotifications();
+                                    setReplyingTo({
+                                      id: msgForPreview._id,
+                                      userName: msgForPreview.userName || "User",
+                                      body: replyBody,
+                                    });
+                                    // Scroll to chat input and focus it
+                                    setTimeout(() => {
+                                      if (scrollViewRef.current && chatInputYRef.current) {
+                                        scrollViewRef.current.scrollTo({ y: Math.max(0, chatInputYRef.current - 80), animated: true });
+                                      }
+                                      setTimeout(() => chatInputRef.current?.focus(), 400);
+                                    }, 150);
+                                  }}
+                                  activeOpacity={0.7}
+                                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                                >
+                                  <View
+                                    style={{
+                                      width: 32,
+                                      height: 32,
+                                      borderRadius: 16,
+                                      backgroundColor: "#333",
+                                      justifyContent: "center",
+                                      alignItems: "center",
+                                    }}
+                                  >
+                                    <Reply size={16} color="#999" />
+                                  </View>
+                                  <Text style={{ color: "#999", fontSize: 15, fontWeight: "600" }}>Reply</Text>
+                                </TouchableOpacity>
+
+                                {canViewInChat && (
+                                  <TouchableOpacity
+                                    onPress={() => {
+                                      handleCloseNotifications();
+                                      setTimeout(() => setScrollTargetId(expandedMessageId), 100);
+                                    }}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Text style={{ color: "#9ACD32", fontSize: 15, fontWeight: "700" }}>Go to Post</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                            </>
+                          )}
                         </View>
                       )}
-
-                      {/* Content */}
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ color: isUnread ? "#fff" : "#999", fontSize: 14, lineHeight: 20 }}>
-                          <Text style={{ fontWeight: "700", color: isUnread ? "#c4ff0e" : "#999" }}>
-                            {notif.fromUserName || "Someone"}
-                          </Text>
-                          {" "}{label}
-                        </Text>
-                        <Text style={{ color: "#555", fontSize: 12, marginTop: 2 }}>
-                          {new Date(notif.createdAt).toLocaleDateString()}
-                        </Text>
-                      </View>
-
-                      <NotifIcon size={16} color={iconColor} />
-                    </Pressable>
+                    </View>
                   );
                 })
               )}

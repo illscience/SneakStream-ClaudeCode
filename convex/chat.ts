@@ -134,6 +134,28 @@ const buildMessageWithLoves = async (ctx: { db: any; storage: any }, message: an
   };
 };
 
+export const getMessageById = query({
+  args: { messageId: v.id("messages") },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message) return null;
+    try {
+      return await buildMessageWithLoves(ctx, message);
+    } catch {
+      // Fallback if love/reply enrichment fails
+      return {
+        ...message,
+        imageUrl: message.imageStorageId
+          ? await ctx.storage.getUrl(message.imageStorageId)
+          : undefined,
+        loveCount: 0,
+        recentLovers: [],
+        replyTo: undefined,
+      };
+    }
+  },
+});
+
 export const getMessages = query({
   args: {},
   handler: async (ctx) => {
