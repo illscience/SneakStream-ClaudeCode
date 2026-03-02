@@ -10,11 +10,19 @@ import { LivestreamPPVGate } from "@/components/ppv/LivestreamPPVGate";
 import { SignedIn, SignedOut, SignInButton, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 export default function Home() {
+  return (
+    <Suspense>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeContent() {
   const { user } = useUser();
   const [isHeartAnimating, setIsHeartAnimating] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
