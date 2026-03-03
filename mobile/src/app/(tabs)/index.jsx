@@ -261,6 +261,9 @@ export default function Index() {
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [scrollTargetId, setScrollTargetId] = useState(null);
   const [expandedNotifId, setExpandedNotifId] = useState(null);
+  const [mentionSearch, setMentionSearch] = useState("");
+  const [showMentionPopup, setShowMentionPopup] = useState(false);
+  const [mentionPosition, setMentionPosition] = useState(null);
   const chatInputRef = useRef(null);
   const chatInputYRef = useRef(0);
   const messageLayoutsRef = useRef({}); // {[msgId]: y} from onLayout
@@ -299,6 +302,11 @@ export default function Index() {
   const isLoadingMore = messagesStatus === "LoadingMore";
   const canLoadMore = messagesStatus === "CanLoadMore";
   const canSendChat = isSignedIn && isConvexAuthenticated;
+
+  const mentionResults = useQuery(
+    api.users.searchUsersByAlias,
+    showMentionPopup ? { searchTerm: mentionSearch } : "skip"
+  );
 
   // Auto-load more messages when scrolling near bottom
   const handleScroll = useCallback((event) => {
@@ -555,6 +563,9 @@ export default function Index() {
     setChatMessage("");
     setIsEmotePickerOpen(false);
     setReplyingTo(null);
+    setShowMentionPopup(false);
+    setMentionSearch("");
+    setMentionPosition(null);
     setIsSending(true);
 
     try {
@@ -569,9 +580,38 @@ export default function Index() {
     }
   }, [chatMessage, isSending, isSignedIn, isConvexAuthenticated, canSendChat, sendMessage, replyingTo]);
 
+  const updateMentionState = useCallback((value) => {
+    const mentionMatch = value.match(/@([\w.-]*)$/);
+    if (mentionMatch) {
+      setMentionSearch(mentionMatch[1]);
+      setShowMentionPopup(true);
+      setMentionPosition(value.lastIndexOf("@"));
+    } else {
+      setShowMentionPopup(false);
+      setMentionSearch("");
+      setMentionPosition(null);
+    }
+  }, []);
+
+  const insertMention = useCallback((alias) => {
+    setChatMessage((prev) => {
+      const updated =
+        mentionPosition !== null
+          ? `${prev.slice(0, mentionPosition)}@${alias} `
+          : prev.replace(/@(\w*)$/, `@${alias} `);
+      return updated;
+    });
+    setShowMentionPopup(false);
+    setMentionSearch("");
+    setMentionPosition(null);
+  }, [mentionPosition]);
+
   const handleToggleEmotePicker = useCallback(() => {
     if (!canSendChat || isSending) return;
     setIsEmotePickerOpen((prev) => !prev);
+    setShowMentionPopup(false);
+    setMentionSearch("");
+    setMentionPosition(null);
   }, [canSendChat, isSending]);
 
   const handleSendEmote = useCallback(async (emoteId) => {
@@ -766,6 +806,7 @@ export default function Index() {
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={400}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Header */}
         <View
@@ -1164,6 +1205,79 @@ export default function Index() {
                     </TouchableOpacity>
                   </View>
                 )}
+                {showMentionPopup && (
+                  <View
+                    style={{
+                      backgroundColor: "#171717",
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: "#2a2a2a",
+                      maxHeight: 200,
+                      marginBottom: 8,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <ScrollView
+                      keyboardShouldPersistTaps="handled"
+                      nestedScrollEnabled
+                      showsVerticalScrollIndicator={false}
+                    >
+                      {mentionResults === undefined && (
+                        <View style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
+                          <ActivityIndicator size="small" color="#9ACD32" />
+                        </View>
+                      )}
+                      {mentionResults && mentionResults.length === 0 && (
+                        <View style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
+                          <Text style={{ color: "#666", fontSize: 13 }}>No matches found</Text>
+                        </View>
+                      )}
+                      {mentionResults?.map((mention) => (
+                        <TouchableOpacity
+                          key={mention._id}
+                          onPress={() => insertMention(mention.alias)}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <View
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 14,
+                              backgroundColor: "#2a2a2a",
+                              borderWidth: 1,
+                              borderColor: "#333",
+                              overflow: "hidden",
+                              marginRight: 10,
+                              justifyContent: "center",
+                              alignItems: "center",
+                            }}
+                          >
+                            {mention.selectedAvatar || mention.imageUrl ? (
+                              <Image
+                                source={{ uri: mention.selectedAvatar || mention.imageUrl }}
+                                style={{ width: 28, height: 28 }}
+                                contentFit="cover"
+                              />
+                            ) : (
+                              <Text style={{ color: "#aaa", fontSize: 12, fontWeight: "600" }}>
+                                {mention.alias.charAt(0).toUpperCase()}
+                              </Text>
+                            )}
+                          </View>
+                          <Text style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}>
+                            {mention.alias}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
                 <View
                   style={{ flexDirection: "row", alignItems: "center", marginBottom: isEmotePickerOpen ? 12 : 24 }}
                 >
@@ -1208,7 +1322,10 @@ export default function Index() {
                     <TextInput
                       ref={chatInputRef}
                       value={chatMessage}
-                      onChangeText={setChatMessage}
+                      onChangeText={(text) => {
+                        setChatMessage(text);
+                        updateMentionState(text);
+                      }}
                       placeholder="Type a message..."
                       placeholderTextColor="#666"
                       style={{
@@ -1608,7 +1725,13 @@ export default function Index() {
                         <>
                           {text ? (
                             <Text style={{ color: "#fff", fontSize: 15, lineHeight: 22, marginBottom: 8 }}>
-                              {text}
+                              {text.split(/(@[\w.-]+)/g).map((part, i) =>
+                                part.startsWith("@") ? (
+                                  <Text key={i} style={{ color: "#9ACD32", fontWeight: "700" }}>{part}</Text>
+                                ) : (
+                                  part
+                                )
+                              )}
                             </Text>
                           ) : null}
                           {gifUrls.map((gifUrl) => (
