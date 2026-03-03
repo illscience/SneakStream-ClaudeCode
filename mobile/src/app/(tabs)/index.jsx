@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   AppState,
   Alert,
+  useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
@@ -46,6 +47,7 @@ import { ScrollToTopContext } from "./_layout";
 import LogoShimmer from "@/components/LogoShimmer";
 import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
+import * as ScreenOrientation from "expo-screen-orientation";
 import { TextInputWrapper } from "expo-paste-input";
 
 const EMOTE_TOKEN_PATTERN = /^:emote:([^\s]+)$/;
@@ -261,6 +263,9 @@ export default function Index() {
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [scrollTargetId, setScrollTargetId] = useState(null);
   const [expandedNotifId, setExpandedNotifId] = useState(null);
+  const [mentionSearch, setMentionSearch] = useState("");
+  const [showMentionPopup, setShowMentionPopup] = useState(false);
+  const [mentionPosition, setMentionPosition] = useState(null);
   const chatInputRef = useRef(null);
   const chatInputYRef = useRef(0);
   const messageLayoutsRef = useRef({}); // {[msgId]: y} from onLayout
@@ -300,6 +305,11 @@ export default function Index() {
   const canLoadMore = messagesStatus === "CanLoadMore";
   const canSendChat = isSignedIn && isConvexAuthenticated;
 
+  const mentionResults = useQuery(
+    api.users.searchUsersByAlias,
+    showMentionPopup ? { searchTerm: mentionSearch } : "skip"
+  );
+
   // Auto-load more messages when scrolling near bottom
   const handleScroll = useCallback((event) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
@@ -337,6 +347,22 @@ export default function Index() {
       setTimeout(() => setHighlightedMessageId(null), 2000);
     }, 150);
   }, [scrollTargetId, scrollTargetInLoaded]);
+
+  // Unlock orientation when fullscreen, lock back to portrait when not
+  useEffect(() => {
+    if (isFullscreen) {
+      ScreenOrientation.unlockAsync();
+      return () => {
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      };
+    } else {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    }
+  }, [isFullscreen]);
+
+  // Derive landscape from window dimensions (works inside Modal native rotation)
+  const { width: winW, height: winH } = useWindowDimensions();
+  const isLandscape = isFullscreen && winW > winH;
 
   const isLive = !!activeStream?.playbackUrl;
 
@@ -555,6 +581,9 @@ export default function Index() {
     setChatMessage("");
     setIsEmotePickerOpen(false);
     setReplyingTo(null);
+    setShowMentionPopup(false);
+    setMentionSearch("");
+    setMentionPosition(null);
     setIsSending(true);
 
     try {
@@ -569,9 +598,38 @@ export default function Index() {
     }
   }, [chatMessage, isSending, isSignedIn, isConvexAuthenticated, canSendChat, sendMessage, replyingTo]);
 
+  const updateMentionState = useCallback((value) => {
+    const mentionMatch = value.match(/@([\w.-]*)$/);
+    if (mentionMatch) {
+      setMentionSearch(mentionMatch[1]);
+      setShowMentionPopup(true);
+      setMentionPosition(value.lastIndexOf("@"));
+    } else {
+      setShowMentionPopup(false);
+      setMentionSearch("");
+      setMentionPosition(null);
+    }
+  }, []);
+
+  const insertMention = useCallback((alias) => {
+    setChatMessage((prev) => {
+      const updated =
+        mentionPosition !== null
+          ? `${prev.slice(0, mentionPosition)}@${alias} `
+          : prev.replace(/@(\w*)$/, `@${alias} `);
+      return updated;
+    });
+    setShowMentionPopup(false);
+    setMentionSearch("");
+    setMentionPosition(null);
+  }, [mentionPosition]);
+
   const handleToggleEmotePicker = useCallback(() => {
     if (!canSendChat || isSending) return;
     setIsEmotePickerOpen((prev) => !prev);
+    setShowMentionPopup(false);
+    setMentionSearch("");
+    setMentionPosition(null);
   }, [canSendChat, isSending]);
 
   const handleSendEmote = useCallback(async (emoteId) => {
@@ -757,7 +815,7 @@ export default function Index() {
       style={{ flex: 1, backgroundColor: "#000" }}
       behavior="padding"
     >
-      <StatusBar style="light" />
+      <StatusBar style="light" hidden={isFullscreen} />
 
       <ScrollView
         ref={scrollViewRef}
@@ -766,6 +824,7 @@ export default function Index() {
         showsVerticalScrollIndicator={false}
         onScroll={handleScroll}
         scrollEventThrottle={400}
+        keyboardShouldPersistTaps="handled"
       >
         {/* Header */}
         <View
@@ -1164,6 +1223,79 @@ export default function Index() {
                     </TouchableOpacity>
                   </View>
                 )}
+                {showMentionPopup && (
+                  <View
+                    style={{
+                      backgroundColor: "#171717",
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: "#2a2a2a",
+                      maxHeight: 200,
+                      marginBottom: 8,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <ScrollView
+                      keyboardShouldPersistTaps="handled"
+                      nestedScrollEnabled
+                      showsVerticalScrollIndicator={false}
+                    >
+                      {mentionResults === undefined && (
+                        <View style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
+                          <ActivityIndicator size="small" color="#9ACD32" />
+                        </View>
+                      )}
+                      {mentionResults && mentionResults.length === 0 && (
+                        <View style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
+                          <Text style={{ color: "#666", fontSize: 13 }}>No matches found</Text>
+                        </View>
+                      )}
+                      {mentionResults?.map((mention) => (
+                        <TouchableOpacity
+                          key={mention._id}
+                          onPress={() => insertMention(mention.alias)}
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <View
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 14,
+                              backgroundColor: "#2a2a2a",
+                              borderWidth: 1,
+                              borderColor: "#333",
+                              overflow: "hidden",
+                              marginRight: 10,
+                              justifyContent: "center",
+                              alignItems: "center",
+                            }}
+                          >
+                            {mention.selectedAvatar || mention.imageUrl ? (
+                              <Image
+                                source={{ uri: mention.selectedAvatar || mention.imageUrl }}
+                                style={{ width: 28, height: 28 }}
+                                contentFit="cover"
+                              />
+                            ) : (
+                              <Text style={{ color: "#aaa", fontSize: 12, fontWeight: "600" }}>
+                                {mention.alias.charAt(0).toUpperCase()}
+                              </Text>
+                            )}
+                          </View>
+                          <Text style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}>
+                            {mention.alias}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
                 <View
                   style={{ flexDirection: "row", alignItems: "center", marginBottom: isEmotePickerOpen ? 12 : 24 }}
                 >
@@ -1208,7 +1340,10 @@ export default function Index() {
                     <TextInput
                       ref={chatInputRef}
                       value={chatMessage}
-                      onChangeText={setChatMessage}
+                      onChangeText={(text) => {
+                        setChatMessage(text);
+                        updateMentionState(text);
+                      }}
                       placeholder="Type a message..."
                       placeholderTextColor="#666"
                       style={{
@@ -1608,7 +1743,13 @@ export default function Index() {
                         <>
                           {text ? (
                             <Text style={{ color: "#fff", fontSize: 15, lineHeight: 22, marginBottom: 8 }}>
-                              {text}
+                              {text.split(/(@[\w.-]+)/g).map((part, i) =>
+                                part.startsWith("@") ? (
+                                  <Text key={i} style={{ color: "#9ACD32", fontWeight: "700" }}>{part}</Text>
+                                ) : (
+                                  part
+                                )
+                              )}
                             </Text>
                           ) : null}
                           {gifUrls.map((gifUrl) => (
@@ -1761,86 +1902,156 @@ export default function Index() {
         supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
         onRequestClose={() => setIsFullscreen(false)}
       >
-        <Pressable
-          onPress={handleVideoDoubleTap}
-          style={{ flex: 1, backgroundColor: "#000" }}
-        >
-          <VideoView
-            player={player}
-            style={{ flex: 1 }}
-            contentFit="contain"
-            nativeControls={false}
-          />
-          {/* Double-tap heart animation */}
-          {videoHeartVisible && (
+        {isLandscape ? (
+          /* Landscape: flex row — button column + video area, no overlay */
+          <View style={{ flex: 1, flexDirection: "row", backgroundColor: "#000" }}>
+            <View
+              style={{
+                paddingLeft: insets.top,
+                justifyContent: "center",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => setIsMuted((m) => !m)}
+                activeOpacity={0.7}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: isMuted ? "#DC2626" : "rgba(0,0,0,0.6)",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                {isMuted ? <VolumeX size={22} color="#fff" /> : <Volume2 size={22} color="#fff" />}
+              </TouchableOpacity>
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: "rgba(0,0,0,0.6)",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <VideoAirPlayButton tint="white" activeTint="#9ACD32" style={{ width: 30, height: 30 }} />
+              </View>
+              <TouchableOpacity
+                onPress={() => setIsFullscreen(false)}
+                activeOpacity={0.7}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: "rgba(0,0,0,0.6)",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <X size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <Pressable onPress={handleVideoDoubleTap} style={{ flex: 1 }}>
+              <VideoView
+                player={player}
+                style={{ flex: 1 }}
+                contentFit="contain"
+                nativeControls={false}
+              />
+              {videoHeartVisible && (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    pointerEvents: "none",
+                  }}
+                >
+                  <Heart size={96} color="#DC2626" fill="#DC2626" style={{ opacity: 0.85 }} />
+                </View>
+              )}
+            </Pressable>
+          </View>
+        ) : (
+          /* Portrait: video fills screen, buttons overlay */
+          <Pressable
+            onPress={handleVideoDoubleTap}
+            style={{ flex: 1, backgroundColor: "#000" }}
+          >
+            <VideoView
+              player={player}
+              style={{ flex: 1 }}
+              contentFit="contain"
+              nativeControls={false}
+            />
+            {videoHeartVisible && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  pointerEvents: "none",
+                }}
+              >
+                <Heart size={96} color="#DC2626" fill="#DC2626" style={{ opacity: 0.85 }} />
+              </View>
+            )}
+            <TouchableOpacity
+              onPress={() => setIsFullscreen(false)}
+              activeOpacity={0.7}
+              style={{
+                position: "absolute",
+                top: insets.top + 12,
+                right: insets.right + 16,
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: "rgba(0,0,0,0.6)",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <X size={24} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setIsMuted((m) => !m)}
+              activeOpacity={0.7}
+              style={{
+                position: "absolute",
+                top: insets.top + 12,
+                left: insets.left + 16,
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: isMuted ? "#DC2626" : "rgba(0,0,0,0.6)",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              {isMuted ? <VolumeX size={22} color="#fff" /> : <Volume2 size={22} color="#fff" />}
+            </TouchableOpacity>
             <View
               style={{
                 position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
+                top: insets.top + 12,
+                left: insets.left + 72,
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: "rgba(0,0,0,0.6)",
                 justifyContent: "center",
                 alignItems: "center",
-                pointerEvents: "none",
               }}
             >
-              <Heart size={96} color="#DC2626" fill="#DC2626" style={{ opacity: 0.85 }} />
+              <VideoAirPlayButton tint="white" activeTint="#9ACD32" style={{ width: 30, height: 30 }} />
             </View>
-          )}
-          {/* Close button */}
-          <TouchableOpacity
-            onPress={() => setIsFullscreen(false)}
-            activeOpacity={0.7}
-            style={{
-              position: "absolute",
-              top: insets.top + 12,
-              right: 16,
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: "rgba(0,0,0,0.6)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <X size={24} color="#fff" />
-          </TouchableOpacity>
-          {/* Mute button */}
-          <TouchableOpacity
-            onPress={() => setIsMuted((m) => !m)}
-            activeOpacity={0.7}
-            style={{
-              position: "absolute",
-              top: insets.top + 12,
-              left: 16,
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: isMuted ? "#DC2626" : "rgba(0,0,0,0.6)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            {isMuted ? <VolumeX size={22} color="#fff" /> : <Volume2 size={22} color="#fff" />}
-          </TouchableOpacity>
-          {/* AirPlay button */}
-          <View
-            style={{
-              position: "absolute",
-              top: insets.top + 12,
-              left: 72,
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: "rgba(0,0,0,0.6)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <VideoAirPlayButton tint="white" activeTint="#9ACD32" style={{ width: 30, height: 30 }} />
-          </View>
-        </Pressable>
+          </Pressable>
+        )}
       </Modal>
 
       {/* Notifications Modal */}
