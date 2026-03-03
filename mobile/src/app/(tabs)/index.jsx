@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   AppState,
   Alert,
+  useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { StatusBar } from "expo-status-bar";
@@ -46,6 +47,7 @@ import { ScrollToTopContext } from "./_layout";
 import LogoShimmer from "@/components/LogoShimmer";
 import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
+import * as ScreenOrientation from "expo-screen-orientation";
 import { TextInputWrapper } from "expo-paste-input";
 
 const EMOTE_TOKEN_PATTERN = /^:emote:([^\s]+)$/;
@@ -345,6 +347,22 @@ export default function Index() {
       setTimeout(() => setHighlightedMessageId(null), 2000);
     }, 150);
   }, [scrollTargetId, scrollTargetInLoaded]);
+
+  // Unlock orientation when fullscreen, lock back to portrait when not
+  useEffect(() => {
+    if (isFullscreen) {
+      ScreenOrientation.unlockAsync();
+      return () => {
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      };
+    } else {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    }
+  }, [isFullscreen]);
+
+  // Derive landscape from window dimensions (works inside Modal native rotation)
+  const { width: winW, height: winH } = useWindowDimensions();
+  const isLandscape = isFullscreen && winW > winH;
 
   const isLive = !!activeStream?.playbackUrl;
 
@@ -797,7 +815,7 @@ export default function Index() {
       style={{ flex: 1, backgroundColor: "#000" }}
       behavior="padding"
     >
-      <StatusBar style="light" />
+      <StatusBar style="light" hidden={isFullscreen} />
 
       <ScrollView
         ref={scrollViewRef}
@@ -1884,86 +1902,156 @@ export default function Index() {
         supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
         onRequestClose={() => setIsFullscreen(false)}
       >
-        <Pressable
-          onPress={handleVideoDoubleTap}
-          style={{ flex: 1, backgroundColor: "#000" }}
-        >
-          <VideoView
-            player={player}
-            style={{ flex: 1 }}
-            contentFit="contain"
-            nativeControls={false}
-          />
-          {/* Double-tap heart animation */}
-          {videoHeartVisible && (
+        {isLandscape ? (
+          /* Landscape: flex row — button column + video area, no overlay */
+          <View style={{ flex: 1, flexDirection: "row", backgroundColor: "#000" }}>
+            <View
+              style={{
+                paddingLeft: insets.top,
+                justifyContent: "center",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => setIsMuted((m) => !m)}
+                activeOpacity={0.7}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: isMuted ? "#DC2626" : "rgba(0,0,0,0.6)",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                {isMuted ? <VolumeX size={22} color="#fff" /> : <Volume2 size={22} color="#fff" />}
+              </TouchableOpacity>
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: "rgba(0,0,0,0.6)",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <VideoAirPlayButton tint="white" activeTint="#9ACD32" style={{ width: 30, height: 30 }} />
+              </View>
+              <TouchableOpacity
+                onPress={() => setIsFullscreen(false)}
+                activeOpacity={0.7}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: "rgba(0,0,0,0.6)",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <X size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <Pressable onPress={handleVideoDoubleTap} style={{ flex: 1 }}>
+              <VideoView
+                player={player}
+                style={{ flex: 1 }}
+                contentFit="contain"
+                nativeControls={false}
+              />
+              {videoHeartVisible && (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 0, left: 0, right: 0, bottom: 0,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    pointerEvents: "none",
+                  }}
+                >
+                  <Heart size={96} color="#DC2626" fill="#DC2626" style={{ opacity: 0.85 }} />
+                </View>
+              )}
+            </Pressable>
+          </View>
+        ) : (
+          /* Portrait: video fills screen, buttons overlay */
+          <Pressable
+            onPress={handleVideoDoubleTap}
+            style={{ flex: 1, backgroundColor: "#000" }}
+          >
+            <VideoView
+              player={player}
+              style={{ flex: 1 }}
+              contentFit="contain"
+              nativeControls={false}
+            />
+            {videoHeartVisible && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0, left: 0, right: 0, bottom: 0,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  pointerEvents: "none",
+                }}
+              >
+                <Heart size={96} color="#DC2626" fill="#DC2626" style={{ opacity: 0.85 }} />
+              </View>
+            )}
+            <TouchableOpacity
+              onPress={() => setIsFullscreen(false)}
+              activeOpacity={0.7}
+              style={{
+                position: "absolute",
+                top: insets.top + 12,
+                right: insets.right + 16,
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: "rgba(0,0,0,0.6)",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <X size={24} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setIsMuted((m) => !m)}
+              activeOpacity={0.7}
+              style={{
+                position: "absolute",
+                top: insets.top + 12,
+                left: insets.left + 16,
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: isMuted ? "#DC2626" : "rgba(0,0,0,0.6)",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              {isMuted ? <VolumeX size={22} color="#fff" /> : <Volume2 size={22} color="#fff" />}
+            </TouchableOpacity>
             <View
               style={{
                 position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
+                top: insets.top + 12,
+                left: insets.left + 72,
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: "rgba(0,0,0,0.6)",
                 justifyContent: "center",
                 alignItems: "center",
-                pointerEvents: "none",
               }}
             >
-              <Heart size={96} color="#DC2626" fill="#DC2626" style={{ opacity: 0.85 }} />
+              <VideoAirPlayButton tint="white" activeTint="#9ACD32" style={{ width: 30, height: 30 }} />
             </View>
-          )}
-          {/* Close button */}
-          <TouchableOpacity
-            onPress={() => setIsFullscreen(false)}
-            activeOpacity={0.7}
-            style={{
-              position: "absolute",
-              top: insets.top + 12,
-              right: 16,
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: "rgba(0,0,0,0.6)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <X size={24} color="#fff" />
-          </TouchableOpacity>
-          {/* Mute button */}
-          <TouchableOpacity
-            onPress={() => setIsMuted((m) => !m)}
-            activeOpacity={0.7}
-            style={{
-              position: "absolute",
-              top: insets.top + 12,
-              left: 16,
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: isMuted ? "#DC2626" : "rgba(0,0,0,0.6)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            {isMuted ? <VolumeX size={22} color="#fff" /> : <Volume2 size={22} color="#fff" />}
-          </TouchableOpacity>
-          {/* AirPlay button */}
-          <View
-            style={{
-              position: "absolute",
-              top: insets.top + 12,
-              left: 72,
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: "rgba(0,0,0,0.6)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <VideoAirPlayButton tint="white" activeTint="#9ACD32" style={{ width: 30, height: 30 }} />
-          </View>
-        </Pressable>
+          </Pressable>
+        )}
       </Modal>
 
       {/* Notifications Modal */}
