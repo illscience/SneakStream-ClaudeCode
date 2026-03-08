@@ -162,3 +162,28 @@ When mobile auth/chat/auction breaks, check in this order:
 - Keep auth changes centralized in `mobile/src/lib/fapi-auth.jsx` and `mobile/src/app/_layout.jsx`.
 - Preserve token refresh/rotation handling in `clerkFetch`.
 - Validate feature parity on both unauthenticated and authenticated paths (chat send, emote send/render, image upload, auction bid/payment).
+
+## Cursor Cloud specific instructions
+
+### Services overview
+
+| Service | How to run | Notes |
+|---------|-----------|-------|
+| Next.js dev server | `npm run dev` (port 3000) | Requires valid Clerk + Convex env vars in `.env.local` |
+| Convex backend | Cloud-hosted — do NOT run `npx convex dev`. Use `npx convex codegen` for type generation only | Per `.cursorrules` policy |
+| Tests | `npx vitest run` | Mux integration tests pass; convex backend tests have pre-existing validator drift |
+
+### Required secrets in `.env.local`
+
+The dev server will not serve pages without valid **Clerk** keys (`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`) because Clerk middleware validates the publishable key format before processing any route. `NEXT_PUBLIC_CONVEX_URL` must point to a real Convex deployment (dev default: `https://colorful-ant-503.convex.cloud`).
+
+### Known issues
+
+- **ESLint circular reference**: `npm run lint` / `npx eslint .` fails with "Converting circular structure to JSON" due to `eslint-config-next@16.1.1` + ESLint 9 incompatibility. This is a pre-existing repo issue.
+- **Test validator drift**: 8 tests in `convex.backend.test.ts` and `webhook.mux.test.ts` fail because test code passes `userId`/`clerkId` fields that have been removed from Convex mutation validators. The 3 `mux.integration.test.ts` tests pass. The 3 `mux.live.test.ts` tests are skipped unless `MUX_LIVE_TEST=1` is set with real Mux credentials.
+
+### Startup caveats
+
+- The Next.js dev server compiles and starts with Turbopack even with placeholder env vars, but **all routes return 500** until valid Clerk keys are provided.
+- No Docker, no database, no local services to run — the entire backend is Convex Cloud + external SaaS (Clerk, Mux/Livepeer, Stripe).
+- The `mobile/` directory is a separate Expo React Native app with its own `npm install`; it is not required for web development.
