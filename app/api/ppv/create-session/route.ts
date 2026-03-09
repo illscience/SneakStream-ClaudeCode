@@ -4,6 +4,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { createPPVCheckoutSession, createLivestreamPPVCheckoutSession } from "@/lib/stripe";
 import { Id } from "@/convex/_generated/dataModel";
+import { isPastShow, PAST_SHOW_PRICE } from "@/lib/past-shows";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -87,12 +88,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Video not found" }, { status: 404 });
     }
 
-    if (video.visibility !== "ppv" || !video.price) {
+    // Determine price: explicit PPV price, or past-show fixed price
+    const videoPastShow = isPastShow(video);
+    const isVideoPPV = video.visibility === "ppv" && video.price;
+
+    if (!isVideoPPV && !videoPastShow) {
       return NextResponse.json(
         { error: "This video is not available for purchase" },
         { status: 400 }
       );
     }
+
+    const purchasePrice = isVideoPPV ? video.price! : PAST_SHOW_PRICE;
 
     // Check if user already has entitlement
     const hasEntitlement = await convex.query(api.entitlements.hasBundledEntitlement, {
@@ -111,7 +118,7 @@ export async function POST(request: NextRequest) {
     const { sessionId, url } = await createPPVCheckoutSession({
       videoId,
       videoTitle: video.title,
-      price: video.price,
+      price: purchasePrice,
       buyerId: userId,
       successUrl: mobileSuccessUrl || `${origin}/watch/${videoId}?purchased=true`,
       cancelUrl: mobileCancelUrl || `${origin}/watch/${videoId}?canceled=true`,
@@ -121,7 +128,7 @@ export async function POST(request: NextRequest) {
     await convex.mutation(api.purchases.createPurchase, {
       buyerId: userId,
       videoId: videoId as Id<"videos">,
-      amount: video.price,
+      amount: purchasePrice,
       stripeSessionId: sessionId,
     });
 

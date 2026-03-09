@@ -6,6 +6,7 @@ import { Id } from "../../convex/_generated/dataModel";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { Clock, Lock, Play, Check } from "lucide-react";
+import { PAST_SHOW_PRICE } from "@/lib/past-shows";
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -65,7 +66,7 @@ function PastShowCard({
 
   const hasAccess = hasEntitlement || isAdmin || isVIP;
   const thumbnail = getThumbnailUrl(video);
-  const price = video.price ?? 0;
+  const price = video.visibility === "ppv" && video.price ? video.price : PAST_SHOW_PRICE;
 
   return (
     <Link

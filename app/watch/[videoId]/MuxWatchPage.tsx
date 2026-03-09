@@ -11,6 +11,7 @@ import { useAuth, SignedIn } from "@clerk/nextjs";
 import { PPVGate } from "@/components/ppv";
 import MainNav from "@/components/navigation/MainNav";
 import ClipShareButton from "@/components/clip-share-button";
+import { isPastShow, PAST_SHOW_PRICE } from "@/lib/past-shows";
 
 export default function MuxWatchPage({
   params,
@@ -28,10 +29,14 @@ export default function MuxWatchPage({
   const video = useQuery(api.videos.getVideo, { videoId });
   const incrementViewCount = useMutation(api.videos.incrementViewCount);
 
-  // Check bundled entitlement for PPV videos (includes linked livestream access)
+  const videoPastShow = video ? isPastShow(video) : false;
+  const isGated = video?.visibility === "ppv" || videoPastShow;
+  const gatePrice = video?.visibility === "ppv" && video.price ? video.price : PAST_SHOW_PRICE;
+
+  // Check bundled entitlement for PPV or past-show videos
   const hasEntitlement = useQuery(
     api.entitlements.hasBundledEntitlement,
-    video?.visibility === "ppv" && userId ? { userId, videoId } : "skip"
+    isGated && userId ? { userId, videoId } : "skip"
   );
 
   // Show purchase success message
@@ -46,7 +51,7 @@ export default function MuxWatchPage({
     if (!video || (urlLoading && !forceRefresh)) return;
 
     const needsSignedUrl =
-      (video.visibility === "ppv" && hasEntitlement) ||
+      (isGated && hasEntitlement) ||
       video.playbackPolicy === "signed";
 
     if (!needsSignedUrl) return;
@@ -83,10 +88,10 @@ export default function MuxWatchPage({
   }, [video?._id, hasEntitlement, authLoaded]);
 
   useEffect(() => {
-    if (video && (video.visibility !== "ppv" || hasEntitlement)) {
+    if (video && (!isGated || hasEntitlement)) {
       incrementViewCount({ videoId });
     }
-  }, [video?._id, hasEntitlement]);
+  }, [video?._id, hasEntitlement, isGated]);
 
   if (!video) {
     return (
@@ -142,11 +147,11 @@ export default function MuxWatchPage({
 
           {/* Video Player */}
           <div className="mb-6">
-            {video.visibility === "ppv" && video.price ? (
+            {isGated ? (
               <PPVGate
                 videoId={video._id}
                 videoTitle={video.title}
-                price={video.price}
+                price={gatePrice}
                 thumbnailUrl={video.thumbnailUrl}
               >
                 {(signedUrl || video.playbackUrl) ? (

@@ -4,6 +4,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import { generateSignedPlaybackUrl, isSignedPlaybackAvailable } from "@/lib/muxSigned";
 import { Id } from "@/convex/_generated/dataModel";
+import { isPastShow } from "@/lib/past-shows";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -41,8 +42,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if this is a PPV video
-    if (video.visibility === "ppv") {
+    // Check if this is a PPV or past-show video
+    if (video.visibility === "ppv" || isPastShow(video)) {
       // Check bundled entitlement (includes linked livestream access + VIP bypass)
       const hasAccess = await convex.query(api.entitlements.hasBundledEntitlement, {
         userId,

@@ -443,8 +443,9 @@ export const getVideo = query({
   },
 });
 
-// Get past shows: last 6 ready PPV videos with duration >= 1 hour (3600s)
-// Only returns PPV videos so the watch page enforces entitlement gating.
+// Get past shows: last 6 ready videos with duration >= 1 hour (3600s).
+// All past shows are gated at a fixed $5 price via the watch page and purchase API,
+// regardless of the video's own visibility setting.
 export const getPastShows = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
@@ -453,19 +454,12 @@ export const getPastShows = query({
 
     const videos = await ctx.db
       .query("videos")
-      .withIndex("by_visibility", (q) => q.eq("visibility", "ppv"))
+      .withIndex("by_status", (q) => q.eq("status", "ready"))
       .order("desc")
       .collect();
 
     return videos
-      .filter(
-        (v) =>
-          v.status === "ready" &&
-          v.duration !== undefined &&
-          v.duration >= ONE_HOUR &&
-          v.price !== undefined &&
-          v.price > 0
-      )
+      .filter((v) => v.duration !== undefined && v.duration >= ONE_HOUR)
       .slice(0, limit);
   },
 });
