@@ -20,6 +20,7 @@ interface NavLink {
 
 const navLinks: NavLink[] = [
   { href: "/", label: "Home" },
+  { href: "/past-shows", label: "Past Shows" },
   { href: "/library", label: "My Library", adminOnly: true },
   { href: "/profile", label: "Profile" },
   { href: "/go-live", label: "Go Live", adminOnly: true },

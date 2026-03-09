@@ -443,6 +443,25 @@ export const getVideo = query({
   },
 });
 
+// Get past shows: last 6 ready videos with duration >= 1 hour (3600s)
+export const getPastShows = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const limit = args.limit || 6;
+    const ONE_HOUR = 3600;
+
+    const videos = await ctx.db
+      .query("videos")
+      .withIndex("by_status", (q) => q.eq("status", "ready"))
+      .order("desc")
+      .collect();
+
+    return videos
+      .filter((v) => v.duration !== undefined && v.duration >= ONE_HOUR)
+      .slice(0, limit);
+  },
+});
+
 // Get public videos (feed)
 export const getPublicVideos = query({
   args: { limit: v.optional(v.number()) },
