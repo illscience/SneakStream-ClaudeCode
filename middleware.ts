@@ -3,6 +3,7 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 // Define public routes (allow viewing without login)
 const isPublicRoute = createRouteMatcher([
   '/',
+  '/past-shows',
   '/api/clips',
   '/api/nightclub/(.*)',
   '/api/generate-polaroid',
