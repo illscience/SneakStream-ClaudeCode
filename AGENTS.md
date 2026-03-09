@@ -162,3 +162,20 @@ When mobile auth/chat/auction breaks, check in this order:
 - Keep auth changes centralized in `mobile/src/lib/fapi-auth.jsx` and `mobile/src/app/_layout.jsx`.
 - Preserve token refresh/rotation handling in `clerkFetch`.
 - Validate feature parity on both unauthenticated and authenticated paths (chat send, emote send/render, image upload, auction bid/payment).
+
+## Cursor Cloud specific instructions
+
+### Services
+The web app is a single Next.js 15 service. Convex, Clerk, Mux, and Stripe are all cloud-hosted and do not need local servers. Start the dev server with `npm run dev` (port 3000).
+
+### Environment
+A `.env.local` must exist with Clerk, Convex, Mux, and Stripe secrets. The env var `MUX_SECRET_KEY` (injected by the secrets system) maps to the codebase's `MUX_TOKEN_SECRET`; the app accepts both names. Set `NEXT_PUBLIC_STREAM_PROVIDER=mux` for the Mux frontend experience.
+
+### Linting caveat
+`npm run lint` (`next lint`) currently fails with a circular JSON structure error due to an incompatibility between `eslint-config-next@16.1.1`, `eslint@9.39.2`, and `@eslint/eslintrc@3.3.3`. This is a pre-existing issue in the locked dependencies. Running `npx eslint .` directly produces the same error.
+
+### Testing
+Run `npx vitest run` for automated tests. Some Convex backend tests have pre-existing failures (validator mismatches from schema changes not yet reflected in test fixtures). The Mux live integration test suite is skipped unless `MUX_LIVE_TEST=1` is set.
+
+### Test account
+Use the Clerk dev-mode test account for authenticated flows: username `testuser`, password `123@abcDJSNEAK` (documented in CLAUDE.md).
