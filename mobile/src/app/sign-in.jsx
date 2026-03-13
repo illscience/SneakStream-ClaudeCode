@@ -43,6 +43,8 @@ export default function SignInScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
+  const [pendingSignUp, setPendingSignUp] = useState(null);
+  const [username, setUsername] = useState("");
   const { refresh } = useFAPIAuth();
 
   useWarmUpBrowser();
@@ -155,7 +157,6 @@ export default function SignInScreen() {
             ?.external_verification_redirect_url;
 
         if (!oauthUrl || !signInId) {
-          console.error("Sign-in create failed:", JSON.stringify(createData).substring(0, 300));
           setErrorMessage("Failed to start sign-in flow");
           return;
         }
@@ -193,7 +194,29 @@ export default function SignInScreen() {
             body: "transfer=true",
           });
           const transferData = await transferResp.json();
+
+          if (transferData?.errors?.length) {
+            setErrorMessage(getErrorMessage(transferData));
+            return;
+          }
+
+          // Handle missing requirements (e.g. username needed)
+          if (transferData?.response?.status === "missing_requirements") {
+            const missingFields = transferData.response.missing_fields || [];
+            if (missingFields.includes("username")) {
+              setPendingSignUp({ id: transferData.response.id });
+              setIsSubmitting(false);
+              setActiveProvider(null);
+              return;
+            }
+          }
+
           sessionId = transferData?.response?.created_session_id;
+
+          if (!sessionId) {
+            setErrorMessage("Account creation failed - please try again");
+            return;
+          }
         }
 
         // Step 6: Refresh auth state and dismiss
@@ -214,6 +237,34 @@ export default function SignInScreen() {
     [isSubmitting, refresh, router]
   );
 
+  const handleCompleteSignUp = useCallback(async () => {
+    if (!pendingSignUp || !username.trim()) return;
+    setIsSubmitting(true);
+    setErrorMessage("");
+    try {
+      const resp = await clerkFetch(`/v1/client/sign_ups/${pendingSignUp.id}`, {
+        method: "PATCH",
+        body: `username=${encodeURIComponent(username.trim())}`,
+      });
+      const data = await resp.json();
+      if (data?.errors?.length) {
+        setErrorMessage(getErrorMessage(data));
+        return;
+      }
+      const sessionId = data?.response?.created_session_id;
+      if (sessionId) {
+        await refresh();
+        router.back();
+      } else {
+        setErrorMessage("Account creation failed - please try again");
+      }
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [pendingSignUp, username, refresh, router]);
+
   const isBusy = isSubmitting || isEmailSubmitting;
 
   return (
@@ -228,157 +279,240 @@ export default function SignInScreen() {
           paddingHorizontal: 20,
         }}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: "#fff", fontSize: 28, fontWeight: "700" }}>
-            Sign in
-          </Text>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={{ color: "#9ACD32", fontSize: 16 }}>Close</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={{ marginTop: 32, gap: 16 }}>
-          <Text style={{ color: "#999", fontSize: 14 }}>
-            Sign in with your email or continue with a provider.
-          </Text>
-
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Email"
-            placeholderTextColor="#666"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!isSubmitting}
-            style={{
-              height: 52,
-              borderRadius: 12,
-              backgroundColor: "#1a1a1a",
-              borderWidth: 1,
-              borderColor: "#333",
-              paddingHorizontal: 16,
-              color: "#fff",
-              fontSize: 16,
-            }}
-          />
-
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Password"
-            placeholderTextColor="#666"
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!isSubmitting}
-            returnKeyType="go"
-            onSubmitEditing={handleEmailPasswordPress}
-            style={{
-              height: 52,
-              borderRadius: 12,
-              backgroundColor: "#1a1a1a",
-              borderWidth: 1,
-              borderColor: "#333",
-              paddingHorizontal: 16,
-              color: "#fff",
-              fontSize: 16,
-            }}
-          />
-
-          <TouchableOpacity
-            onPress={handleEmailPasswordPress}
-            disabled={isBusy}
-            style={{
-              height: 52,
-              borderRadius: 12,
-              backgroundColor: "#9ACD32",
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: isBusy ? 0.6 : 1,
-            }}
-          >
-            {isEmailSubmitting ? (
-              <ActivityIndicator color="#000" />
-            ) : (
-              <Text style={{ color: "#000", fontWeight: "700", fontSize: 16 }}>
-                Sign In
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 12,
-            }}
-          >
-            <View style={{ flex: 1, height: 1, backgroundColor: "#333" }} />
-            <Text style={{ color: "#666", fontSize: 13 }}>or</Text>
-            <View style={{ flex: 1, height: 1, backgroundColor: "#333" }} />
-          </View>
-
-          <TouchableOpacity
-            onPress={() => handleSSOPress("oauth_google")}
-            disabled={isBusy}
-            style={{
-              height: 52,
-              borderRadius: 12,
-              backgroundColor: "#1a1a1a",
-              borderWidth: 1,
-              borderColor: "#333",
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: isBusy ? 0.6 : 1,
-            }}
-          >
-            {activeProvider === "oauth_google" ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={{ color: "#fff", fontWeight: "700" }}>
-                Continue with Google
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          {Platform.OS === "ios" ? (
-            <TouchableOpacity
-              onPress={() => handleSSOPress("oauth_apple")}
-              disabled={isBusy}
+        {pendingSignUp ? (
+          <>
+            <View
               style={{
-                height: 52,
-                borderRadius: 12,
-                backgroundColor: "#1a1a1a",
-                borderWidth: 1,
-                borderColor: "#333",
+                flexDirection: "row",
+                justifyContent: "space-between",
                 alignItems: "center",
-                justifyContent: "center",
-                opacity: isBusy ? 0.6 : 1,
               }}
             >
-              {activeProvider === "oauth_apple" ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={{ color: "#fff", fontWeight: "700" }}>
-                  Continue with Apple
-                </Text>
-              )}
-            </TouchableOpacity>
-          ) : null}
+              <Text style={{ color: "#fff", fontSize: 28, fontWeight: "700" }}>
+                Choose a username
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setPendingSignUp(null);
+                  setUsername("");
+                  setErrorMessage("");
+                }}
+              >
+                <Text style={{ color: "#9ACD32", fontSize: 16 }}>Back</Text>
+              </TouchableOpacity>
+            </View>
 
-          {errorMessage ? (
-            <Text style={{ color: "#DC2626", fontSize: 13 }}>
-              {errorMessage}
-            </Text>
-          ) : null}
-        </View>
+            <View style={{ marginTop: 32, gap: 16 }}>
+              <Text style={{ color: "#999", fontSize: 14 }}>
+                Pick a username to complete your account.
+              </Text>
+
+              <TextInput
+                value={username}
+                onChangeText={setUsername}
+                placeholder="Username"
+                placeholderTextColor="#666"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoFocus
+                editable={!isSubmitting}
+                returnKeyType="done"
+                onSubmitEditing={handleCompleteSignUp}
+                style={{
+                  height: 52,
+                  borderRadius: 12,
+                  backgroundColor: "#1a1a1a",
+                  borderWidth: 1,
+                  borderColor: "#333",
+                  paddingHorizontal: 16,
+                  color: "#fff",
+                  fontSize: 16,
+                }}
+              />
+
+              <TouchableOpacity
+                onPress={handleCompleteSignUp}
+                disabled={isSubmitting || !username.trim()}
+                style={{
+                  height: 52,
+                  borderRadius: 12,
+                  backgroundColor: "#9ACD32",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: isSubmitting || !username.trim() ? 0.6 : 1,
+                }}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <Text style={{ color: "#000", fontWeight: "700", fontSize: 16 }}>
+                    Complete Sign Up
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              {errorMessage ? (
+                <Text style={{ color: "#DC2626", fontSize: 13 }}>
+                  {errorMessage}
+                </Text>
+              ) : null}
+            </View>
+          </>
+        ) : (
+          <>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: "#fff", fontSize: 28, fontWeight: "700" }}>
+                Sign in
+              </Text>
+              <TouchableOpacity onPress={() => router.back()}>
+                <Text style={{ color: "#9ACD32", fontSize: 16 }}>Close</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ marginTop: 32, gap: 16 }}>
+              <Text style={{ color: "#999", fontSize: 14 }}>
+                Sign in with your email or continue with a provider.
+              </Text>
+
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                placeholder="Email"
+                placeholderTextColor="#666"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isSubmitting}
+                style={{
+                  height: 52,
+                  borderRadius: 12,
+                  backgroundColor: "#1a1a1a",
+                  borderWidth: 1,
+                  borderColor: "#333",
+                  paddingHorizontal: 16,
+                  color: "#fff",
+                  fontSize: 16,
+                }}
+              />
+
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Password"
+                placeholderTextColor="#666"
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isSubmitting}
+                returnKeyType="go"
+                onSubmitEditing={handleEmailPasswordPress}
+                style={{
+                  height: 52,
+                  borderRadius: 12,
+                  backgroundColor: "#1a1a1a",
+                  borderWidth: 1,
+                  borderColor: "#333",
+                  paddingHorizontal: 16,
+                  color: "#fff",
+                  fontSize: 16,
+                }}
+              />
+
+              <TouchableOpacity
+                onPress={handleEmailPasswordPress}
+                disabled={isBusy}
+                style={{
+                  height: 52,
+                  borderRadius: 12,
+                  backgroundColor: "#9ACD32",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: isBusy ? 0.6 : 1,
+                }}
+              >
+                {isEmailSubmitting ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <Text style={{ color: "#000", fontWeight: "700", fontSize: 16 }}>
+                    Sign In
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <View style={{ flex: 1, height: 1, backgroundColor: "#333" }} />
+                <Text style={{ color: "#666", fontSize: 13 }}>or</Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: "#333" }} />
+              </View>
+
+              <TouchableOpacity
+                onPress={() => handleSSOPress("oauth_google")}
+                disabled={isBusy}
+                style={{
+                  height: 52,
+                  borderRadius: 12,
+                  backgroundColor: "#1a1a1a",
+                  borderWidth: 1,
+                  borderColor: "#333",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: isBusy ? 0.6 : 1,
+                }}
+              >
+                {activeProvider === "oauth_google" ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={{ color: "#fff", fontWeight: "700" }}>
+                    Continue with Google
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              {Platform.OS === "ios" ? (
+                <TouchableOpacity
+                  onPress={() => handleSSOPress("oauth_apple")}
+                  disabled={isBusy}
+                  style={{
+                    height: 52,
+                    borderRadius: 12,
+                    backgroundColor: "#1a1a1a",
+                    borderWidth: 1,
+                    borderColor: "#333",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: isBusy ? 0.6 : 1,
+                  }}
+                >
+                  {activeProvider === "oauth_apple" ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={{ color: "#fff", fontWeight: "700" }}>
+                      Continue with Apple
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              ) : null}
+
+              {errorMessage ? (
+                <Text style={{ color: "#DC2626", fontSize: 13 }}>
+                  {errorMessage}
+                </Text>
+              ) : null}
+            </View>
+          </>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
