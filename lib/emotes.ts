@@ -70,6 +70,20 @@ export const EMOTES: Emote[] = [
   { id: "image62.png", src: "/emotes/image62.png", alt: "Emote 62" },
   { id: "image63.png", src: "/emotes/image63.png", alt: "Emote 63" },
   { id: "image64.png", src: "/emotes/image64.png", alt: "Emote 64" },
+  { id: "image65.png", src: "/emotes/image65.png", alt: "Emote 65" },
+  { id: "image66.png", src: "/emotes/image66.png", alt: "Emote 66" },
+  { id: "image67.png", src: "/emotes/image67.png", alt: "Emote 67" },
+  { id: "image68.png", src: "/emotes/image68.png", alt: "Emote 68" },
+  { id: "image69.png", src: "/emotes/image69.png", alt: "Emote 69" },
+  { id: "image70.png", src: "/emotes/image70.png", alt: "Emote 70" },
+  { id: "image71.png", src: "/emotes/image71.png", alt: "Emote 71" },
+  { id: "image72.png", src: "/emotes/image72.png", alt: "Emote 72" },
+  { id: "image73.png", src: "/emotes/image73.png", alt: "Emote 73" },
+  { id: "image74.png", src: "/emotes/image74.png", alt: "Emote 74" },
+  { id: "image75.png", src: "/emotes/image75.png", alt: "Emote 75" },
+  { id: "image76.png", src: "/emotes/image76.png", alt: "Emote 76" },
+  { id: "image77.png", src: "/emotes/image77.png", alt: "Emote 77" },
+  { id: "image78.png", src: "/emotes/image78.png", alt: "Emote 78" },
 ];
 
 export const EMOTE_BY_ID = Object.fromEntries(

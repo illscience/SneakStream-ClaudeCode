@@ -56,7 +56,7 @@ const CRATE_PURCHASE_PATTERN = /^:crate_purchase:(.+)$/;
 const AUCTION_PATTERN = /^:auction:(.+)$/;
 const EMOTE_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
 const DEFAULT_EMOTE_BASE_URL = "https://www.dreaminaudio.xyz";
-const EMOTE_IDS = Array.from({ length: 65 }, (_, index) => `image${index}.png`);
+const EMOTE_IDS = Array.from({ length: 79 }, (_, index) => `image${index}.png`);
 const MAX_CHAT_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;
 
 const GIF_URL_PATTERN =
