@@ -19,7 +19,10 @@ WebBrowser.maybeCompleteAuthSession();
 const getErrorMessage = (error) => {
   if (!error) return "Sign in failed";
   if (typeof error === "string") return error;
-  if (error?.errors?.[0]?.message) return error.errors[0].message;
+  if (error?.errors?.[0]) {
+    const e = error.errors[0];
+    return e.long_message || e.message || e.code || "Sign in failed";
+  }
   if (error?.message) return error.message;
   return "Sign in failed";
 };
@@ -151,12 +154,18 @@ export default function SignInScreen() {
           return;
         }
 
+        if (createData?.errors?.length) {
+          setErrorMessage(getErrorMessage(createData));
+          return;
+        }
+
         const signInId = createData?.response?.id;
         const oauthUrl =
           createData?.response?.first_factor_verification
             ?.external_verification_redirect_url;
 
         if (!oauthUrl || !signInId) {
+          console.error("[SSO] Unexpected create response:", JSON.stringify(createData).substring(0, 500));
           setErrorMessage("Failed to start sign-in flow");
           return;
         }
