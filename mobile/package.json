@@ -58,6 +58,7 @@
     "expo-notifications": "~0.32.16",
     "expo-paste-input": "^0.1.8",
     "expo-router": "~6.0.21",
+    "expo-screen-orientation": "~9.0.8",
     "expo-secure-store": "~15.0.8",
     "expo-sensors": "~15.0.8",
     "expo-sharing": "~14.0.8",
