@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -37,6 +37,17 @@ const useWarmUpBrowser = () => {
   }, []);
 };
 
+const inputStyle = {
+  height: 52,
+  borderRadius: 12,
+  backgroundColor: "#1a1a1a",
+  borderWidth: 1,
+  borderColor: "#333",
+  paddingHorizontal: 16,
+  color: "#fff",
+  fontSize: 16,
+};
+
 export default function SignInScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -46,8 +57,9 @@ export default function SignInScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
-  const [pendingSignUp, setPendingSignUp] = useState(null);
+  const [pendingSignUpId, setPendingSignUpId] = useState(null);
   const [username, setUsername] = useState("");
+  const usernameRef = useRef("");
   const { refresh } = useFAPIAuth();
 
   useWarmUpBrowser();
@@ -213,9 +225,7 @@ export default function SignInScreen() {
           if (transferData?.response?.status === "missing_requirements") {
             const missingFields = transferData.response.missing_fields || [];
             if (missingFields.includes("username")) {
-              setPendingSignUp({ id: transferData.response.id });
-              setIsSubmitting(false);
-              setActiveProvider(null);
+              setPendingSignUpId(transferData.response.id);
               return;
             }
           }
@@ -247,13 +257,14 @@ export default function SignInScreen() {
   );
 
   const handleCompleteSignUp = useCallback(async () => {
-    if (!pendingSignUp || !username.trim()) return;
+    const trimmedUsername = usernameRef.current.trim();
+    if (!pendingSignUpId || !trimmedUsername) return;
     setIsSubmitting(true);
     setErrorMessage("");
     try {
-      const resp = await clerkFetch(`/v1/client/sign_ups/${pendingSignUp.id}`, {
+      const resp = await clerkFetch(`/v1/client/sign_ups/${pendingSignUpId}`, {
         method: "PATCH",
-        body: `username=${encodeURIComponent(username.trim())}`,
+        body: `username=${encodeURIComponent(trimmedUsername)}`,
       });
       const data = await resp.json();
       if (data?.errors?.length) {
@@ -272,7 +283,7 @@ export default function SignInScreen() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [pendingSignUp, username, refresh, router]);
+  }, [pendingSignUpId, refresh, router]);
 
   const isBusy = isSubmitting || isEmailSubmitting;
 
@@ -288,7 +299,7 @@ export default function SignInScreen() {
           paddingHorizontal: 20,
         }}
       >
-        {pendingSignUp ? (
+        {pendingSignUpId ? (
           <>
             <View
               style={{
@@ -302,8 +313,9 @@ export default function SignInScreen() {
               </Text>
               <TouchableOpacity
                 onPress={() => {
-                  setPendingSignUp(null);
+                  setPendingSignUpId(null);
                   setUsername("");
+                  usernameRef.current = "";
                   setErrorMessage("");
                 }}
               >
@@ -318,7 +330,10 @@ export default function SignInScreen() {
 
               <TextInput
                 value={username}
-                onChangeText={setUsername}
+                onChangeText={(text) => {
+                  setUsername(text);
+                  usernameRef.current = text;
+                }}
                 placeholder="Username"
                 placeholderTextColor="#666"
                 autoCapitalize="none"
@@ -327,16 +342,7 @@ export default function SignInScreen() {
                 editable={!isSubmitting}
                 returnKeyType="done"
                 onSubmitEditing={handleCompleteSignUp}
-                style={{
-                  height: 52,
-                  borderRadius: 12,
-                  backgroundColor: "#1a1a1a",
-                  borderWidth: 1,
-                  borderColor: "#333",
-                  paddingHorizontal: 16,
-                  color: "#fff",
-                  fontSize: 16,
-                }}
+                style={inputStyle}
               />
 
               <TouchableOpacity
@@ -398,16 +404,7 @@ export default function SignInScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 editable={!isSubmitting}
-                style={{
-                  height: 52,
-                  borderRadius: 12,
-                  backgroundColor: "#1a1a1a",
-                  borderWidth: 1,
-                  borderColor: "#333",
-                  paddingHorizontal: 16,
-                  color: "#fff",
-                  fontSize: 16,
-                }}
+                style={inputStyle}
               />
 
               <TextInput
@@ -421,16 +418,7 @@ export default function SignInScreen() {
                 editable={!isSubmitting}
                 returnKeyType="go"
                 onSubmitEditing={handleEmailPasswordPress}
-                style={{
-                  height: 52,
-                  borderRadius: 12,
-                  backgroundColor: "#1a1a1a",
-                  borderWidth: 1,
-                  borderColor: "#333",
-                  paddingHorizontal: 16,
-                  color: "#fff",
-                  fontSize: 16,
-                }}
+                style={inputStyle}
               />
 
               <TouchableOpacity
