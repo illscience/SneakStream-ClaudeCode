@@ -1,65 +1,59 @@
 import { LinearGradient } from "expo-linear-gradient";
-import { Eye, Film, Play, Clock } from "lucide-react-native";
-import { ScrollView, Text, View } from "react-native";
+import { Image } from "expo-image";
+import { Eye, Film, Play, Clock, Lock } from "lucide-react-native";
+import { ScrollView, Text, View, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useContext, useEffect, useRef } from "react";
+import { useQuery } from "convex/react";
+import { useRouter } from "expo-router";
+import { api } from "convex/_generated/api";
 import { ScrollToTopContext } from "./_layout";
 
-const PAST_SHOWS = [
-  {
-    id: "show-1",
-    title: "Warehouse Set Vol. 1",
-    duration: "1:12:34",
-    views: "24.6K",
-    date: "Jan 28, 2026",
-    colors: ["#E91E63", "#673AB7", "#2196F3"],
-  },
-  {
-    id: "show-2",
-    title: "Sunrise Grooves Session",
-    duration: "58:20",
-    views: "18.1K",
-    date: "Jan 21, 2026",
-    colors: ["#FF9800", "#F44336", "#E91E63"],
-  },
-  {
-    id: "show-3",
-    title: "Chicago Basement Nights",
-    duration: "1:34:09",
-    views: "31.9K",
-    date: "Jan 14, 2026",
-    colors: ["#4CAF50", "#00BCD4", "#3F51B5"],
-  },
-  {
-    id: "show-4",
-    title: "Underground Classics Mix",
-    duration: "47:55",
-    views: "12.4K",
-    date: "Jan 7, 2026",
-    colors: ["#9C27B0", "#E91E63", "#FF5722"],
-  },
-  {
-    id: "show-5",
-    title: "Late Night Vinyl Session",
-    duration: "1:05:42",
-    views: "15.7K",
-    date: "Dec 31, 2025",
-    colors: ["#009688", "#3F51B5", "#673AB7"],
-  },
-  {
-    id: "show-6",
-    title: "New Year Warmup Set",
-    duration: "39:11",
-    views: "9.3K",
-    date: "Dec 24, 2025",
-    colors: ["#FFC107", "#FF9800", "#F44336"],
-  },
-];
+// Deterministic gradient colors from video ID hash
+function getGradientColors(id) {
+  const palettes = [
+    ["#E91E63", "#673AB7", "#2196F3"],
+    ["#FF9800", "#F44336", "#E91E63"],
+    ["#4CAF50", "#00BCD4", "#3F51B5"],
+    ["#9C27B0", "#E91E63", "#FF5722"],
+    ["#009688", "#3F51B5", "#673AB7"],
+    ["#FFC107", "#FF9800", "#F44336"],
+  ];
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  }
+  return palettes[Math.abs(hash) % palettes.length];
+}
+
+function formatDuration(seconds) {
+  if (!seconds) return "";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function formatViewCount(count) {
+  if (count == null) return "0";
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
+  return String(count);
+}
+
+function formatDate(timestamp) {
+  const d = new Date(timestamp);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
 
 export default function PastShowsScreen() {
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef(null);
   const scrollToTopSignal = useContext(ScrollToTopContext);
+  const router = useRouter();
+
+  const recordings = useQuery(api.videos.getRecentRecordings);
 
   useEffect(() => {
     if (scrollToTopSignal.route === "past-shows" && scrollViewRef.current) {
@@ -93,91 +87,203 @@ export default function PastShowsScreen() {
             </Text>
           </View>
           <Text style={{ color: "#888", fontSize: 14 }}>
-            {PAST_SHOWS.length} recordings from previous live sessions
+            {recordings === undefined
+              ? "Loading..."
+              : recordings.length === 0
+                ? "No past shows yet"
+                : `${recordings.length} recording${recordings.length === 1 ? "" : "s"} from previous live sessions`}
           </Text>
         </View>
 
-        {PAST_SHOWS.map((show) => (
-          <View
-            key={show.id}
-            style={{
-              marginHorizontal: 20,
-              marginBottom: 16,
-              backgroundColor: "#1a1a1a",
-              borderRadius: 16,
-              overflow: "hidden",
-              borderWidth: 1,
-              borderColor: "#222",
-            }}
-          >
-            <LinearGradient
-              colors={show.colors}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+        {recordings === undefined ? (
+          <View style={{ paddingTop: 40, alignItems: "center" }}>
+            <ActivityIndicator size="large" color="#9ACD32" />
+          </View>
+        ) : recordings.length === 0 ? (
+          <View style={{ paddingTop: 40, alignItems: "center" }}>
+            <Film size={48} color="#333" />
+            <Text style={{ color: "#555", fontSize: 15, marginTop: 12 }}>
+              No past shows yet
+            </Text>
+          </View>
+        ) : (
+          recordings.map((video) => (
+            <TouchableOpacity
+              key={video._id}
+              activeOpacity={0.8}
+              onPress={() => router.push(`/watch/${video._id}`)}
               style={{
-                height: 170,
-                justifyContent: "center",
-                alignItems: "center",
+                marginHorizontal: 20,
+                marginBottom: 16,
+                backgroundColor: "#1a1a1a",
+                borderRadius: 16,
+                overflow: "hidden",
+                borderWidth: 1,
+                borderColor: "#222",
               }}
             >
-              <View
-                style={{
-                  position: "absolute",
-                  top: 12,
-                  right: 12,
-                  backgroundColor: "rgba(0,0,0,0.65)",
-                  borderRadius: 999,
-                  paddingHorizontal: 10,
-                  paddingVertical: 5,
-                }}
-              >
-                <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
-                  {show.duration}
+              {/* Thumbnail or gradient fallback */}
+              {video.thumbnailUrl ? (
+                <View style={{ height: 170, position: "relative" }}>
+                  <Image
+                    source={{ uri: video.thumbnailUrl }}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="cover"
+                  />
+                  {/* Duration badge */}
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: 12,
+                      right: 12,
+                      backgroundColor: "rgba(0,0,0,0.65)",
+                      borderRadius: 999,
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                    }}
+                  >
+                    <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
+                      {formatDuration(video.duration)}
+                    </Text>
+                  </View>
+                  {/* PPV badge */}
+                  {video.visibility === "ppv" && (
+                    <View
+                      style={{
+                        position: "absolute",
+                        top: 12,
+                        left: 12,
+                        backgroundColor: "rgba(154,205,50,0.9)",
+                        borderRadius: 8,
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        flexDirection: "row",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Lock size={10} color="#000" />
+                      <Text style={{ color: "#000", fontSize: 11, fontWeight: "700", marginLeft: 4 }}>
+                        {video.price ? `$${(video.price / 100).toFixed(2)}` : "PPV"}
+                      </Text>
+                    </View>
+                  )}
+                  {/* Play icon center */}
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 58,
+                        height: 58,
+                        borderRadius: 29,
+                        backgroundColor: "rgba(0,0,0,0.45)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Play size={24} color="#fff" fill="#fff" />
+                    </View>
+                  </View>
+                </View>
+              ) : (
+                <LinearGradient
+                  colors={getGradientColors(video._id)}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={{
+                    height: 170,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                >
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: 12,
+                      right: 12,
+                      backgroundColor: "rgba(0,0,0,0.65)",
+                      borderRadius: 999,
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                    }}
+                  >
+                    <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
+                      {formatDuration(video.duration)}
+                    </Text>
+                  </View>
+                  {video.visibility === "ppv" && (
+                    <View
+                      style={{
+                        position: "absolute",
+                        top: 12,
+                        left: 12,
+                        backgroundColor: "rgba(154,205,50,0.9)",
+                        borderRadius: 8,
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        flexDirection: "row",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Lock size={10} color="#000" />
+                      <Text style={{ color: "#000", fontSize: 11, fontWeight: "700", marginLeft: 4 }}>
+                        {video.price ? `$${(video.price / 100).toFixed(2)}` : "PPV"}
+                      </Text>
+                    </View>
+                  )}
+                  <View
+                    style={{
+                      width: 58,
+                      height: 58,
+                      borderRadius: 29,
+                      backgroundColor: "rgba(0,0,0,0.45)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Play size={24} color="#fff" fill="#fff" />
+                  </View>
+                </LinearGradient>
+              )}
+
+              <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
+                <Text
+                  style={{
+                    color: "#fff",
+                    fontSize: 17,
+                    fontWeight: "700",
+                    marginBottom: 10,
+                  }}
+                  numberOfLines={2}
+                >
+                  {video.title}
                 </Text>
-              </View>
 
-              <View
-                style={{
-                  width: 58,
-                  height: 58,
-                  borderRadius: 29,
-                  backgroundColor: "rgba(0,0,0,0.45)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Play size={24} color="#fff" fill="#fff" />
-              </View>
-            </LinearGradient>
+                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
+                  <Eye size={14} color="#9ACD32" />
+                  <Text style={{ color: "#9ACD32", fontSize: 13, marginLeft: 6 }}>
+                    {formatViewCount(video.viewCount)} views
+                  </Text>
+                </View>
 
-            <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
-              <Text
-                style={{
-                  color: "#fff",
-                  fontSize: 17,
-                  fontWeight: "700",
-                  marginBottom: 10,
-                }}
-              >
-                {show.title}
-              </Text>
-
-              <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}>
-                <Eye size={14} color="#9ACD32" />
-                <Text style={{ color: "#9ACD32", fontSize: 13, marginLeft: 6 }}>
-                  {show.views} views
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Clock size={14} color="#777" />
+                  <Text style={{ color: "#777", fontSize: 13, marginLeft: 6 }}>
+                    {formatDate(video._creationTime)}
+                  </Text>
+                </View>
               </View>
-
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <Clock size={14} color="#777" />
-                <Text style={{ color: "#777", fontSize: 13, marginLeft: 6 }}>
-                  {show.date}
-                </Text>
-              </View>
-            </View>
-          </View>
-        ))}
+            </TouchableOpacity>
+          ))
+        )}
       </ScrollView>
     </View>
   );

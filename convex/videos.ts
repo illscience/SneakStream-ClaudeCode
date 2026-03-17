@@ -435,6 +435,41 @@ export const migrateVideosToSharedLibrary = mutation({
   },
 });
 
+// Get recent livestream recordings (≥30 min, max 6, for Past Shows tab)
+export const getRecentRecordings = query({
+  handler: async (ctx) => {
+    const allVideos = await ctx.db
+      .query("videos")
+      .withIndex("by_user", (q) => q.eq("userId", ADMIN_LIBRARY_USER_ID))
+      .order("desc")
+      .collect();
+
+    const filtered = allVideos
+      .filter(
+        (v) =>
+          v.status === "ready" &&
+          v.duration !== undefined &&
+          v.duration >= 1800
+      )
+      .slice(0, 6);
+
+    return filtered.map((v) => ({
+      _id: v._id,
+      _creationTime: v._creationTime,
+      title: v.title,
+      thumbnailUrl: v.thumbnailUrl,
+      duration: v.duration,
+      viewCount: v.viewCount,
+      visibility: v.visibility,
+      price: v.price,
+      playbackUrl: v.playbackUrl,
+      playbackId: v.playbackId,
+      provider: v.provider,
+      linkedLivestreamId: v.linkedLivestreamId,
+    }));
+  },
+});
+
 // Get single video by ID
 export const getVideo = query({
   args: { videoId: v.id("videos") },

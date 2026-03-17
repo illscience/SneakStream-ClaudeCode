@@ -67,6 +67,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="sign-in" options={{ presentation: "modal" }} />
+      <Stack.Screen name="watch/[videoId]" options={{ headerShown: false }} />
       <Stack.Screen name="+not-found" />
     </Stack>
   );
