@@ -45,6 +45,7 @@ import AuctionPanel from "@/components/AuctionPanel";
 import ClipShareButton from "@/components/ClipShareButton";
 import { ScrollToTopContext } from "./_layout";
 import { ActivePlayerContext } from "../_layout";
+import LivestreamPPVGate from "@/components/LivestreamPPVGate";
 import LogoShimmer from "@/components/LogoShimmer";
 import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
@@ -239,6 +240,23 @@ const inferImageMimeType = (asset, fallbackMimeType) => {
   if (uriWithoutQuery.endsWith(".jpg") || uriWithoutQuery.endsWith(".jpeg")) return "image/jpeg";
   return fallbackMimeType || "image/jpeg";
 };
+
+function StreamPPVWrapper({ activeStream, videoHeight, children }) {
+  const router = useRouter();
+  const onRequireSignIn = useCallback(() => router.push("/sign-in"), [router]);
+  if (activeStream?.visibility !== "ppv" || !activeStream?._id) return children;
+  return (
+    <LivestreamPPVGate
+      livestreamId={activeStream._id}
+      title={activeStream.title}
+      price={activeStream.price ?? 999}
+      videoHeight={videoHeight}
+      onRequireSignIn={onRequireSignIn}
+    >
+      {children}
+    </LivestreamPPVGate>
+  );
+}
 
 export default function Index() {
   const insets = useSafeAreaInsets();
@@ -945,6 +963,7 @@ export default function Index() {
         </View>
 
         {/* Video Section */}
+        <StreamPPVWrapper activeStream={activeStream} videoHeight={videoHeight}>
         <View
           style={{
             marginHorizontal: 20,
@@ -1090,7 +1109,7 @@ export default function Index() {
             </View>
           </View>
         </View>
-
+        </StreamPPVWrapper>
         {/* Now Playing Section */}
         <View
           style={{

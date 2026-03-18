@@ -4,9 +4,10 @@ import { Eye, Film, Play, Clock, Lock } from "lucide-react-native";
 import { ScrollView, Text, View, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useContext, useEffect, useRef } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useConvexAuth } from "convex/react";
 import { useRouter } from "expo-router";
 import { api } from "convex/_generated/api";
+import { useFAPIAuth } from "@/lib/fapi-auth";
 import { ScrollToTopContext } from "./_layout";
 
 // Deterministic gradient colors from video ID hash
@@ -53,7 +54,23 @@ export default function PastShowsScreen() {
   const scrollToTopSignal = useContext(ScrollToTopContext);
   const router = useRouter();
 
+  const { userId } = useFAPIAuth();
+  const { isAuthenticated: isConvexAuthenticated } = useConvexAuth();
+
   const recordings = useQuery(api.videos.getRecentRecordings);
+  const userEntitlements = useQuery(
+    api.entitlements.getUserEntitlements,
+    isConvexAuthenticated && userId ? { userId } : "skip",
+  );
+
+  // Build a set of video/livestream IDs the user has access to
+  const entitledIds = new Set();
+  if (userEntitlements) {
+    for (const e of userEntitlements) {
+      if (e.videoId) entitledIds.add(e.videoId);
+      if (e.livestreamId) entitledIds.add(e.livestreamId);
+    }
+  }
 
   useEffect(() => {
     if (scrollToTopSignal.route === "past-shows" && scrollViewRef.current) {
@@ -107,7 +124,12 @@ export default function PastShowsScreen() {
             </Text>
           </View>
         ) : (
-          recordings.map((video) => (
+          recordings.map((video) => {
+            const isUnlocked = video.visibility === "ppv" && (
+              entitledIds.has(video._id) ||
+              (video.linkedLivestreamId && entitledIds.has(video.linkedLivestreamId))
+            );
+            return (
             <TouchableOpacity
               key={video._id}
               activeOpacity={0.8}
@@ -153,17 +175,18 @@ export default function PastShowsScreen() {
                         position: "absolute",
                         top: 12,
                         left: 12,
-                        backgroundColor: "rgba(154,205,50,0.9)",
+                        backgroundColor: isUnlocked ? "rgba(154,205,50,0.9)" : "rgba(0,0,0,0.7)",
                         borderRadius: 8,
                         paddingHorizontal: 8,
                         paddingVertical: 4,
                         flexDirection: "row",
                         alignItems: "center",
+                        ...(isUnlocked ? {} : { borderWidth: 1, borderColor: "rgba(154,205,50,0.5)" }),
                       }}
                     >
-                      <Lock size={10} color="#000" />
-                      <Text style={{ color: "#000", fontSize: 11, fontWeight: "700", marginLeft: 4 }}>
-                        {video.price ? `$${(video.price / 100).toFixed(2)}` : "PPV"}
+                      <Lock size={10} color={isUnlocked ? "#000" : "#9ACD32"} />
+                      <Text style={{ color: isUnlocked ? "#000" : "#9ACD32", fontSize: 11, fontWeight: "700", marginLeft: 4 }}>
+                        {isUnlocked ? "UNLOCKED" : video.price ? `$${(video.price / 100).toFixed(2)}` : "PPV"}
                       </Text>
                     </View>
                   )}
@@ -225,17 +248,18 @@ export default function PastShowsScreen() {
                         position: "absolute",
                         top: 12,
                         left: 12,
-                        backgroundColor: "rgba(154,205,50,0.9)",
+                        backgroundColor: isUnlocked ? "rgba(154,205,50,0.9)" : "rgba(0,0,0,0.7)",
                         borderRadius: 8,
                         paddingHorizontal: 8,
                         paddingVertical: 4,
                         flexDirection: "row",
                         alignItems: "center",
+                        ...(isUnlocked ? {} : { borderWidth: 1, borderColor: "rgba(154,205,50,0.5)" }),
                       }}
                     >
-                      <Lock size={10} color="#000" />
-                      <Text style={{ color: "#000", fontSize: 11, fontWeight: "700", marginLeft: 4 }}>
-                        {video.price ? `$${(video.price / 100).toFixed(2)}` : "PPV"}
+                      <Lock size={10} color={isUnlocked ? "#000" : "#9ACD32"} />
+                      <Text style={{ color: isUnlocked ? "#000" : "#9ACD32", fontSize: 11, fontWeight: "700", marginLeft: 4 }}>
+                        {isUnlocked ? "UNLOCKED" : video.price ? `$${(video.price / 100).toFixed(2)}` : "PPV"}
                       </Text>
                     </View>
                   )}
@@ -282,7 +306,8 @@ export default function PastShowsScreen() {
                 </View>
               </View>
             </TouchableOpacity>
-          ))
+          );})
+
         )}
       </ScrollView>
     </View>

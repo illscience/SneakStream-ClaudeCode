@@ -11,28 +11,16 @@ import { requireAdmin } from "./adminSettings";
  *
  * Safe to delete this file after the migration is complete.
  */
-/** Dev-only: patch a single video's visibility + price. Remove after migration. */
-export const patchVideo = mutation({
-  args: {
-    videoId: v.id("videos"),
-    visibility: v.string(),
-    price: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const patch: Record<string, unknown> = { visibility: args.visibility };
-    if (args.price !== undefined) patch.price = args.price;
-    await ctx.db.patch(args.videoId, patch);
-    return { patched: args.videoId };
-  },
-});
-
 export const fix = mutation({
   args: { dryRun: v.boolean() },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
 
-    const videos = await ctx.db.query("videos").collect();
-    const linkedVideos = videos.filter((v) => v.linkedLivestreamId);
+    const linkedVideos = await ctx.db
+      .query("videos")
+      .withIndex("by_linkedLivestream")
+      .filter((q) => q.neq(q.field("linkedLivestreamId"), undefined))
+      .collect();
 
     const results: Array<{
       videoId: string;
