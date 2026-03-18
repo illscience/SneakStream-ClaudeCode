@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -36,6 +36,7 @@ import { api } from "convex/_generated/api";
 import { useFAPIAuth } from "@/lib/fapi-auth";
 import { authorizedWebFetch, getWebUrl } from "@/lib/web-api";
 import ClipShareButton from "@/components/ClipShareButton";
+import { ActivePlayerContext } from "../_layout";
 
 const parseJsonResponse = async (response) => {
   try {
@@ -66,6 +67,13 @@ export default function WatchScreen() {
   const insets = useSafeAreaInsets();
   const { isSignedIn, userId, sessionId } = useFAPIAuth();
   const { isAuthenticated: isConvexAuthenticated } = useConvexAuth();
+  const { setActivePlayer } = useContext(ActivePlayerContext);
+
+  // Claim audio on mount, release back to home on unmount
+  useEffect(() => {
+    setActivePlayer("watch");
+    return () => setActivePlayer("home");
+  }, [setActivePlayer]);
 
   const [playbackUrl, setPlaybackUrl] = useState(null);
   const [urlError, setUrlError] = useState(null);

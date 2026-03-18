@@ -40,6 +40,7 @@ export type UpsertMuxRecordingArgs = {
   duration?: number;
   status?: string;
   visibility?: string;
+  price?: number;
   liveStreamId?: string;
   linkedLivestreamId?: Id<"livestreams">;
   traceId?: string;
@@ -293,6 +294,9 @@ export async function upsertMuxRecording(
     if (args.visibility && args.visibility !== existing.visibility) {
       updates.visibility = args.visibility;
     }
+    if (args.price !== undefined && args.price !== existing.price) {
+      updates.price = args.price;
+    }
     if (args.uploadedBy && !existing.uploadedBy) {
       updates.uploadedBy = args.uploadedBy;
     }
@@ -437,6 +441,7 @@ export async function upsertMuxRecording(
     duration: args.duration,
     status: normalizedStatus,
     visibility: args.visibility || "public",
+    ...(args.price !== undefined ? { price: args.price } : {}),
     viewCount: 0,
     heartCount: 0,
     ...(args.linkedLivestreamId ? { linkedLivestreamId: args.linkedLivestreamId } : {}),

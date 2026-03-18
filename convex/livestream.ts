@@ -348,7 +348,8 @@ export const endStream = mutation({
         playbackId: args.playbackId,
         duration: args.duration,
         status: args.playbackId ? "ready" : "processing",
-        visibility: "public",
+        visibility: stream.visibility || "public",
+        ...(stream.price !== undefined ? { price: stream.price } : {}),
         liveStreamId: stream.streamId,
         linkedLivestreamId: args.streamId,
       });

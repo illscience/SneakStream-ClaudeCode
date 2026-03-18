@@ -1,6 +1,6 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 // ClerkProvider removed — its SDK has a race condition with our FAPI JWT storage
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ConvexProviderWithAuth } from "convex/react";
@@ -9,6 +9,13 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { FAPIAuthProvider, clerkFetch, useFAPIAuth } from "@/lib/fapi-auth";
 
 SplashScreen.preventAutoHideAsync();
+
+// Tracks which screen owns audio playback: "home" or "watch"
+// Now Playing tab should pause when activePlayer !== "home"
+export const ActivePlayerContext = createContext({
+  activePlayer: "home",
+  setActivePlayer: () => {},
+});
 
 function useConvexFAPIAuth() {
   const { isLoaded, isSignedIn, sessionId } = useFAPIAuth();
@@ -74,12 +81,21 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  const [activePlayer, setActivePlayer] = useState("home");
+
+  const activePlayerValue = useMemo(
+    () => ({ activePlayer, setActivePlayer }),
+    [activePlayer],
+  );
+
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <FAPIAuthProvider>
           <ConvexAuthProvider>
-            <RootLayoutNav />
+            <ActivePlayerContext.Provider value={activePlayerValue}>
+              <RootLayoutNav />
+            </ActivePlayerContext.Provider>
           </ConvexAuthProvider>
         </FAPIAuthProvider>
       </GestureHandlerRootView>

@@ -44,6 +44,7 @@ import { useFAPIAuth } from "@/lib/fapi-auth";
 import AuctionPanel from "@/components/AuctionPanel";
 import ClipShareButton from "@/components/ClipShareButton";
 import { ScrollToTopContext } from "./_layout";
+import { ActivePlayerContext } from "../_layout";
 import LogoShimmer from "@/components/LogoShimmer";
 import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
@@ -406,6 +407,20 @@ export default function Index() {
     player.play();
   });
 
+  // Pause/resume when another screen takes over audio
+  const { activePlayer } = useContext(ActivePlayerContext);
+  const activePlayerRef = useRef(activePlayer);
+  useEffect(() => { activePlayerRef.current = activePlayer; }, [activePlayer]);
+
+  useEffect(() => {
+    if (!player) return;
+    if (activePlayer !== "home") {
+      player.pause();
+    } else {
+      player.play();
+    }
+  }, [player, activePlayer]);
+
   // Sync muted state to player
   useEffect(() => {
     if (!player) return;
@@ -463,6 +478,9 @@ export default function Index() {
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       if (nextAppState === "active" && player) {
+        // Don't resume if another screen owns audio (e.g. watch screen after PPV purchase)
+        if (activePlayerRef.current !== "home") return;
+
         // For live streams, just resume playback — no timeline sync needed
         if (isLive) {
           player.play();

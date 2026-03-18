@@ -22,6 +22,7 @@ import type * as crons from "../crons.js";
 import type * as debugTrace from "../debugTrace.js";
 import type * as entitlements from "../entitlements.js";
 import type * as events from "../events.js";
+import type * as fixRecordingVisibility from "../fixRecordingVisibility.js";
 import type * as follows from "../follows.js";
 import type * as livestream from "../livestream.js";
 import type * as notifications from "../notifications.js";
@@ -52,6 +53,7 @@ declare const fullApi: ApiFromModules<{
   debugTrace: typeof debugTrace;
   entitlements: typeof entitlements;
   events: typeof events;
+  fixRecordingVisibility: typeof fixRecordingVisibility;
   follows: typeof follows;
   livestream: typeof livestream;
   notifications: typeof notifications;
